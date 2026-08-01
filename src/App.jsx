@@ -304,7 +304,7 @@ function MaintenancePage() {
 // LANDING PAGE
 // ═══════════════════════════════════════════════════════════
 function Landing() {
-  const { secciones, badges, nav, toast } = useContext(Ctx);
+  const { secciones, badges, nav, toast, design } = useContext(Ctx);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState(null);
   const [showPopup, setShowPopup] = useState(null);
@@ -337,7 +337,7 @@ function Landing() {
 
       {/* Hero */}
       <div className="hero">
-        <h1>{useContext(Ctx).design.nombre_tienda || 'Mi Tienda'}</h1>
+        <h1>{design.nombre_tienda || 'Mi Tienda'}</h1>
         <p>Buscá productos en todas las secciones</p>
         <div className="search-box" style={{ maxWidth: 500, margin: '20px auto' }}>
           <input placeholder="Buscar productos..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} />
@@ -408,15 +408,16 @@ function SectionPage() {
   const [metodosPago, setMetodosPago] = useState([]);
   const [dolarBlue, setDolarBlue] = useState(null);
 
-  if (!sec) return <Landing />;
-
-  const esMayorista = sec.slug === 'mayorista';
-  const esDropshipping = sec.slug === 'dropshipping';
+  const esMayorista = sec?.slug === 'mayorista';
+  const esDropshipping = sec?.slug === 'dropshipping';
 
   useEffect(() => {
+    if (!sec) return;
     api.trackSectionView(sec.nombre);
     loadData();
-  }, [sec.id, catFiltro, busqueda, pagina]);
+  }, [sec?.id, catFiltro, busqueda, pagina]);
+
+  if (!sec) return <Landing />;
 
   const loadData = async () => {
     try {
