@@ -175,7 +175,7 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className="app">
+      <div className={`app tpl-${design.plantilla || 'kicks'}`}>
         <Header />
         <main className="main-content">{renderPage()}</main>
         <Footer />
@@ -1992,10 +1992,11 @@ function AdminDiseno() {
 
   const guardar = async () => {
     try { await api.updateDesign(des); setDesign(des); toast('Diseño guardado');
-      // Apply colors
+      // Apply colors + font
       if (des.color_primario) document.documentElement.style.setProperty('--primary', des.color_primario);
       if (des.color_secundario) document.documentElement.style.setProperty('--primary-dark', des.color_secundario);
-      if (des.color_acento) document.documentElement.style.setProperty('--warning', des.color_acento);
+      if (des.color_acento) { document.documentElement.style.setProperty('--warning', des.color_acento); document.documentElement.style.setProperty('--accent', des.color_acento); }
+      if (des.fuente) document.documentElement.style.setProperty('--font', `'${des.fuente}', sans-serif`);
     } catch (e) { toast(e.message, 'error'); }
   };
 
