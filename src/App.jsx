@@ -198,9 +198,9 @@ function Header() {
 
   return (
     <>
-      {/* Promo banner — clean */}
-      <div style={{ background: '#4A69E2', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-        {design.promo_banner || 'Envíos a todo el país — Comprá seguro'}
+      {/* Top banner */}
+      <div style={{ background: '#1a1a1a', color: '#fff', textAlign: 'center', padding: '7px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.04em' }}>
+        {design.promo_banner || 'Envíos a todo el país · Atención por WhatsApp · Garantía en todos los productos'}
       </div>
       <header className="header">
         <div className="header-inner">
@@ -384,27 +384,43 @@ function Landing() {
         </div>
       )}
 
-      {/* HERO — light, clean, product-focused */}
-      <div style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e7eafb 100%)', borderRadius: 24, margin: '16px 20px', padding: '48px 32px 40px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: 600, margin: '0 auto' }}>
-          {design.logo_url && <img src={design.logo_url} alt="" style={{ height: 48, marginBottom: 16, borderRadius: 12 }} />}
-          <h1 style={{ color: '#232321', fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 8 }}>
-            {design.nombre_tienda || 'MI TIENDA'}
-          </h1>
-          <p style={{ color: '#626262', fontSize: 15, fontWeight: 500, marginBottom: 24 }}>
-            Encontrá lo que necesitás en todas las secciones
-          </p>
-          <div style={{ display: 'flex', gap: 8, maxWidth: 520, margin: '0 auto' }}>
-            <input placeholder="🔍 ¿Qué estás buscando?" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
-              style={{ flex: 1, background: '#fff', border: '2px solid #E7E7E3', color: '#232321', borderRadius: 12, padding: '14px 18px', fontSize: 15, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} />
-            <button onClick={doSearch} style={{ background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 24px', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>BUSCAR</button>
+      {/* ── HERO ── compact, no giant empty space */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 0' }}>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ flex: '1 1 340px', minWidth: 280 }}>
+            {design.logo_url && <img src={design.logo_url} alt="" style={{ height: 40, marginBottom: 12, borderRadius: 8 }} />}
+            <h1 style={{ fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#1a1a1a', marginBottom: 8 }}>
+              {design.nombre_tienda || 'Mi Tienda'}
+            </h1>
+            <p style={{ color: '#6b7280', fontSize: 15, marginBottom: 20, lineHeight: 1.5 }}>
+              Repuestos, accesorios y herramientas para celulares. Comprá online con envío a todo el país.
+            </p>
+            <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
+              <input placeholder="Buscar por marca, modelo o repuesto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
+                style={{ flex: 1, background: '#fff', border: '1.5px solid #d1d5db', color: '#1a1a1a', borderRadius: 10, padding: '12px 16px', fontSize: 14 }} />
+              <button onClick={doSearch} style={{ background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>Buscar</button>
+            </div>
+          </div>
+          {/* Quick stats / trust */}
+          <div style={{ flex: '1 1 300px', display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {[
+              { icon: '🚚', title: 'Envío a todo el país', sub: 'Andreani y más' },
+              { icon: '🔧', title: 'Repuestos de calidad', sub: 'Garantía incluida' },
+              { icon: '💬', title: 'Atención directa', sub: 'WhatsApp' },
+            ].map((t, i) => (
+              <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px', flex: '1 1 140px', minWidth: 140, textAlign: 'center' }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{t.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>{t.title}</div>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>{t.sub}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Search results */}
       {results && (
-        <div style={{ maxWidth: 800, margin: '0 auto 30px', padding: '0 16px' }}>
+        <div style={{ maxWidth: 800, margin: '20px auto 30px', padding: '0 16px' }}>
           {results.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No se encontraron resultados</p> : (
             results.resultados.map(r => (
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
@@ -412,11 +428,11 @@ function Landing() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                   {r.productos.map(p => (
                     <div key={p.id} className="card" style={{ padding: 16, cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'center' }} onClick={() => nav('section', r.seccion.id)}>
-                      {p.imagen ? <img src={p.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📦</div>}
+                      {p.imagen ? <img src={p.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#9ca3af' }}>📱</div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre || p.modelo}</div>
-                        <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>{p.categoria}</div>
-                        {p.precio_base > 0 && <div style={{ fontWeight: 900, fontSize: 15, marginTop: 2 }}>{fmtARS(p.precio_base)}</div>}
+                        <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>{p.categoria}</div>
+                        {p.precio_base > 0 && <div style={{ fontWeight: 800, fontSize: 14, marginTop: 2 }}>{fmtARS(p.precio_base)}</div>}
                       </div>
                     </div>
                   ))}
@@ -428,31 +444,46 @@ function Landing() {
         </div>
       )}
 
-      {/* KICKS Section cards */}
-      <div className="sections-grid">
-        {secciones.filter(s => s.visible !== false).map(s => (
-          <div key={s.id} className="section-card" onClick={() => nav('section', s.id)}>
-            {s.imagen ? <img src={s.imagen} alt="" /> : (
-              <div style={{ height: 200, background: 'linear-gradient(135deg, #4A69E2 0%, #232321 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                <span style={{ fontSize: 56, opacity: 0.3 }}>📦</span>
-                <div style={{ position: 'absolute', bottom: 16, left: 16 }}>
-                  <span style={{ background: '#FFA52F', color: '#232321', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>VER SECCIÓN</span>
+      {/* ── SECCIONES ── clean cards, no gradient+emoji */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: '#1a1a1a' }}>Nuestras secciones</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {secciones.filter(s => s.visible !== false).map(s => {
+            const iconos = { local: '🏪', deposito: '📦', dropshipping: '🚀', mayorista: '🏭' };
+            const colores = { local: '#059669', deposito: '#2563eb', dropshipping: '#7c3aed', mayorista: '#d97706' };
+            const slug = s.slug || s.nombre.toLowerCase();
+            const color = colores[slug] || '#2563eb';
+            const icono = iconos[slug] || '🛒';
+            return (
+              <div key={s.id} onClick={() => nav('section', s.id)}
+                style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: 0, cursor: 'pointer', transition: 'all 0.2s', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}>
+                {s.imagen ? <img src={s.imagen} alt="" style={{ width: '100%', height: 160, objectFit: 'cover' }} /> : (
+                  <div style={{ height: 120, background: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #f3f4f6' }}>
+                    <span style={{ fontSize: 48 }}>{icono}</span>
+                  </div>
+                )}
+                <div style={{ padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <h3 style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{s.nombre}</h3>
+                    <span style={{ fontSize: 11, background: `${color}15`, color, padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>Ver →</span>
+                  </div>
+                  {s.descripcion && <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{s.descripcion}</p>}
+                  {s.requiere_aprobacion && <span style={{ display: 'inline-block', marginTop: 8, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', padding: '3px 10px', borderRadius: 6 }}>🔒 Requiere aprobación</span>}
                 </div>
               </div>
-            )}
-            <div className="section-card-body">
-              <h2>{s.nombre}</h2>
-              <p>{s.descripcion}</p>
-              {s.requiere_aprobacion && <span className="badge-tag">🔒 Acceso con aprobación</span>}
-            </div>
-          </div>
-        ))}
+            );
+          })}
+        </div>
       </div>
 
       {/* Badges */}
       {badges.length > 0 && (
-        <div className="badges-row">
-          {badges.map(b => <div key={b.id} className="badge-item"><span className="badge-icon">{b.icono}</span><span>{b.texto}</span></div>)}
+        <div style={{ maxWidth: 900, margin: '0 auto 32px', padding: '0 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '16px 24px' }}>
+            {badges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#4b5563' }}><span style={{ fontSize: 18 }}>{b.icono}</span><span>{b.texto}</span></div>)}
+          </div>
         </div>
       )}
     </div>
