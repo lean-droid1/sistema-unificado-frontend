@@ -177,7 +177,7 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className="app tpl-kicks">
+      <div className={`app${dark ? ' dark' : ''}`}>
         <Header />
         <main className="main-content">{renderPage()}</main>
         <Footer />
@@ -876,6 +876,7 @@ function AccountPanel() {
 // ═══════════════════════════════════════════════════════════
 function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav } = useContext(Ctx);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const tabs = [
     { id: 'dashboard', label: '📊 Dashboard' },
@@ -897,23 +898,33 @@ function AdminPanel() {
 
   return (
     <div className="admin-layout">
-      {/* Sidebar */}
-      <aside className="admin-sidebar">
+      {/* Mobile hamburger bar */}
+      <div className="admin-mobile-bar">
+        <button className="admin-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          {sidebarOpen ? '✕' : '☰'} <span style={{ fontSize: 14, fontWeight: 700 }}>Panel Admin</span>
+        </button>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{tabs.find(t => t.id === adminTab)?.label}</span>
+      </div>
+
+      {/* Sidebar — desktop always visible, mobile toggle */}
+      <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 12, width: '100%' }}>← Volver a tienda</button>
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>Panel Admin</h3>
-        {/* Section selector */}
         <select value={adminSeccion} onChange={e => setAdminSeccion(e.target.value)} style={{ width: '100%', marginBottom: 12, padding: 6 }}>
           <option value="all">Todas las secciones</option>
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
         <nav className="admin-nav">
           {tabs.map(t => (
-            <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => setAdminTab(t.id)}>
+            <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => { setAdminTab(t.id); setSidebarOpen(false); }}>
               {t.label}
             </button>
           ))}
         </nav>
       </aside>
+
+      {/* Overlay mobile */}
+      {sidebarOpen && <div className="admin-overlay" onClick={() => setSidebarOpen(false)} />}
 
       {/* Content */}
       <div className="admin-content">
