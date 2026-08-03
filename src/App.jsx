@@ -514,31 +514,31 @@ function SectionPage() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      {/* BACK BUTTON */}
-      <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 16 }}>← Volver al inicio</button>
+    <div style={{ padding: '24px 20px', maxWidth: 1200, margin: '0 auto' }}>
+      {/* KICKS back + title */}
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>← VOLVER AL INICIO</button>
 
-      <h2>{sec.nombre}</h2>
-      {sec.descripcion && <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>{sec.descripcion}</p>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontWeight: 900, fontSize: 28, letterSpacing: '-0.03em' }}>{sec.nombre}</h2>
+          {sec.descripcion && <p style={{ color: '#959595', fontSize: 14, marginTop: 4 }}>{sec.descripcion}</p>}
+        </div>
+        {esMayorista && dolarBlue && (
+          <div style={{ background: '#232321', color: '#FFA52F', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}>💵 USD Blue: ${fmt(dolarBlue)}</div>
+        )}
+      </div>
 
       {/* Badges de sección */}
       {secBadges.length > 0 && (
-        <div className="badges-row" style={{ marginBottom: 16 }}>
-          {secBadges.map(b => <div key={b.id} className="badge-item"><span>{b.icono}</span><span>{b.texto}</span></div>)}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {secBadges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#E7EAFB', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: '#4A69E2' }}><span>{b.icono}</span><span>{b.texto}</span></div>)}
         </div>
       )}
 
-      {/* Dolar blue for mayorista */}
-      {esMayorista && dolarBlue && (
-        <div className="card" style={{ padding: '8px 16px', marginBottom: 16, display: 'inline-block' }}>
-          💵 Dólar Blue: <strong>${fmt(dolarBlue)}</strong>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        <input placeholder="Buscar en esta sección..." value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 200 }} />
-        <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }}>
+      {/* KICKS filters row */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        <input placeholder="¿Qué buscás?" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 200, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontSize: 14, fontWeight: 500 }} />
+        <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontWeight: 600, fontSize: 13, minWidth: 180, background: '#fff' }}>
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -573,8 +573,8 @@ function SectionPage() {
                   {esMayorista && dolarBlue && precio.final > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>USD {fmt(Math.round(precio.final / dolarBlue * 100) / 100)}</div>}
                 </div>
                 {!sinStock && (
-                  <button className="btn btn-primary btn-sm" onClick={() => addToCart(sec.id, p, 1, precio.final)}>
-                    Agregar 🛒
+                  <button onClick={(e) => { e.stopPropagation(); addToCart(sec.id, p, 1, precio.final); }} style={{ width: '100%', padding: '10px', marginTop: 8, background: '#232321', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', transition: 'background 0.2s' }}>
+                    AGREGAR 🛒
                   </button>
                 )}
               </div>
@@ -636,51 +636,55 @@ function CartPage() {
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 700, margin: '0 auto' }}>
-      <button className="btn btn-outline btn-sm" onClick={() => nav('section', sec.id)} style={{ marginBottom: 16 }}>← Volver a {sec.nombre}</button>
-      <h2>🛒 Carrito — {sec.nombre}</h2>
+    <div style={{ padding: '24px 20px', maxWidth: 700, margin: '0 auto' }}>
+      <button onClick={() => nav('section', sec.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 12 }}>← VOLVER A {sec.nombre.toUpperCase()}</button>
+      <h2 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em', marginBottom: 20 }}>🛒 Carrito — {sec.nombre}</h2>
 
       {items.length === 0 ? (
-        <div className="empty-state"><h3>Carrito vacío</h3><button className="btn btn-primary" onClick={() => nav('section', sec.id)}>Ver productos</button></div>
+        <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🛒</div>
+          <h3 style={{ fontWeight: 800, marginBottom: 12 }}>Tu carrito está vacío</h3>
+          <button onClick={() => nav('section', sec.id)} style={{ background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 800, fontSize: 14, cursor: 'pointer', textTransform: 'uppercase' }}>VER PRODUCTOS</button>
+        </div>
       ) : (
         <>
           {items.map(i => (
-            <div key={i.id} className="card" style={{ padding: 12, marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
-              {i.imagen && <img src={i.imagen} alt="" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />}
-              <div style={{ flex: 1 }}>
-                <strong>{i.nombre || i.modelo}</strong>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{i.categoria} — {fmtARS(i.precio_unitario || i.precio_base)} c/u</div>
+            <div key={i.id} className="card" style={{ padding: 16, marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center', borderRadius: 16 }}>
+              {i.imagen ? <img src={i.imagen} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 12 }} /> : <div style={{ width: 56, height: 56, borderRadius: 12, background: '#F3F3F3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📦</div>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{i.nombre || i.modelo}</div>
+                <div style={{ fontSize: 12, color: '#959595' }}>{i.categoria} — {fmtARS(i.precio_unitario || i.precio_base)} c/u</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button className="btn btn-outline btn-sm" onClick={() => updateCartQty(sec.id, i.id, i.qty - 1)}>-</button>
-                <span style={{ padding: '0 8px', fontWeight: 700 }}>{i.qty}</span>
-                <button className="btn btn-outline btn-sm" onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)}>+</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '2px solid #E7E7E3', borderRadius: 10, overflow: 'hidden' }}>
+                <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1)} style={{ background: 'none', border: 'none', padding: '8px 12px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>−</button>
+                <span style={{ padding: '8px 10px', fontWeight: 800, fontSize: 14, borderLeft: '1px solid #E7E7E3', borderRight: '1px solid #E7E7E3' }}>{i.qty}</span>
+                <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)} style={{ background: 'none', border: 'none', padding: '8px 12px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>+</button>
               </div>
-              <span style={{ fontWeight: 700, minWidth: 80, textAlign: 'right' }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
-              <button className="btn btn-danger btn-sm" onClick={() => removeFromCart(sec.id, i.id)}>✕</button>
+              <span style={{ fontWeight: 900, minWidth: 80, textAlign: 'right', fontSize: 15 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
+              <button onClick={() => removeFromCart(sec.id, i.id)} style={{ background: '#E74040', color: '#fff', border: 'none', borderRadius: 10, width: 36, height: 36, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>✕</button>
             </div>
           ))}
 
           {/* Coupon */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <input placeholder="Código de cupón" value={cupon} onChange={e => setCupon(e.target.value.toUpperCase())} style={{ flex: 1 }} />
-            <button className="btn btn-outline" onClick={aplicarCupon}>Aplicar</button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+            <input placeholder="Código de cupón" value={cupon} onChange={e => setCupon(e.target.value.toUpperCase())} style={{ flex: 1, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3' }} />
+            <button onClick={aplicarCupon} style={{ background: '#232321', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 20px', fontWeight: 800, fontSize: 13, cursor: 'pointer', textTransform: 'uppercase' }}>APLICAR</button>
           </div>
 
           {/* Payment methods */}
           {metodos.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <label className="form-label">Método de pago</label>
+            <div style={{ marginTop: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 8, display: 'block' }}>MÉTODO DE PAGO</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {metodos.map(m => (
-                  <button key={m.id} className={`btn ${metodoPago === m.nombre ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setMetodoPago(m.nombre)}>
+                  <button key={m.id} onClick={() => setMetodoPago(m.nombre)}
+                    style={{ padding: '10px 16px', borderRadius: 12, border: metodoPago === m.nombre ? '2px solid #4A69E2' : '2px solid #E7E7E3', background: metodoPago === m.nombre ? '#E7EAFB' : '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: metodoPago === m.nombre ? '#4A69E2' : '#232321' }}>
                     {m.icono} {m.nombre}
                   </button>
                 ))}
               </div>
               {metodoPago && metodos.find(m => m.nombre === metodoPago)?.instrucciones && (
-                <div className="card" style={{ padding: 12, marginTop: 8, fontSize: 13 }}>
+                <div className="card" style={{ padding: 12, marginTop: 8, fontSize: 13, borderRadius: 12 }}>
                   {metodos.find(m => m.nombre === metodoPago).instrucciones}
                 </div>
               )}
@@ -688,20 +692,20 @@ function CartPage() {
           )}
 
           {/* Notes */}
-          <div style={{ marginTop: 16 }}>
-            <textarea placeholder="Notas del pedido (opcional)" value={notas} onChange={e => setNotas(e.target.value)} rows={2} style={{ width: '100%' }} />
+          <div style={{ marginTop: 20 }}>
+            <textarea placeholder="Notas del pedido (opcional)" value={notas} onChange={e => setNotas(e.target.value)} rows={2} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3' }} />
           </div>
 
-          {/* Totals */}
-          <div className="card" style={{ padding: 16, marginTop: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><strong>{fmtARS(subtotal)}</strong></div>
-            {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}><span>Descuento</span><strong>-{fmtARS(descuento)}</strong></div>}
-            <hr />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18 }}><span>Total</span><strong>{fmtARS(total)}</strong></div>
+          {/* KICKS Totals */}
+          <div style={{ background: '#232321', borderRadius: 20, padding: 24, marginTop: 20, color: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14 }}><span style={{ color: 'rgba(255,255,255,0.6)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
+            {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14 }}><span style={{ color: '#FFA52F' }}>Descuento</span><span style={{ fontWeight: 700, color: '#FFA52F' }}>-{fmtARS(descuento)}</span></div>}
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
           </div>
 
-          <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: '14px' }} onClick={checkout}>
-            Confirmar pedido
+          <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 16, background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>
+            CONFIRMAR PEDIDO
           </button>
         </>
       )}
@@ -737,79 +741,78 @@ function ProductDetailPage() {
   }).filter(Boolean);
 
   return (
-    <div style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
-      <button className="btn btn-outline btn-sm" onClick={() => nav('section', sec?.id)} style={{ marginBottom: 16 }}>← Volver a {sec?.nombre || 'productos'}</button>
+    <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
+      <button onClick={() => nav('section', sec?.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 12 }}>← VOLVER A {(sec?.nombre || 'PRODUCTOS').toUpperCase()}</button>
 
       {/* Breadcrumb */}
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-        <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> / <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> / {p.categoria && <><span>{p.categoria}</span> / </>}
-        <span style={{ color: 'var(--text)' }}>{p.nombre || p.modelo}</span>
+      <div style={{ fontSize: 12, color: '#959595', marginBottom: 20, fontWeight: 600 }}>
+        <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> <span style={{ color: '#E7E7E3' }}>/</span> <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <><span style={{ color: '#E7E7E3' }}>/</span> <span>{p.categoria}</span></>} <span style={{ color: '#E7E7E3' }}>/</span>
+        <span style={{ color: '#232321', fontWeight: 700 }}>{p.nombre || p.modelo}</span>
       </div>
 
       <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
         {/* Image */}
         <div style={{ flex: '1 1 350px', minWidth: 280 }}>
-          <div style={{ background: 'var(--border-light)', borderRadius: 'var(--radius)', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, position: 'relative' }}>
-            {p.envio_gratis && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 12, left: 12 }}>ENVÍO GRATIS</span>}
-            {precioOriginal && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 12, right: 12 }}>{p.descuentoPct}% OFF</span>}
-            {p.imagen ? <img src={p.imagen} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain', borderRadius: 8 }} /> : <span style={{ fontSize: 64, color: 'var(--text-muted)' }}>📦</span>}
+          <div className="product-detail-img-wrap" style={{ background: 'linear-gradient(135deg, #F3F3F3 0%, #E7EAFB 100%)', borderRadius: 24, padding: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, position: 'relative' }}>
+            {p.envio_gratis && <span style={{ position: 'absolute', top: 16, left: 16, background: '#4A69E2', color: '#fff', padding: '4px 12px', borderRadius: 8, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>ENVÍO GRATIS</span>}
+            {precioOriginal && <span style={{ position: 'absolute', top: 16, right: 16, background: '#FFA52F', color: '#232321', padding: '4px 12px', borderRadius: 8, fontSize: 10, fontWeight: 800 }}>{p.descuentoPct}% OFF</span>}
+            {p.imagen ? <img src={p.imagen} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain' }} /> : <span style={{ fontSize: 72, opacity: 0.3 }}>📦</span>}
           </div>
         </div>
 
         {/* Info */}
         <div style={{ flex: '1 1 350px', minWidth: 280 }}>
-          <div className="product-cat" style={{ marginBottom: 4 }}>{p.categoria}</div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16, lineHeight: 1.2 }}>{p.nombre || p.modelo}</h1>
+          <div style={{ fontSize: 11, color: '#4A69E2', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 6 }}>{p.categoria}</div>
+          <h1 style={{ fontSize: 28, fontWeight: 900, marginBottom: 16, lineHeight: 1.15, letterSpacing: '-0.03em' }}>{p.nombre || p.modelo}</h1>
 
           {/* Price */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 20 }}>
             {precioOriginal ? (
-              <div><span className="price-old" style={{ fontSize: 18 }}>{fmtARS(precioOriginal)}</span> <span className="price-new" style={{ fontSize: 28 }}>{fmtARS(precioFinal)}</span></div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ textDecoration: 'line-through', color: '#959595', fontSize: 18 }}>{fmtARS(precioOriginal)}</span>
+                <span style={{ fontWeight: 900, fontSize: 32, color: '#232321', letterSpacing: '-0.02em' }}>{fmtARS(precioFinal)}</span>
+              </div>
             ) : (
-              <span className="price-new" style={{ fontSize: 28 }}>{fmtARS(precioFinal)}</span>
+              <span style={{ fontWeight: 900, fontSize: 32, color: '#232321', letterSpacing: '-0.02em' }}>{fmtARS(precioFinal)}</span>
             )}
           </div>
 
           {/* Precios por método de pago */}
           {preciosMetodo.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ background: '#F3F3F3', borderRadius: 12, padding: 16, marginBottom: 20 }}>
               {preciosMetodo.map(pm => (
-                <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>{pm.icono}</span>
-                  <strong>{fmtARS(pm.precio)}</strong>
-                  <span style={{ color: 'var(--success)', fontSize: 12 }}>pagando con {pm.nombre} -{pm.descuento}%</span>
+                  <strong style={{ fontWeight: 800 }}>{fmtARS(pm.precio)}</strong>
+                  <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>con {pm.nombre} −{pm.descuento}%</span>
                 </div>
               ))}
             </div>
           )}
 
-          {p.envio_gratis && <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>🚚 ¡Envío gratis!</p>}
+          {p.envio_gratis && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#4A69E2' }}>🚚 ¡Envío gratis!</div>}
 
-          {p.descripcion && <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>{p.descripcion}</p>}
-          {p.compatibilidad && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
+          {p.descripcion && <p style={{ color: '#626262', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>{p.descripcion}</p>}
+          {p.compatibilidad && <p style={{ fontSize: 13, color: '#959595', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
 
           {/* Stock */}
           {sinStock ? (
-            <div style={{ padding: '12px 16px', background: 'var(--danger-light)', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', fontWeight: 600, marginBottom: 16 }}>Sin stock</div>
+            <div style={{ padding: '14px 20px', background: '#fee2e2', borderRadius: 12, color: '#E74040', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }}>SIN STOCK</div>
           ) : (
-            <>
-              {/* Qty + Add to cart */}
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', border: '2px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: 'none', border: 'none', padding: '10px 14px', fontSize: 18, fontWeight: 700 }}>−</button>
-                  <span style={{ padding: '10px 16px', fontWeight: 700, fontSize: 16, minWidth: 40, textAlign: 'center' }}>{qty}</span>
-                  <button onClick={() => setQty(qty + 1)} style={{ background: 'none', border: 'none', padding: '10px 14px', fontSize: 18, fontWeight: 700 }}>+</button>
-                </div>
-                <button className="btn btn-primary" style={{ flex: 1, padding: '12px 24px', fontSize: 15 }} onClick={() => { addToCart(sec.id, p, qty, precioFinal); toast('Agregado al carrito'); }}>
-                  Agregar al Carrito
-                </button>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', border: '2px solid #E7E7E3', borderRadius: 12, overflow: 'hidden' }}>
+                <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>−</button>
+                <span style={{ padding: '12px 16px', fontWeight: 800, fontSize: 16, minWidth: 40, textAlign: 'center', borderLeft: '1px solid #E7E7E3', borderRight: '1px solid #E7E7E3' }}>{qty}</span>
+                <button onClick={() => setQty(qty + 1)} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>+</button>
               </div>
-            </>
+              <button onClick={() => { addToCart(sec.id, p, qty, precioFinal); toast('Agregado al carrito'); }} style={{ flex: 1, padding: '14px 24px', background: '#232321', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>
+                AGREGAR AL CARRITO
+              </button>
+            </div>
           )}
 
-          {/* Info extra */}
-          {p.sku && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>SKU: {p.sku}</p>}
-          {p.notas && <div className="card" style={{ padding: 12, marginTop: 12, fontSize: 13 }}>📝 {p.notas}</div>}
+          {p.sku && <p style={{ fontSize: 11, color: '#959595', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SKU: {p.sku}</p>}
+          {p.notas && <div style={{ background: '#fff3d4', borderRadius: 12, padding: 14, marginTop: 12, fontSize: 13, color: '#232321' }}>📝 {p.notas}</div>}
         </div>
       </div>
     </div>
@@ -889,22 +892,27 @@ function AccountPanel() {
   };
 
   return (
-    <div style={{ maxWidth: 500, margin: '40px auto', padding: '0 16px' }}>
-      <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 16 }}>← Volver</button>
-      <h2>Mi cuenta</h2>
-      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <p><strong>{user.nombre}</strong> {user.nombre_fantasia && `(${user.nombre_fantasia})`}</p>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>@{user.usuario} • {user.email} • {user.telefono}</p>
-        {userLista && <p style={{ fontSize: 13 }}>Lista: <strong style={{ color: userLista.color }}>{userLista.nombre}</strong></p>}
+    <div style={{ maxWidth: 500, margin: '48px auto', padding: '0 16px' }}>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
+      <h2 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em', marginBottom: 20 }}>Mi cuenta</h2>
+
+      <div style={{ background: '#232321', borderRadius: 20, padding: 20, marginBottom: 24, color: '#fff' }}>
+        <div style={{ fontWeight: 800, fontSize: 18 }}>{user.nombre} {user.nombre_fantasia && <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>({user.nombre_fantasia})</span>}</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>@{user.usuario} • {user.email} • {user.telefono}</div>
+        {userLista && <div style={{ marginTop: 8 }}><span style={{ background: userLista.color || '#4A69E2', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{userLista.nombre}</span></div>}
       </div>
-      <div className="form-group"><label className="form-label">Nombre</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Teléfono</label><input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Email</label><input value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Dirección</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Nombre de fantasía</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Nueva contraseña (vacío = no cambiar)</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div>
-      <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
-      <button className="btn btn-outline" style={{ width: '100%', marginTop: 8 }} onClick={handleLogout}>Cerrar sesión</button>
+
+      <div className="card" style={{ padding: 24, borderRadius: 20 }}>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>NOMBRE</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>TELÉFONO</label><input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>EMAIL</label><input value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>DIRECCIÓN</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
+
+        <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
+        <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: '#E74040', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
+      </div>
     </div>
   );
 }
