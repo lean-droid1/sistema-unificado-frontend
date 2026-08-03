@@ -257,7 +257,13 @@ function Header() {
 function Footer() {
   const { design, redesSociales } = useContext(Ctx);
   const activas = redesSociales.filter(r => r.activo && r.url);
-  const labels = { facebook: '📘', instagram: '📸', tiktok: '🎵', whatsapp_canal: '💬', whatsapp_grupo: '💬' };
+  const labels = {
+    facebook: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>,
+    instagram: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>,
+    tiktok: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>,
+    whatsapp_canal: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>,
+    whatsapp_grupo: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  };
   return (
     <footer className="footer">
       {activas.length > 0 && (
@@ -682,11 +688,17 @@ function CartPage() {
 function LoginPage() {
   const { handleLogin, nav } = useContext(Ctx);
   const [form, setForm] = useState({ usuario: '', password: '' });
+  const [showPass, setShowPass] = useState(false);
   return (
     <div style={{ maxWidth: 400, margin: '40px auto', padding: '0 16px' }}>
       <h2>Iniciar sesión</h2>
       <div className="form-group"><label className="form-label">Usuario</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Contraseña</label><input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin(form.usuario, form.password)} /></div>
+      <div className="form-group"><label className="form-label">Contraseña</label>
+        <div style={{ position: 'relative' }}>
+          <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin(form.usuario, form.password)} style={{ paddingRight: 40 }} />
+          <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+        </div>
+      </div>
       <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={() => handleLogin(form.usuario, form.password)}>Ingresar</button>
       <p style={{ textAlign: 'center', marginTop: 12 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }}>Registrate</a></p>
     </div>
@@ -877,14 +889,17 @@ function AdminProductos() {
   const [showPriceAdj, setShowPriceAdj] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
+  const [secFiltro, setSecFiltro] = useState(adminSeccion);
+
   const load = async () => {
-    const secId = adminSeccion !== 'all' ? adminSeccion : undefined;
+    const secId = secFiltro !== 'all' ? secFiltro : undefined;
     const data = await api.getProductos({ seccion_id: secId, q: busq, page: pagina, limit: 50 });
     setProductos(data.productos || []); setTotal(data.total || 0);
     const cats = await api.getCategorias(secId).catch(() => []);
     setCategorias(cats || []);
   };
-  useEffect(() => { load(); }, [adminSeccion, busq, pagina]);
+  useEffect(() => { setSecFiltro(adminSeccion); }, [adminSeccion]);
+  useEffect(() => { load(); }, [secFiltro, busq, pagina]);
 
   const inlineUpdate = async (id, field, value) => {
     try { await api.updateProducto(id, { [field]: value }); } catch (e) { toast(e.message, 'error'); }
@@ -901,7 +916,13 @@ function AdminProductos() {
           <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}>📜 Historial</button>
         </div>
       </div>
-      <input placeholder="Buscar productos..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ marginBottom: 12, width: '100%' }} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <select value={secFiltro} onChange={e => { setSecFiltro(e.target.value); setPagina(1); }} style={{ width: 200 }}>
+          <option value="all">📦 Todas las secciones</option>
+          {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+        </select>
+        <input placeholder="Buscar productos..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ flex: 1 }} />
+      </div>
 
       {/* Product table */}
       <div style={{ overflowX: 'auto' }}>
@@ -1077,7 +1098,8 @@ function ImportModal({ onClose }) {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState('');
   const [reemplazar, setReemplazar] = useState(false);
-  const secId = adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id;
+  const [importSecId, setImportSecId] = useState(adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id);
+  const secId = importSecId;
 
   const parseFile = async (f) => {
     setFile(f);
@@ -1115,6 +1137,11 @@ function ImportModal({ onClose }) {
         <div className="modal-header"><span className="modal-title">Importar productos (Excel/CSV)</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body">
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Subí un archivo Excel o CSV. Se detectan automáticamente las columnas de categoría, modelo/nombre y precio.</p>
+          <div className="form-group"><label className="form-label">Sección destino</label>
+            <select value={importSecId} onChange={e => setImportSecId(Number(e.target.value))}>
+              {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </div>
           <input type="file" accept=".xlsx,.xls,.csv" onChange={e => { if (e.target.files[0]) parseFile(e.target.files[0]); }} />
           {data && (
             <div style={{ marginTop: 12 }}>
@@ -1925,7 +1952,7 @@ function AdminRedes() {
   const [redes, setRedes] = useState([]);
   useEffect(() => { api.getRedesSociales().then(setRedes); }, []);
   const guardar = async () => { try { await api.updateRedesSociales(redes); toast('Redes guardadas'); } catch (e) { toast(e.message, 'error'); } };
-  const labels = { facebook: '📘 Facebook', instagram: '📸 Instagram', tiktok: '🎵 TikTok', whatsapp_canal: '💬 Canal WhatsApp', whatsapp_grupo: '💬 Grupo WhatsApp' };
+  const labels = { facebook: '📘 Facebook', instagram: '📸 Instagram', tiktok: '🎵 TikTok', whatsapp_canal: '📱 Canal WhatsApp', whatsapp_grupo: '👥 Grupo WhatsApp' };
   return (
     <div>
       <h3 style={{ marginBottom: 12 }}>Redes sociales</h3>
@@ -1977,6 +2004,62 @@ function AdminDiseno() {
   return (
     <div>
       <h3 style={{ marginBottom: 12 }}>Diseño y personalización</h3>
+
+      {/* PLANTILLAS */}
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h4 style={{ marginBottom: 12 }}>🎨 Plantillas</h4>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Elegí un estilo visual para tu tienda. Después podés personalizar los colores.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+          {[
+            { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', colors: { p: '#4A69E2', s: '#232321', a: '#FFA52F' }, font: 'Archivo' },
+            { id: 'minimal', name: 'Minimal', desc: 'Limpio y elegante', colors: { p: '#18181b', s: '#71717a', a: '#f59e0b' }, font: 'Inter' },
+            { id: 'tech', name: 'Tech', desc: 'Para electrónica', colors: { p: '#0ea5e9', s: '#0c4a6e', a: '#22c55e' }, font: 'Space Grotesk' },
+            { id: 'classic', name: 'Classic', desc: 'Profesional neutro', colors: { p: '#2563eb', s: '#1e40af', a: '#f59e0b' }, font: 'Open Sans' },
+            { id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', colors: { p: '#a78bfa', s: '#1e1b4b', a: '#f472b6' }, font: 'Outfit' },
+          ].map(t => (
+            <div key={t.id} onClick={() => setDes({ ...des, plantilla: t.id, color_primario: t.colors.p, color_secundario: t.colors.s, color_acento: t.colors.a, fuente: t.font })}
+              className="card" style={{ padding: 12, cursor: 'pointer', border: des.plantilla === t.id ? '2px solid var(--primary)' : '1px solid var(--border)', textAlign: 'center' }}>
+              <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8 }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.colors.p }} />
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.colors.s }} />
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.colors.a }} />
+              </div>
+              <strong style={{ fontSize: 13 }}>{t.name}</strong>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.desc}</div>
+              {des.plantilla === t.id && <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>✓ Activa</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* PALETAS DE COLORES PREDEFINIDAS */}
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h4 style={{ marginBottom: 12 }}>🎯 Paletas de colores</h4>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aplicá una paleta rápida o editá los colores individuales abajo.</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { name: 'Azul Pro', p: '#2563eb', s: '#1e40af', a: '#f59e0b' },
+            { name: 'Verde Negocio', p: '#16a34a', s: '#15803d', a: '#eab308' },
+            { name: 'Rojo Audaz', p: '#dc2626', s: '#991b1b', a: '#f97316' },
+            { name: 'Violeta', p: '#7c3aed', s: '#5b21b6', a: '#f472b6' },
+            { name: 'Naranja', p: '#ea580c', s: '#c2410c', a: '#facc15' },
+            { name: 'Turquesa', p: '#0891b2', s: '#155e75', a: '#34d399' },
+            { name: 'Rosa', p: '#db2777', s: '#9d174d', a: '#fbbf24' },
+            { name: 'Negro Gold', p: '#18181b', s: '#27272a', a: '#d4a853' },
+          ].map(pal => (
+            <button key={pal.name} onClick={() => setDes({ ...des, color_primario: pal.p, color_secundario: pal.s, color_acento: pal.a })}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 12 }}>
+              <div style={{ display: 'flex', gap: 2 }}>
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: pal.p }} />
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: pal.s }} />
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: pal.a }} />
+              </div>
+              {pal.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="card" style={{ padding: 16 }}>
         <div className="form-group"><label className="form-label">Nombre de la tienda</label><input value={des.nombre_tienda || ''} onChange={e => setDes({ ...des, nombre_tienda: e.target.value })} /></div>
         <div className="form-row">
