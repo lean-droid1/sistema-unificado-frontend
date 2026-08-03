@@ -170,6 +170,7 @@ export default function App() {
       case 'register': return <RegisterPage />;
       case 'admin': return isAdmin ? <AdminPanel /> : <Landing />;
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
+      case 'info': return <InfoPage />;
       case 'maintenance': return <MaintenancePage />;
       default: return <Landing />;
     }
@@ -197,9 +198,9 @@ function Header() {
 
   return (
     <>
-      {/* KICKS promo banner */}
-      <div style={{ background: '#232321', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        <span style={{ color: '#FFA52F' }}>★</span> {design.promo_banner || 'Envíos a todo el país — Comprá seguro'} <span style={{ color: '#FFA52F' }}>★</span>
+      {/* Promo banner — clean */}
+      <div style={{ background: '#4A69E2', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        {design.promo_banner || 'Envíos a todo el país — Comprá seguro'}
       </div>
       <header className="header">
         <div className="header-inner">
@@ -256,8 +257,10 @@ function Header() {
 // FOOTER
 // ═══════════════════════════════════════════════════════════
 function Footer() {
-  const { design, redesSociales } = useContext(Ctx);
+  const { design, redesSociales, nav } = useContext(Ctx);
   const activas = redesSociales.filter(r => r.activo && r.url);
+  const [infoPags, setInfoPags] = useState([]);
+  useEffect(() => { api.getPaginas().then(setInfoPags).catch(() => {}); }, []);
   const labels = {
     facebook: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>,
     instagram: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>,
@@ -274,6 +277,11 @@ function Footer() {
         {activas.length > 0 && (
           <div className="footer-social" style={{ marginBottom: 20 }}>
             {activas.map(r => <a key={r.id} href={r.url} target="_blank" rel="noopener" style={{ color: 'rgba(255,255,255,0.6)' }}>{labels[r.tipo] || '🔗'} {r.tipo.replace('_', ' ')}</a>)}
+          </div>
+        )}
+        {infoPags.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+            {infoPags.map(p => <a key={p.id} href="#" onClick={e => { e.preventDefault(); nav('info'); }} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
           </div>
         )}
         <div style={{ width: 40, height: 3, background: '#4A69E2', margin: '0 auto 16px', borderRadius: 2 }} />
@@ -314,6 +322,34 @@ function MaintenancePage() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// INFO PAGE (renders paginas_info content)
+// ═══════════════════════════════════════════════════════════
+function InfoPage() {
+  const { nav, selectedProduct: pageData } = useContext(Ctx);
+  const [paginas, setPaginas] = useState([]);
+  const [active, setActive] = useState(null);
+  useEffect(() => {
+    api.getPaginas().then(p => { setPaginas(p); if (pageData?.infoId) { const found = p.find(x => x.id === pageData.infoId); if (found) setActive(found); } else if (p.length) setActive(p[0]); }).catch(() => {});
+  }, []);
+  return (
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 20px' }}>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
+      {paginas.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+          {paginas.map(p => <button key={p.id} className={`btn btn-sm ${active?.id === p.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActive(p)}>{p.titulo}</button>)}
+        </div>
+      )}
+      {active ? (
+        <div className="card" style={{ padding: 32, borderRadius: 20 }}>
+          <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 16 }}>{active.titulo}</h2>
+          <div style={{ lineHeight: 1.8, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{active.contenido}</div>
+        </div>
+      ) : <div className="empty-state"><h3>No hay páginas informativas</h3></div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // LANDING PAGE
 // ═══════════════════════════════════════════════════════════
 function Landing() {
@@ -348,22 +384,20 @@ function Landing() {
         </div>
       )}
 
-      {/* KICKS Hero */}
-      <div style={{ background: '#232321', borderRadius: 24, margin: '16px 20px', padding: '56px 32px 48px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'rgba(74,105,226,0.15)' }} />
-        <div style={{ position: 'absolute', bottom: -60, left: -30, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,165,47,0.1)' }} />
-        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-          <span style={{ display: 'inline-block', background: '#4A69E2', color: '#fff', padding: '4px 16px', borderRadius: 20, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>CATÁLOGO ONLINE</span>
-          <h1 style={{ color: '#fff', fontSize: 'clamp(28px, 6vw, 48px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 12 }}>
+      {/* HERO — light, clean, product-focused */}
+      <div style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e7eafb 100%)', borderRadius: 24, margin: '16px 20px', padding: '48px 32px 40px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: 600, margin: '0 auto' }}>
+          {design.logo_url && <img src={design.logo_url} alt="" style={{ height: 48, marginBottom: 16, borderRadius: 12 }} />}
+          <h1 style={{ color: '#232321', fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 8 }}>
             {design.nombre_tienda || 'MI TIENDA'}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, fontWeight: 500, marginBottom: 24 }}>
+          <p style={{ color: '#626262', fontSize: 15, fontWeight: 500, marginBottom: 24 }}>
             Encontrá lo que necesitás en todas las secciones
           </p>
           <div style={{ display: 'flex', gap: 8, maxWidth: 520, margin: '0 auto' }}>
-            <input placeholder="¿Qué estás buscando?" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
-              style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '2px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 12, padding: '14px 18px', fontSize: 15 }} />
-            <button onClick={doSearch} style={{ background: '#FFA52F', color: '#232321', border: 'none', borderRadius: 12, padding: '14px 24px', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>BUSCAR</button>
+            <input placeholder="🔍 ¿Qué estás buscando?" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
+              style={{ flex: 1, background: '#fff', border: '2px solid #E7E7E3', color: '#232321', borderRadius: 12, padding: '14px 18px', fontSize: 15, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} />
+            <button onClick={doSearch} style={{ background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 24px', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>BUSCAR</button>
           </div>
         </div>
       </div>
@@ -1149,6 +1183,75 @@ function AdminProductos() {
   );
 }
 
+// ─── MULTI IMAGE UPLOAD ───
+function MultiImageUpload({ productoId }) {
+  const { toast } = useContext(Ctx);
+  const [imgs, setImgs] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  useEffect(() => { api.getProductoImagenes(productoId).then(setImgs).catch(() => {}); }, [productoId]);
+  const upload = async (file) => {
+    setUploading(true);
+    try { const r = await api.uploadImagen(file); await api.addProductoImagen(productoId, r.url, imgs.length); const updated = await api.getProductoImagenes(productoId); setImgs(updated); } catch { toast('Error al subir', 'error'); }
+    setUploading(false);
+  };
+  const remove = async (id) => { await api.deleteProductoImagen(id); setImgs(imgs.filter(i => i.id !== id)); };
+  return (
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <h4 style={{ marginBottom: 8, fontSize: 14 }}>📸 Galería de imágenes ({imgs.length})</h4>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        {imgs.map(img => (
+          <div key={img.id} style={{ position: 'relative', width: 80, height: 80 }}>
+            <img src={img.url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
+            <button onClick={() => remove(img.id)} style={{ position: 'absolute', top: -6, right: -6, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, fontSize: 11, cursor: 'pointer' }}>✕</button>
+          </div>
+        ))}
+        <label style={{ width: 80, height: 80, border: '2px dashed var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 24, color: 'var(--text-muted)' }}>
+          {uploading ? '...' : '+'}
+          <input type="file" accept="image/*" multiple onChange={e => { Array.from(e.target.files).forEach(upload); }} style={{ display: 'none' }} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// ─── VARIANTES EDITOR ───
+function VariantesEditor({ productoId }) {
+  const { toast } = useContext(Ctx);
+  const [vars, setVars] = useState([]);
+  const [form, setForm] = useState({ nombre: '', valor: '', stock: 0, precio_extra: 0 });
+  useEffect(() => { api.getVariantes(productoId).then(setVars).catch(() => {}); }, [productoId]);
+  const add = async () => {
+    if (!form.nombre) return;
+    try { const r = await api.addVariante({ producto_id: productoId, ...form }); setVars([...vars, r]); setForm({ nombre: '', valor: '', stock: 0, precio_extra: 0 }); } catch (e) { toast(e.message, 'error'); }
+  };
+  const remove = async (id) => { await api.deleteVariante(id); setVars(vars.filter(v => v.id !== id)); };
+  return (
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <h4 style={{ marginBottom: 8, fontSize: 14 }}>🔀 Variantes (opcional)</h4>
+      {vars.map(v => (
+        <div key={v.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, fontSize: 13 }}>
+          <strong>{v.nombre}:</strong> {v.valor} {v.precio_extra > 0 && <span style={{ color: 'var(--success)' }}>+${v.precio_extra}</span>} <span style={{ color: 'var(--text-muted)' }}>Stock: {v.stock}</span>
+          <button onClick={() => remove(v.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <input placeholder="Nombre (ej: Color)" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ width: 120 }} />
+        <input placeholder="Valor (ej: Rojo)" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ width: 120 }} />
+        <input type="number" placeholder="Stock" value={form.stock || ''} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ width: 70 }} />
+        <input type="number" placeholder="+$" value={form.precio_extra || ''} onChange={e => setForm({ ...form, precio_extra: Number(e.target.value) })} style={{ width: 70 }} />
+        <button className="btn btn-primary btn-sm" onClick={add}>+ Agregar</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── CATEGORY OPTIONS HELPER ───
+function CatOptions({ seccionId }) {
+  const [cats, setCats] = useState([]);
+  useEffect(() => { api.getCategorias(seccionId).then(setCats).catch(() => {}); }, [seccionId]);
+  return cats.map(c => <option key={c} value={c}>{c}</option>);
+}
+
 // ─── PRODUCT MODAL (add/edit with image upload + precios fijos) ───
 function ProductModal({ product, onClose }) {
   const { secciones, adminSeccion, toast, listas, preciosFijos, setPreciosFijos } = useContext(Ctx);
@@ -1204,7 +1307,16 @@ function ProductModal({ product, onClose }) {
               <select value={f.seccion_id} onChange={e => setF({ ...f, seccion_id: Number(e.target.value) })}>
                 {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select></div>
-            <div className="form-group"><label className="form-label">Categoría *</label><input value={f.categoria} onChange={e => setF({ ...f, categoria: e.target.value })} /></div>
+            <div className="form-group"><label className="form-label">Categoría *</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={f._catCustom ? '__new__' : f.categoria} onChange={e => { if (e.target.value === '__new__') setF({ ...f, categoria: '', _catCustom: true }); else setF({ ...f, categoria: e.target.value, _catCustom: false }); }} style={{ flex: 1 }}>
+                  <option value="">— Seleccionar —</option>
+                  {(secciones.length > 0 ? [] : []).length === 0 && <CatOptions seccionId={f.seccion_id} />}
+                  <option value="__new__">+ Nueva categoría...</option>
+                </select>
+                {f._catCustom && <input value={f.categoria} onChange={e => setF({ ...f, categoria: e.target.value })} placeholder="Nueva categoría" style={{ flex: 1 }} autoFocus />}
+              </div>
+            </div>
           </div>
           <div className="form-row">
             <div className="form-group"><label className="form-label">Nombre *</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
@@ -1218,22 +1330,26 @@ function ProductModal({ product, onClose }) {
               <select value={f.moneda} onChange={e => setF({ ...f, moneda: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option><option value="USDT">USDT</option></select></div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Precio base *</label><input type="number" value={f.precio_base} onChange={e => setF({ ...f, precio_base: Number(e.target.value) })} /></div>
-            <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: Number(e.target.value) })} placeholder="0 = sin oferta" /></div>
+            <div className="form-group"><label className="form-label">Precio base *</label><input type="number" value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
+            <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
           </div>
           <div className="form-row">
             <div className="form-group"><label className="form-label">Stock *</label><input type="number" value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
             <div className="form-group"><label className="form-label">Stock mínimo</label><input type="number" value={f.stock_minimo} onChange={e => setF({ ...f, stock_minimo: Number(e.target.value) })} /></div>
           </div>
-          {/* Image upload */}
+          {/* Image upload (principal) */}
           <div className="form-group">
-            <label className="form-label">Imagen</label>
+            <label className="form-label">Imagen principal</label>
             <div className="dropzone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleImageUpload(file); }}>
               {uploading ? <span>Subiendo...</span> : f.imagen ? <img src={f.imagen} alt="" style={{ maxHeight: 100 }} /> : <span>Arrastrá una imagen o hacé clic</span>}
               <input type="file" accept="image/*" onChange={e => { const file = e.target.files[0]; if (file) handleImageUpload(file); }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
             </div>
             {f.imagen && <input value={f.imagen} onChange={e => setF({ ...f, imagen: e.target.value })} placeholder="O pegá URL de imagen" style={{ marginTop: 8 }} />}
           </div>
+          {/* Multi-image gallery (only on edit) */}
+          {isEdit && <MultiImageUpload productoId={product.id} />}
+          {/* Variantes (only on edit) */}
+          {isEdit && <VariantesEditor productoId={product.id} />}
           <div className="form-group"><label className="form-label">Descripción</label><textarea value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} rows={3} /></div>
           <div className="form-group"><label className="form-label">Notas internas</label><textarea value={f.notas} onChange={e => setF({ ...f, notas: e.target.value })} rows={2} /></div>
           <div className="form-group"><label className="form-label">Compatibilidad</label><input value={f.compatibilidad} onChange={e => setF({ ...f, compatibilidad: e.target.value })} /></div>
@@ -1781,7 +1897,7 @@ function AdminListas() {
       {listas.map(l => (
         <div key={l.id} className="card" style={{ padding: 12, marginBottom: 8, borderLeft: `4px solid ${l.color}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div><strong>{l.nombre}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>×{l.multiplicador} ({l.modo})</span>
+            <div><strong>{l.nombre}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{l.modo === 'porcentaje' ? `+${Math.round((l.multiplicador - 1) * 100)}%` : `×${l.multiplicador}`} (sobre precio base)</span>
               {l.compra_minima > 0 && <span style={{ fontSize: 12, marginLeft: 8 }}>Min: ${fmt(l.compra_minima)}</span>}
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
@@ -2024,7 +2140,11 @@ function AdminPopups() {
       {popups.map(p => (<div key={p.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><strong>{p.titulo}</strong> <span style={{ fontSize: 12, color: p.activo ? 'var(--success)' : 'var(--danger)' }}>{p.activo ? 'Activo' : 'Inactivo'}</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(p); setForm(p); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePopup(p.id); api.getPopupsAll().then(setPopups); }}>🗑</button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} pop-up</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-group"><label className="form-label">Título</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
-        <div className="form-group"><label className="form-label">URL imagen</label><input value={form.imagen} onChange={e => setForm({ ...form, imagen: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">Imagen</label>
+          <input type="file" accept="image/*" onChange={async e => { const file = e.target.files[0]; if (file) { try { const r = await api.uploadImagen(file); setForm({ ...form, imagen: r.url }); } catch { toast('Error al subir', 'error'); } } }} />
+          {form.imagen && <img src={form.imagen} alt="" style={{ maxHeight: 80, marginTop: 8, borderRadius: 8 }} />}
+          <input value={form.imagen} onChange={e => setForm({ ...form, imagen: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+        </div>
         <div className="form-group"><label className="form-label">URL destino</label><input value={form.url_destino} onChange={e => setForm({ ...form, url_destino: e.target.value })} /></div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={form.activo !== false} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
       </div><div className="modal-footer"><button className="btn btn-outline" onClick={() => setShow(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div></div></div>)}
@@ -2055,6 +2175,20 @@ function AdminPaginas() {
   );
 }
 
+// ─── DRAG & DROP REORDER ───
+function useDnDReorder(items, setItems, onSave) {
+  const drag = useRef(null); const over = useRef(null);
+  const start = (i) => { drag.current = i; };
+  const enter = (i) => { over.current = i; };
+  const end = () => {
+    if (drag.current === null || over.current === null || drag.current === over.current) { drag.current = null; over.current = null; return; }
+    const cp = [...items]; const d = cp.splice(drag.current, 1)[0]; cp.splice(over.current, 0, d);
+    const re = cp.map((it, i) => ({ ...it, orden: i })); setItems(re); onSave(re);
+    drag.current = null; over.current = null;
+  };
+  return { start, enter, end };
+}
+
 // ─── ADMIN: Badges (section multi-select, pre-loaded shown) ───
 function AdminBadges() {
   const { secciones, toast } = useContext(Ctx);
@@ -2063,7 +2197,7 @@ function AdminBadges() {
   const [edit, setEdit] = useState(null);
   useEffect(() => { api.getBadgesAll().then(setBgs); }, []);
   const toggleSec = (id) => { const ids = form.secciones_ids ? form.secciones_ids.split(',').map(Number).filter(Boolean) : []; const nw = ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]; setForm({ ...form, secciones_ids: nw.join(',') }); };
-  const save = async () => { try { if (edit) await api.updateBadge(edit.id, form); else await api.createBadge(form); api.getBadgesAll().then(setBgs); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const save = async () => { if (!form.texto?.trim()) { toast('El texto del badge es obligatorio', 'error'); return; } try { if (edit) await api.updateBadge(edit.id, form); else await api.createBadge(form); api.getBadgesAll().then(setBgs); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: '⭐', texto: '', color: '#2563eb', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
@@ -2086,13 +2220,16 @@ function AdminMetodosPago() {
   const [mps, setMps] = useState([]); const [show, setShow] = useState(false);
   const [form, setForm] = useState({ nombre: '', descripcion: '', instrucciones: '', icono: '💳', seccion_id: null, activo: true, orden: 0 });
   const [edit, setEdit] = useState(null);
-  useEffect(() => { api.getMetodosPagoAll().then(setMps); }, []);
-  const save = async () => { try { if (edit) await api.updateMetodoPago(edit.id, form); else await api.createMetodoPago(form); api.getMetodosPagoAll().then(setMps); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const loadMps = () => api.getMetodosPagoAll().then(m => setMps(m.sort((a,b) => (a.orden||0) - (b.orden||0))));
+  useEffect(() => { loadMps(); }, []);
+  const save = async () => { if (!form.nombre?.trim()) { toast('El nombre del método de pago es obligatorio', 'error'); return; } try { if (edit) await api.updateMetodoPago(edit.id, form); else await api.createMetodoPago(form); loadMps(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const saveOrder = async (re) => { for (const m of re) { await api.updateMetodoPago(m.id, m).catch(() => {}); } };
+  const dnd = useDnDReorder(mps, setMps, saveOrder);
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de pago</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ nombre: '', descripcion: '', instrucciones: '', icono: '💳', seccion_id: null, activo: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Los clientes eligen su método de pago al hacer el checkout. Podés poner instrucciones para cada uno (CBU, dirección USDT, etc).</p>
-      {mps.map(m => (<div key={m.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div>{m.icono} <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>— {m.descripcion}</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); api.getMetodosPagoAll().then(setMps); }}>🗑</button></div></div></div>))}
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Arrastrá para reordenar.</p>
+      {mps.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span>{m.icono} <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.descripcion}</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); loadMps(); }}>🗑</button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} método de pago</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-row"><div className="form-group"><label className="form-label">Icono</label><input value={form.icono} onChange={e => setForm({ ...form, icono: e.target.value })} style={{ width: 60 }} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div></div>
         <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} /></div>
@@ -2107,17 +2244,20 @@ function AdminMetodosPago() {
 
 // ─── ADMIN: Menú editable ───
 function AdminMenu() {
-  const { toast } = useContext(Ctx);
+  const { toast, setMenuItems: setGlobalMenu } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);
   const [form, setForm] = useState({ titulo: '', url: '', tipo: 'link', visible: true, orden: 0 });
   const [edit, setEdit] = useState(null);
-  useEffect(() => { api.getMenuAll().then(setItems); }, []);
-  const save = async () => { try { if (edit) await api.updateMenuItem(edit.id, form); else await api.createMenuItem(form); api.getMenuAll().then(setItems); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const loadMenu = () => api.getMenuAll().then(m => { const sorted = m.sort((a,b) => (a.orden||0) - (b.orden||0)); setItems(sorted); });
+  useEffect(() => { loadMenu(); }, []);
+  const save = async () => { try { if (edit) await api.updateMenuItem(edit.id, form); else await api.createMenuItem(form); loadMenu(); api.getMenu().then(setGlobalMenu).catch(() => {}); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const saveOrder = async (re) => { for (const m of re) { await api.updateMenuItem(m.id, m).catch(() => {}); } api.getMenu().then(setGlobalMenu).catch(() => {}); };
+  const dnd = useDnDReorder(items, setItems, saveOrder);
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Menú principal</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', url: '', tipo: 'link', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo item</button></div>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Los items del menú aparecen en el encabezado de la tienda. Podés agregar links a secciones, páginas externas, redes sociales, etc.</p>
-      {items.map(m => (<div key={m.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><strong>{m.titulo}</strong> <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>→ {m.url || '(sin link)'}</span> {!m.visible && <span style={{ fontSize: 12, color: 'var(--danger)' }}>(oculto)</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMenuItem(m.id); api.getMenuAll().then(setItems); }}>🗑</button></div></div></div>))}
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Arrastrá para reordenar.</p>
+      {items.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><strong>{m.titulo}</strong> <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.url || '(sin link)'}</span> {!m.visible && <span style={{ fontSize: 12, color: 'var(--danger)' }}>(oculto)</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMenuItem(m.id); loadMenu(); }}>🗑</button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} item</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-group"><label className="form-label">Título</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">URL</label><input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://..." /></div>
@@ -2130,10 +2270,10 @@ function AdminMenu() {
 
 // ─── ADMIN: Redes sociales ───
 function AdminRedes() {
-  const { toast } = useContext(Ctx);
-  const [redes, setRedes] = useState([]);
+  const { toast, setRedesSociales } = useContext(Ctx);
+  const [redes, setRedes] = useState([])
   useEffect(() => { api.getRedesSociales().then(setRedes); }, []);
-  const guardar = async () => { try { await api.updateRedesSociales(redes); toast('Redes guardadas'); } catch (e) { toast(e.message, 'error'); } };
+  const guardar = async () => { try { await api.updateRedesSociales(redes); setRedesSociales(redes); toast('Redes guardadas'); } catch (e) { toast(e.message, 'error'); } };
   const labels = { facebook: '📘 Facebook', instagram: '📸 Instagram', tiktok: '🎵 TikTok', whatsapp_canal: '📱 Canal WhatsApp', whatsapp_grupo: '👥 Grupo WhatsApp' };
   return (
     <div>

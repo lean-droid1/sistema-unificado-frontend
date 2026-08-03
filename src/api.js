@@ -74,6 +74,18 @@ export async function deleteCategoria(categoria) { return f(`/api/categorias/${e
 export async function deleteAllProductos() { return f('/api/productos/all', { method: 'DELETE' }); }
 export async function buscarProductosAdmin(q) { return f(`/api/productos/buscar?q=${encodeURIComponent(q)}`); }
 
+// Producto imagenes
+export async function getProductoImagenes(productoId) { return f(`/api/producto-imagenes/${productoId}`); }
+export async function addProductoImagen(productoId, url, orden) { return f('/api/producto-imagenes', { method: 'POST', body: JSON.stringify({ producto_id: productoId, url, orden }) }); }
+export async function deleteProductoImagen(id) { return f(`/api/producto-imagenes/${id}`, { method: 'DELETE' }); }
+export async function reorderProductoImagenes(items) { return f('/api/producto-imagenes/reorder', { method: 'PUT', body: JSON.stringify({ items }) }); }
+
+// Variantes
+export async function getVariantes(productoId) { return f(`/api/variantes/${productoId}`); }
+export async function addVariante(data) { return f('/api/variantes', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateVariante(id, data) { return f(`/api/variantes/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteVariante(id) { return f(`/api/variantes/${id}`, { method: 'DELETE' }); }
+
 // Precios
 export async function ajustarPrecios(porcentaje, categoria = null) { return f('/api/precios/ajustar', { method: 'POST', body: JSON.stringify({ porcentaje, categoria }) }); }
 export async function resetPrecios() { return f('/api/precios/reset', { method: 'POST' }); }
