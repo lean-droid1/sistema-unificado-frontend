@@ -192,64 +192,63 @@ export default function App() {
 // HEADER
 // ═══════════════════════════════════════════════════════════
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, mobileMenu, setMobileMenu } = useContext(Ctx);
-  // Fix: use state from context properly
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems } = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
 
   return (
-    <header className="header">
-      <div className="header-inner">
-        <div className="header-left">
-          <button className="header-logo" onClick={() => nav('landing')}>
-            {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 32 }} /> : null}
-            <span>{design.nombre_tienda || 'Mi Tienda'}</span>
-          </button>
-        </div>
-        <nav className="header-nav desktop-only">
-          {menuItems.map(m => (
-            <a key={m.id} href={m.url || '#'} onClick={e => { if (!m.url || m.url === '#') { e.preventDefault(); } }}>{m.titulo}</a>
-          ))}
-        </nav>
-        <div className="header-right">
-          <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">
-            {dark ? '☀️' : '🌙'}
-          </button>
-          {cartCount > 0 && (
-            <button className="icon-btn cart-btn" onClick={() => nav('cart')}>
-              🛒 <span className="cart-badge">{cartCount}</span>
-            </button>
-          )}
-          {user ? (
-            <>
-              {isAdmin && <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('admin')}>Panel</button>}
-              <button className="btn btn-sm btn-outline desktop-only" onClick={() => nav('account')}>Mi cuenta</button>
-              <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>Salir</button>
-            </>
-          ) : (
-            <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('login')}>Ingresar</button>
-          )}
-          <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}>☰</button>
-        </div>
+    <>
+      {/* KICKS promo banner */}
+      <div style={{ background: '#232321', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+        <span style={{ color: '#FFA52F' }}>★</span> {design.promo_banner || 'Envíos a todo el país — Comprá seguro'} <span style={{ color: '#FFA52F' }}>★</span>
       </div>
-      {mobMenu && (
-        <div className="mobile-menu">
-          {menuItems.map(m => <a key={m.id} href={m.url || '#'} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
-          <hr />
-          {user ? (
-            <>
-              {isAdmin && <button onClick={() => { setMobMenu(false); nav('admin'); }}>Panel admin</button>}
-              <button onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
-              <button onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => { setMobMenu(false); nav('login'); }}>Ingresar</button>
-              <button onClick={() => { setMobMenu(false); nav('register'); }}>Registrarse</button>
-            </>
-          )}
+      <header className="header">
+        <div className="header-inner">
+          <button className="header-logo" onClick={() => nav('landing')}>
+            {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: '#4A69E2', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+            <span>{design.nombre_tienda || 'MI TIENDA'}</span>
+          </button>
+          <nav className="header-nav desktop-only">
+            {menuItems.map(m => (
+              <a key={m.id} href={m.url || '#'} onClick={e => { if (!m.url || m.url === '#') { e.preventDefault(); } }}>{m.titulo}</a>
+            ))}
+          </nav>
+          <div className="header-right">
+            <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? '☀️' : '🌙'}</button>
+            <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
+              🛒 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+            </button>
+            {user ? (
+              <>
+                {isAdmin && <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('admin')}>⚙ PANEL</button>}
+                <button className="btn btn-sm btn-outline desktop-only" onClick={() => nav('account')}>MI CUENTA</button>
+                <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
+              </>
+            ) : (
+              <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: '#FFA52F', color: '#232321', borderColor: '#FFA52F', fontWeight: 800 }}>INGRESAR</button>
+            )}
+            <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}>☰</button>
+          </div>
         </div>
-      )}
-    </header>
+        {mobMenu && (
+          <div className="mobile-menu" style={{ background: '#232321', padding: '16px 20px' }}>
+            {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
+            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+            {user ? (
+              <>
+                {isAdmin && <button style={{ color: '#FFA52F', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('admin'); }}>⚙ Panel admin</button>}
+                <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
+                <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
+              </>
+            ) : (
+              <>
+                <button style={{ color: '#FFA52F', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('login'); }}>Ingresar</button>
+                <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('register'); }}>Registrarse</button>
+              </>
+            )}
+          </div>
+        )}
+      </header>
+    </>
   );
 }
 
@@ -267,13 +266,19 @@ function Footer() {
     whatsapp_grupo: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
   };
   return (
-    <footer className="footer">
-      {activas.length > 0 && (
-        <div className="footer-social">
-          {activas.map(r => <a key={r.id} href={r.url} target="_blank" rel="noopener">{labels[r.tipo] || '🔗'} {r.tipo.replace('_', ' ')}</a>)}
+    <footer className="footer" style={{ background: '#232321', padding: '48px 24px 32px' }}>
+      <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', textTransform: 'uppercase', marginBottom: 16 }}>
+          {design.nombre_tienda || 'MI TIENDA'}
         </div>
-      )}
-      <p>{design.footer_texto || '© 2026 Mi Tienda'}</p>
+        {activas.length > 0 && (
+          <div className="footer-social" style={{ marginBottom: 20 }}>
+            {activas.map(r => <a key={r.id} href={r.url} target="_blank" rel="noopener" style={{ color: 'rgba(255,255,255,0.6)' }}>{labels[r.tipo] || '🔗'} {r.tipo.replace('_', ' ')}</a>)}
+          </div>
+        )}
+        <div style={{ width: 40, height: 3, background: '#4A69E2', margin: '0 auto 16px', borderRadius: 2 }} />
+        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>{design.footer_texto || '© 2026 — Todos los derechos reservados'}</p>
+      </div>
     </footer>
   );
 }
@@ -343,44 +348,64 @@ function Landing() {
         </div>
       )}
 
-      {/* Hero */}
-      <div className="hero" style={{ background: 'linear-gradient(135deg, var(--primary-light) 0%, var(--bg) 50%, rgba(255,165,47,0.1) 100%)', borderRadius: 24, margin: '16px 20px', padding: '48px 24px' }}>
-        <h1>{design.nombre_tienda || 'Mi Tienda'}</h1>
-        <p>Buscá productos en todas las secciones</p>
-        <div className="search-box" style={{ maxWidth: 500, margin: '20px auto' }}>
-          <input placeholder="Buscar productos..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} />
-          <button className="btn btn-primary" onClick={doSearch}>🔍 Buscar</button>
+      {/* KICKS Hero */}
+      <div style={{ background: '#232321', borderRadius: 24, margin: '16px 20px', padding: '56px 32px 48px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'rgba(74,105,226,0.15)' }} />
+        <div style={{ position: 'absolute', bottom: -60, left: -30, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,165,47,0.1)' }} />
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+          <span style={{ display: 'inline-block', background: '#4A69E2', color: '#fff', padding: '4px 16px', borderRadius: 20, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>CATÁLOGO ONLINE</span>
+          <h1 style={{ color: '#fff', fontSize: 'clamp(28px, 6vw, 48px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 12 }}>
+            {design.nombre_tienda || 'MI TIENDA'}
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, fontWeight: 500, marginBottom: 24 }}>
+            Encontrá lo que necesitás en todas las secciones
+          </p>
+          <div style={{ display: 'flex', gap: 8, maxWidth: 520, margin: '0 auto' }}>
+            <input placeholder="¿Qué estás buscando?" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '2px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 12, padding: '14px 18px', fontSize: 15 }} />
+            <button onClick={doSearch} style={{ background: '#FFA52F', color: '#232321', border: 'none', borderRadius: 12, padding: '14px 24px', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>BUSCAR</button>
+          </div>
         </div>
       </div>
 
       {/* Search results */}
       {results && (
-        <div className="search-results" style={{ maxWidth: 800, margin: '0 auto 30px', padding: '0 16px' }}>
-          {results.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron resultados</p> : (
+        <div style={{ maxWidth: 800, margin: '0 auto 30px', padding: '0 16px' }}>
+          {results.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No se encontraron resultados</p> : (
             results.resultados.map(r => (
-              <div key={r.seccion.id} style={{ marginBottom: 20 }}>
-                <h3 style={{ marginBottom: 8 }}>📦 {r.seccion.nombre} ({r.productos.length} resultados)</h3>
-                <div className="product-grid-small">
+              <div key={r.seccion.id} style={{ marginBottom: 24 }}>
+                <h3 style={{ marginBottom: 12, fontWeight: 800 }}>{r.seccion.nombre} <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                   {r.productos.map(p => (
-                    <div key={p.id} className="card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => nav('section', r.seccion.id)}>
-                      {p.imagen && <img src={p.imagen} alt="" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />}
-                      <div><strong>{p.nombre || p.modelo}</strong><br /><small>{p.categoria}</small></div>
-                      {p.precio_base > 0 && <span style={{ fontWeight: 700 }}>{fmtARS(p.precio_base)}</span>}
+                    <div key={p.id} className="card" style={{ padding: 16, cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'center' }} onClick={() => nav('section', r.seccion.id)}>
+                      {p.imagen ? <img src={p.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📦</div>}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre || p.modelo}</div>
+                        <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>{p.categoria}</div>
+                        {p.precio_base > 0 && <div style={{ fontWeight: 900, fontSize: 15, marginTop: 2 }}>{fmtARS(p.precio_base)}</div>}
+                      </div>
                     </div>
                   ))}
                 </div>
-                <button className="btn btn-outline btn-sm" onClick={() => nav('section', r.seccion.id)}>Ver sección →</button>
+                <button className="btn btn-outline btn-sm" onClick={() => nav('section', r.seccion.id)} style={{ marginTop: 8 }}>Ver todo en {r.seccion.nombre} →</button>
               </div>
             ))
           )}
         </div>
       )}
 
-      {/* Sections */}
+      {/* KICKS Section cards */}
       <div className="sections-grid">
         {secciones.filter(s => s.visible !== false).map(s => (
           <div key={s.id} className="section-card" onClick={() => nav('section', s.id)}>
-            {s.imagen ? <img src={s.imagen} alt="" /> : <div style={{ height: 180, background: `linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 48, opacity: 0.5 }}>📦</span></div>}
+            {s.imagen ? <img src={s.imagen} alt="" /> : (
+              <div style={{ height: 200, background: 'linear-gradient(135deg, #4A69E2 0%, #232321 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <span style={{ fontSize: 56, opacity: 0.3 }}>📦</span>
+                <div style={{ position: 'absolute', bottom: 16, left: 16 }}>
+                  <span style={{ background: '#FFA52F', color: '#232321', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>VER SECCIÓN</span>
+                </div>
+              </div>
+            )}
             <div className="section-card-body">
               <h2>{s.nombre}</h2>
               <p>{s.descripcion}</p>
@@ -795,21 +820,29 @@ function ProductDetailPage() {
 // LOGIN / REGISTER / ACCOUNT
 // ═══════════════════════════════════════════════════════════
 function LoginPage() {
-  const { handleLogin, nav } = useContext(Ctx);
+  const { handleLogin, nav, design } = useContext(Ctx);
   const [form, setForm] = useState({ usuario: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   return (
-    <div style={{ maxWidth: 400, margin: '40px auto', padding: '0 16px' }}>
-      <h2>Iniciar sesión</h2>
-      <div className="form-group"><label className="form-label">Usuario</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Contraseña</label>
-        <div style={{ position: 'relative' }}>
-          <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin(form.usuario, form.password)} style={{ paddingRight: 40 }} />
-          <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+    <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
+      <div className="card" style={{ padding: 32, borderRadius: 24 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#232321', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: '#FFA52F', fontWeight: 900 }}>
+            {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 32, borderRadius: 8 }} /> : 'K'}
+          </div>
+          <h2 style={{ fontWeight: 900, fontSize: 22, letterSpacing: '-0.03em' }}>Iniciar sesión</h2>
+          <p style={{ color: '#959595', fontSize: 13, marginTop: 4 }}>Ingresá tus datos para acceder</p>
         </div>
+        <div className="form-group"><label className="form-label">USUARIO</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} placeholder="Tu usuario" /></div>
+        <div className="form-group"><label className="form-label">CONTRASEÑA</label>
+          <div style={{ position: 'relative' }}>
+            <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin(form.usuario, form.password)} placeholder="••••••" style={{ paddingRight: 40 }} />
+            <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#232321', borderColor: '#232321' }} onClick={() => handleLogin(form.usuario, form.password)}>INGRESAR</button>
+        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }} style={{ color: '#4A69E2', fontWeight: 700 }}>Registrate</a></p>
       </div>
-      <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={() => handleLogin(form.usuario, form.password)}>Ingresar</button>
-      <p style={{ textAlign: 'center', marginTop: 12 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }}>Registrate</a></p>
     </div>
   );
 }
@@ -821,16 +854,21 @@ function RegisterPage() {
     try { await api.register(form); toast('Registro enviado. Esperá la aprobación del admin.'); nav('login'); } catch (e) { toast(e.message, 'error'); }
   };
   return (
-    <div style={{ maxWidth: 400, margin: '40px auto', padding: '0 16px' }}>
-      <h2>Registrarse</h2>
-      <div className="form-group"><label className="form-label">Nombre completo *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Usuario *</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Contraseña *</label><input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Teléfono / WhatsApp</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-      <div className="form-group"><label className="form-label">Nombre de fantasía (opcional)</label><input value={form.nombre_fantasia} onChange={e => setForm({ ...form, nombre_fantasia: e.target.value })} /></div>
-      <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={submit}>Enviar registro</button>
-      <p style={{ textAlign: 'center', marginTop: 12 }}>¿Ya tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('login'); }}>Iniciá sesión</a></p>
+    <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
+      <div className="card" style={{ padding: 32, borderRadius: 24 }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <h2 style={{ fontWeight: 900, fontSize: 22, letterSpacing: '-0.03em' }}>Crear cuenta</h2>
+          <p style={{ color: '#959595', fontSize: 13, marginTop: 4 }}>Completá tus datos para registrarte</p>
+        </div>
+        <div className="form-group"><label className="form-label">NOMBRE COMPLETO *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">USUARIO *</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">CONTRASEÑA *</label><input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">TELÉFONO / WHATSAPP</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">EMAIL</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">NOMBRE DE FANTASÍA</label><input value={form.nombre_fantasia} onChange={e => setForm({ ...form, nombre_fantasia: e.target.value })} placeholder="Opcional" /></div>
+        <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, borderRadius: 12, background: '#4A69E2', borderColor: '#4A69E2' }} onClick={submit}>CREAR CUENTA</button>
+        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿Ya tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: '#4A69E2', fontWeight: 700 }}>Iniciá sesión</a></p>
+      </div>
     </div>
   );
 }
@@ -950,7 +988,7 @@ function AdminPanel() {
 
 // ─── ADMIN: Dashboard ───
 function AdminDashboard() {
-  const { adminSeccion, secciones } = useContext(Ctx);
+  const { adminSeccion } = useContext(Ctx);
   const [stats, setStats] = useState({});
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -960,31 +998,47 @@ function AdminDashboard() {
   };
   useEffect(() => { loadStats(); }, [adminSeccion, desde, hasta]);
 
+  const kpis = [
+    { label: 'PEDIDOS', value: stats.total_pedidos || 0, icon: '📦', color: '#4A69E2', bg: '#E7EAFB' },
+    { label: 'VENTAS', value: fmtARS(stats.total_ventas || 0), icon: '💰', color: '#16a34a', bg: '#dcfce7' },
+    { label: 'PRODUCTOS', value: stats.total_productos || 0, icon: '🏷️', color: '#FFA52F', bg: '#fff3d4' },
+    { label: 'USUARIOS', value: stats.total_usuarios || 0, icon: '👥', color: '#8b5cf6', bg: '#ede9fe' },
+  ];
+
   return (
     <div>
-      <h3>Dashboard</h3>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div className="form-group" style={{ flex: 1 }}><label className="form-label">Desde</label><input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></div>
-        <div className="form-group" style={{ flex: 1 }}><label className="form-label">Hasta</label><input type="date" value={hasta} onChange={e => setHasta(e.target.value)} /></div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <h3 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em' }}>Dashboard</h3>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={{ padding: '8px 12px', fontSize: 13, borderRadius: 8, width: 140 }} />
+          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={{ padding: '8px 12px', fontSize: 13, borderRadius: 8, width: 140 }} />
+        </div>
       </div>
+
       <div className="stats-grid">
-        <div className="stat-card"><div className="stat-card-value">{stats.total_pedidos || 0}</div><div className="stat-card-label">Pedidos</div></div>
-        <div className="stat-card"><div className="stat-card-value">{fmtARS(stats.total_ventas || 0)}</div><div className="stat-card-label">Ventas</div></div>
-        <div className="stat-card"><div className="stat-card-value">{stats.total_productos || 0}</div><div className="stat-card-label">Productos</div></div>
-        <div className="stat-card"><div className="stat-card-value">{stats.total_usuarios || 0}</div><div className="stat-card-label">Usuarios</div></div>
+        {kpis.map(k => (
+          <div key={k.label} className="stat-card" style={{ borderRadius: 20, padding: '24px 20px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 12, right: 16, width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{k.icon}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{k.value}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#959595', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6 }}>{k.label}</div>
+          </div>
+        ))}
       </div>
-      {/* Chart - simple bar */}
+
       {stats.ventas_por_dia?.length > 0 && (
-        <div className="card" style={{ padding: 16, marginTop: 16 }}>
-          <h4 style={{ marginBottom: 12 }}>Ventas por día</h4>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 150 }}>
+        <div className="card" style={{ padding: 24, marginTop: 20, borderRadius: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h4 style={{ fontWeight: 800, fontSize: 16 }}>Ventas por día</h4>
+            <span style={{ fontSize: 12, color: '#959595', fontWeight: 600 }}>{stats.ventas_por_dia.length} días</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
             {stats.ventas_por_dia.slice(0, 14).reverse().map((d, i) => {
               const max = Math.max(...stats.ventas_por_dia.map(x => x.total));
-              const h = max > 0 ? (d.total / max * 130) : 5;
+              const h = max > 0 ? (d.total / max * 140) : 5;
               return (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ width: '100%', background: 'var(--primary)', borderRadius: 4, height: h, minHeight: 4 }} title={`$${fmt(d.total)}`} />
-                  <span style={{ fontSize: 9, marginTop: 2 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: '100%', background: 'linear-gradient(180deg, #4A69E2 0%, #232321 120%)', borderRadius: 6, height: h, minHeight: 4, transition: 'height 0.3s' }} title={`$${fmt(d.total)}`} />
+                  <span style={{ fontSize: 9, color: '#959595', fontWeight: 600 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
                 </div>
               );
             })}
