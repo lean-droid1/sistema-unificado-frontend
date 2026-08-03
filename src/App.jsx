@@ -43,6 +43,7 @@ export default function App() {
   const [config, setConfig] = useState({});
   const [design, setDesign] = useState({});
   const [seccionActual, setSeccionActual] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [menuItems, setMenuItems] = useState([]);
   const [redesSociales, setRedesSociales] = useState([]);
@@ -150,7 +151,7 @@ export default function App() {
   const ctx = {
     user, setUser, page, setPage: nav, loading, dark, setDark, toast,
     secciones, setSecciones, config, setConfig, design, setDesign,
-    seccionActual, setSeccionActual, cart, setCart, menuItems, setMenuItems,
+    seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, cart, setCart, menuItems, setMenuItems,
     redesSociales, setRedesSociales, badges, setBadges, listas, setListas,
     preciosFijos, setPreciosFijos, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
@@ -163,6 +164,7 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case 'section': return seccionActual ? <SectionPage /> : <Landing />;
+      case 'product': return selectedProduct ? <ProductDetailPage /> : <Landing />;
       case 'cart': return seccionActual ? <CartPage /> : <Landing />;
       case 'login': return <LoginPage />;
       case 'register': return <RegisterPage />;
@@ -175,7 +177,7 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className={`app tpl-${design.plantilla || 'kicks'}`}>
+      <div className={`app${darkMode ? ' dark' : ''}`}>
         <Header />
         <main className="main-content">{renderPage()}</main>
         <Footer />
@@ -342,7 +344,7 @@ function Landing() {
       )}
 
       {/* Hero */}
-      <div className="hero">
+      <div className="hero" style={{ background: 'linear-gradient(135deg, var(--primary-light) 0%, var(--bg) 50%, rgba(255,165,47,0.1) 100%)', borderRadius: 24, margin: '16px 20px', padding: '48px 24px' }}>
         <h1>{design.nombre_tienda || 'Mi Tienda'}</h1>
         <p>Buscá productos en todas las secciones</p>
         <div className="search-box" style={{ maxWidth: 500, margin: '20px auto' }}>
@@ -378,7 +380,7 @@ function Landing() {
       <div className="sections-grid">
         {secciones.filter(s => s.visible !== false).map(s => (
           <div key={s.id} className="section-card" onClick={() => nav('section', s.id)}>
-            {s.imagen && <img src={s.imagen} alt="" />}
+            {s.imagen ? <img src={s.imagen} alt="" /> : <div style={{ height: 180, background: `linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 48, opacity: 0.5 }}>📦</span></div>}
             <div className="section-card-body">
               <h2>{s.nombre}</h2>
               <p>{s.descripcion}</p>
@@ -402,7 +404,7 @@ function Landing() {
 // SECTION PAGE (with back button!)
 // ═══════════════════════════════════════════════════════════
 function SectionPage() {
-  const { seccionActual: sec, user, nav, toast, addToCart, listas, config, getPrice, userLista } = useContext(Ctx);
+  const { seccionActual: sec, user, nav, toast, addToCart, listas, config, getPrice, userLista, setSelectedProduct } = useContext(Ctx);
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [catFiltro, setCatFiltro] = useState('');
@@ -524,8 +526,8 @@ function SectionPage() {
           const sinStock = !p.stock || p.stock <= 0;
           return (
             <div key={p.id} className={`product-card ${sinStock ? 'sin-stock' : ''}`}>
-              <div className="product-img-wrap">
-                {p.imagen && <img src={p.imagen} alt="" className="product-img" />}
+              <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
+                {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}>📦</div>}
                 {/* Badges */}
                 <div className="product-badges">
                   {p.envio_gratis && <span className="pbadge pbadge-shipping">ENVÍO GRATIS</span>}
@@ -533,7 +535,7 @@ function SectionPage() {
                 </div>
                 {sinStock && <div className="sin-stock-overlay">SIN STOCK</div>}
               </div>
-              <div className="product-info">
+              <div className="product-info" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
                 <div className="product-cat">{p.categoria}</div>
                 <div className="product-name">{p.nombre || p.modelo}</div>
                 <div className="product-price">
@@ -683,6 +685,113 @@ function CartPage() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PRODUCT DETAIL PAGE
+// ═══════════════════════════════════════════════════════════
+function ProductDetailPage() {
+  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user } = useContext(Ctx);
+  const [qty, setQty] = useState(1);
+  const [metodosPago, setMetodosPago] = useState([]);
+
+  useEffect(() => {
+    if (sec) api.getMetodosPago(sec.id).then(setMetodosPago).catch(() => {});
+  }, [sec?.id]);
+
+  if (!p) return <Landing />;
+
+  const precioBase = Number(p.precio_base) || 0;
+  const precioFinal = p.precioFinal || precioBase;
+  const precioOriginal = p.precioOriginal;
+  const sinStock = !p.stock || p.stock <= 0;
+
+  // Precios por método de pago (si hay config)
+  const preciosMetodo = metodosPago.filter(m => m.activo).map(m => {
+    const descStr = (config[`descuento_${m.nombre.toLowerCase().replace(/\s+/g, '_')}`] || '').trim();
+    const desc = parseFloat(descStr);
+    if (!desc || isNaN(desc)) return null;
+    return { nombre: m.nombre, icono: m.icono, precio: Math.round(precioFinal * (1 - desc / 100)), descuento: desc };
+  }).filter(Boolean);
+
+  return (
+    <div style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
+      <button className="btn btn-outline btn-sm" onClick={() => nav('section', sec?.id)} style={{ marginBottom: 16 }}>← Volver a {sec?.nombre || 'productos'}</button>
+
+      {/* Breadcrumb */}
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+        <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> / <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> / {p.categoria && <><span>{p.categoria}</span> / </>}
+        <span style={{ color: 'var(--text)' }}>{p.nombre || p.modelo}</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+        {/* Image */}
+        <div style={{ flex: '1 1 350px', minWidth: 280 }}>
+          <div style={{ background: 'var(--border-light)', borderRadius: 'var(--radius)', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, position: 'relative' }}>
+            {p.envio_gratis && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 12, left: 12 }}>ENVÍO GRATIS</span>}
+            {precioOriginal && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 12, right: 12 }}>{p.descuentoPct}% OFF</span>}
+            {p.imagen ? <img src={p.imagen} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain', borderRadius: 8 }} /> : <span style={{ fontSize: 64, color: 'var(--text-muted)' }}>📦</span>}
+          </div>
+        </div>
+
+        {/* Info */}
+        <div style={{ flex: '1 1 350px', minWidth: 280 }}>
+          <div className="product-cat" style={{ marginBottom: 4 }}>{p.categoria}</div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16, lineHeight: 1.2 }}>{p.nombre || p.modelo}</h1>
+
+          {/* Price */}
+          <div style={{ marginBottom: 16 }}>
+            {precioOriginal ? (
+              <div><span className="price-old" style={{ fontSize: 18 }}>{fmtARS(precioOriginal)}</span> <span className="price-new" style={{ fontSize: 28 }}>{fmtARS(precioFinal)}</span></div>
+            ) : (
+              <span className="price-new" style={{ fontSize: 28 }}>{fmtARS(precioFinal)}</span>
+            )}
+          </div>
+
+          {/* Precios por método de pago */}
+          {preciosMetodo.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              {preciosMetodo.map(pm => (
+                <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{pm.icono}</span>
+                  <strong>{fmtARS(pm.precio)}</strong>
+                  <span style={{ color: 'var(--success)', fontSize: 12 }}>pagando con {pm.nombre} -{pm.descuento}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {p.envio_gratis && <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>🚚 ¡Envío gratis!</p>}
+
+          {p.descripcion && <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>{p.descripcion}</p>}
+          {p.compatibilidad && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
+
+          {/* Stock */}
+          {sinStock ? (
+            <div style={{ padding: '12px 16px', background: 'var(--danger-light)', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', fontWeight: 600, marginBottom: 16 }}>Sin stock</div>
+          ) : (
+            <>
+              {/* Qty + Add to cart */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', border: '2px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: 'none', border: 'none', padding: '10px 14px', fontSize: 18, fontWeight: 700 }}>−</button>
+                  <span style={{ padding: '10px 16px', fontWeight: 700, fontSize: 16, minWidth: 40, textAlign: 'center' }}>{qty}</span>
+                  <button onClick={() => setQty(qty + 1)} style={{ background: 'none', border: 'none', padding: '10px 14px', fontSize: 18, fontWeight: 700 }}>+</button>
+                </div>
+                <button className="btn btn-primary" style={{ flex: 1, padding: '12px 24px', fontSize: 15 }} onClick={() => { addToCart(sec.id, p, qty, precioFinal); toast('Agregado al carrito'); }}>
+                  Agregar al Carrito
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Info extra */}
+          {p.sku && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>SKU: {p.sku}</p>}
+          {p.notas && <div className="card" style={{ padding: 12, marginTop: 12, fontSize: 13 }}>📝 {p.notas}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // LOGIN / REGISTER / ACCOUNT
 // ═══════════════════════════════════════════════════════════
 function LoginPage() {
@@ -767,6 +876,7 @@ function AccountPanel() {
 // ═══════════════════════════════════════════════════════════
 function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav } = useContext(Ctx);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const tabs = [
     { id: 'dashboard', label: '📊 Dashboard' },
@@ -788,23 +898,33 @@ function AdminPanel() {
 
   return (
     <div className="admin-layout">
-      {/* Sidebar */}
-      <aside className="admin-sidebar">
+      {/* Mobile hamburger bar */}
+      <div className="admin-mobile-bar">
+        <button className="admin-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          {sidebarOpen ? '✕' : '☰'} <span style={{ fontSize: 14, fontWeight: 700 }}>Panel Admin</span>
+        </button>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{tabs.find(t => t.id === adminTab)?.label}</span>
+      </div>
+
+      {/* Sidebar — desktop always visible, mobile toggle */}
+      <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 12, width: '100%' }}>← Volver a tienda</button>
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>Panel Admin</h3>
-        {/* Section selector */}
         <select value={adminSeccion} onChange={e => setAdminSeccion(e.target.value)} style={{ width: '100%', marginBottom: 12, padding: 6 }}>
           <option value="all">Todas las secciones</option>
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
         <nav className="admin-nav">
           {tabs.map(t => (
-            <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => setAdminTab(t.id)}>
+            <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => { setAdminTab(t.id); setSidebarOpen(false); }}>
               {t.label}
             </button>
           ))}
         </nav>
       </aside>
+
+      {/* Overlay mobile */}
+      {sidebarOpen && <div className="admin-overlay" onClick={() => setSidebarOpen(false)} />}
 
       {/* Content */}
       <div className="admin-content">
@@ -2144,6 +2264,17 @@ function AdminConfig() {
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
           <div className="form-group"><label className="form-label">Info de pagos (para clientes)</label><textarea value={c.info_pagos || ''} onChange={e => setC({ ...c, info_pagos: e.target.value })} rows={3} /></div>
           <div className="form-group"><label className="form-label">Info de envíos (para clientes)</label><textarea value={c.info_envios || ''} onChange={e => setC({ ...c, info_envios: e.target.value })} rows={3} /></div>
+        </div>
+
+        {/* Precios diferenciados por método de pago */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+          <h4 style={{ marginBottom: 8 }}>💲 Descuentos por método de pago</h4>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Si ponés un %, se muestra el precio con descuento en el detalle del producto. Dejá vacío para no mostrar.</p>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Efectivo (%)</label><input type="number" value={c.descuento_efectivo || ''} onChange={e => setC({ ...c, descuento_efectivo: e.target.value })} placeholder="Ej: 10" /></div>
+            <div className="form-group"><label className="form-label">Transferencia (%)</label><input type="number" value={c.descuento_transferencia || ''} onChange={e => setC({ ...c, descuento_transferencia: e.target.value })} placeholder="Ej: 5" /></div>
+            <div className="form-group"><label className="form-label">USDT (%)</label><input type="number" value={c.descuento_usdt || ''} onChange={e => setC({ ...c, descuento_usdt: e.target.value })} placeholder="Ej: 5" /></div>
+          </div>
         </div>
 
         {/* Dolar blue manual fallback */}
