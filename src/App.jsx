@@ -171,6 +171,7 @@ export default function App() {
       case 'admin': return isAdmin ? <AdminPanel /> : <Landing />;
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
       case 'info': return <InfoPage />;
+      case 'favoritos': return user ? <FavoritosPage /> : <LoginPage />;
       case 'maintenance': return <MaintenancePage />;
       default: return <Landing />;
     }
@@ -212,6 +213,7 @@ function Header() {
           </nav>
           <div className="header-right">
             <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? '☀️' : '🌙'}</button>
+            {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos">❤️</button>}
             <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
               🛒 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
             </button>
@@ -292,11 +294,12 @@ function Footer() {
 // WHATSAPP FLOAT
 // ═══════════════════════════════════════════════════════════
 function WhatsAppFloat() {
-  const { config } = useContext(Ctx);
-  if (!config.whatsapp && !config.whatsapp_flotante) return null;
-  const num = config.whatsapp_flotante || config.whatsapp;
+  const { config, design } = useContext(Ctx);
+  const num = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
+  if (!num) return null;
+  const msg = encodeURIComponent(design.whatsapp_mensaje || 'Hola, quiero consultar sobre un producto');
   return (
-    <a href={`https://wa.me/${num}`} target="_blank" rel="noopener" className="wa-float" title="WhatsApp">
+    <a href={`https://wa.me/${num}?text=${msg}`} target="_blank" rel="noopener" className="wa-float" title="WhatsApp">
       💬
     </a>
   );
@@ -355,9 +358,14 @@ function Landing() {
   const [results, setResults] = useState(null);
   const [showPopup, setShowPopup] = useState(null);
   const [secProds, setSecProds] = useState({});
+  const [sliders, setSliders] = useState([]);
+  const [sliderIdx, setSliderIdx] = useState(0);
+  const [favIds, setFavIds] = useState(new Set());
 
   useEffect(() => {
     api.getPopups().then(p => { if (p.length) setShowPopup(p[0]); }).catch(() => {});
+    api.getSlider().then(s => setSliders(s)).catch(() => {});
+    if (user) api.getFavoritos().then(favs => setFavIds(new Set(favs.map(f => f.producto_id)))).catch(() => {});
     // Load first 8 products per visible section
     secciones.filter(s => s.visible !== false).forEach(s => {
       api.getProductos({ seccion_id: s.id, limit: 8 }).then(data => {
@@ -366,6 +374,15 @@ function Landing() {
       }).catch(() => {});
     });
   }, [secciones]);
+
+  // Slider auto-rotate
+  useEffect(() => { if (sliders.length < 2) return; const t = setInterval(() => setSliderIdx(i => (i + 1) % sliders.length), 4000); return () => clearInterval(t); }, [sliders.length]);
+
+  const toggleFav = async (prodId) => {
+    if (!user) { nav('login'); return; }
+    if (favIds.has(prodId)) { await api.removeFavorito(prodId); setFavIds(prev => { const n = new Set(prev); n.delete(prodId); return n; }); }
+    else { await api.addFavorito(prodId); setFavIds(prev => new Set(prev).add(prodId)); }
+  };
 
   const doSearch = async () => {
     if (search.length < 2) return;
@@ -379,21 +396,29 @@ function Landing() {
     const precio = getPrice ? getPrice(p) : p.precio_base;
     const tieneOferta = p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
     const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
+    const [notifyEmail, setNotifyEmail] = useState('');
+    const [showNotify, setShowNotify] = useState(false);
+    const sinStock = p.stock === 0;
     return (
-      <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 0.2s' }}
+      <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 0.2s', position: 'relative' }}
         onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'}
         onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => { nav('section', secId); }}>
+        {/* Fav button */}
+        <button onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}
+          style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 30, height: 30, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {favIds.has(p.id) ? '❤️' : '🤍'}
+        </button>
+        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>
           {p.imagen
             ? <img src={p.imagen} alt="" style={{ width: '100%', height: 180, objectFit: 'contain', padding: 12, background: '#fafafa' }} />
             : <div style={{ width: '100%', height: 180, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 40 }}>📱</div>
           }
           {tieneOferta && <span style={{ position: 'absolute', top: 8, left: 8, background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{descPct}%</span>}
-          {p.stock === 0 && <span style={{ position: 'absolute', top: 8, right: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+          {sinStock && <span style={{ position: 'absolute', top: 8, left: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
         </div>
         <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{p.categoria || ''}</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.3, marginBottom: 8, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.nombre || p.modelo}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.3, marginBottom: 8, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>{p.nombre || p.modelo}</div>
           <div style={{ marginBottom: 8 }}>
             {tieneOferta ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -404,7 +429,22 @@ function Landing() {
               precio > 0 && <span style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>{fmtARS(precio)}</span>
             )}
           </div>
-          {p.stock !== 0 && addToCart && (
+          {sinStock ? (
+            <div>
+              {showNotify ? (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 8px', borderRadius: 4, border: '1px solid #ddd' }} />
+                  <button onClick={async (e) => { e.stopPropagation(); if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }}
+                    style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>OK</button>
+                </div>
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); setShowNotify(true); }}
+                  style={{ width: '100%', padding: '8px 0', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  🔔 Avisame cuando llegue
+                </button>
+              )}
+            </div>
+          ) : addToCart && (
             <button onClick={(e) => { e.stopPropagation(); addToCart(p, 1); toast('Agregado al carrito'); }}
               style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
@@ -431,6 +471,28 @@ function Landing() {
         </div>
       )}
 
+      {/* ── SLIDER BANNERS ── */}
+      {sliders.length > 0 && (
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0', position: 'relative' }}>
+          <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
+            {sliders.map((s, i) => (
+              <div key={s.id} style={{ display: i === sliderIdx ? 'block' : 'none', cursor: s.url_destino ? 'pointer' : 'default' }}
+                onClick={() => s.url_destino && window.open(s.url_destino, '_blank')}>
+                <img src={s.imagen} alt={s.titulo || ''} style={{ width: '100%', height: 'auto', maxHeight: 320, objectFit: 'cover', display: 'block' }} />
+                {s.titulo && <div style={{ position: 'absolute', bottom: 16, left: 16, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '6px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700 }}>{s.titulo}</div>}
+              </div>
+            ))}
+            {sliders.length > 1 && <>
+              <button onClick={() => setSliderIdx((sliderIdx - 1 + sliders.length) % sliders.length)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}>‹</button>
+              <button onClick={() => setSliderIdx((sliderIdx + 1) % sliders.length)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}>›</button>
+              <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
+                {sliders.map((_, i) => <button key={i} onClick={() => setSliderIdx(i)} style={{ width: 8, height: 8, borderRadius: '50%', border: 'none', background: i === sliderIdx ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />)}
+              </div>
+            </>}
+          </div>
+        </div>
+      )}
+
       {/* ── MARQUEE BANNER ── scrolling trust badges like RXZ */}
       <div style={{ background: '#fff', borderBottom: '1px solid #eee', overflow: 'hidden', padding: '8px 0', position: 'relative' }}>
         <div className="marquee-track">
@@ -449,6 +511,19 @@ function Landing() {
           <input placeholder="Buscar por marca, modelo o repuesto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
             style={{ flex: 1, background: '#fff', border: '1.5px solid #d1d5db', color: '#1a1a1a', borderRadius: 8, padding: '10px 14px', fontSize: 14 }} />
           <button onClick={doSearch} style={{ background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Buscar</button>
+        </div>
+        {/* Confianza cards — editable from Diseño */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+          {[1, 2, 3].map(n => {
+            const icono = design[`confianza_${n}_icono`]; const titulo = design[`confianza_${n}_titulo`];
+            if (!titulo) return null;
+            return (
+              <div key={n} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 140px', minWidth: 140 }}>
+                <span style={{ fontSize: 20 }}>{icono || '✓'}</span>
+                <div><div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>{titulo}</div><div style={{ fontSize: 11, color: '#9ca3af' }}>{design[`confianza_${n}_sub`] || ''}</div></div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -803,22 +878,34 @@ function CartPage() {
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
-  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user } = useContext(Ctx);
+  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user, design } = useContext(Ctx);
   const [qty, setQty] = useState(1);
   const [metodosPago, setMetodosPago] = useState([]);
+  const [gallery, setGallery] = useState([]);
+  const [variantes, setVariantes] = useState([]);
+  const [selVariante, setSelVariante] = useState(null);
+  const [mainImg, setMainImg] = useState('');
+  const [isFav, setIsFav] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [showNotify, setShowNotify] = useState(false);
 
   useEffect(() => {
+    if (!p) return;
+    setMainImg(p.imagen || '');
     if (sec) api.getMetodosPago(sec.id).then(setMetodosPago).catch(() => {});
-  }, [sec?.id]);
+    api.getProductoImagenes(p.id).then(imgs => setGallery(imgs)).catch(() => {});
+    api.getVariantes(p.id).then(v => setVariantes(v)).catch(() => {});
+    if (user) api.getFavoritos().then(favs => setIsFav(favs.some(f => f.producto_id === p.id))).catch(() => {});
+  }, [p?.id, sec?.id]);
 
   if (!p) return <Landing />;
 
   const precioBase = Number(p.precio_base) || 0;
-  const precioFinal = p.precioFinal || precioBase;
+  const precioFinal = (p.precioFinal || precioBase) + (selVariante ? Number(selVariante.precio_extra) || 0 : 0);
   const precioOriginal = p.precioOriginal;
   const sinStock = !p.stock || p.stock <= 0;
+  const allImages = [p.imagen, ...gallery.map(g => g.url)].filter(Boolean);
 
-  // Precios por método de pago (si hay config)
   const preciosMetodo = metodosPago.filter(m => m.activo).map(m => {
     const descStr = (config[`descuento_${m.nombre.toLowerCase().replace(/\s+/g, '_')}`] || '').trim();
     const desc = parseFloat(descStr);
@@ -826,79 +913,120 @@ function ProductDetailPage() {
     return { nombre: m.nombre, icono: m.icono, precio: Math.round(precioFinal * (1 - desc / 100)), descuento: desc };
   }).filter(Boolean);
 
+  const toggleFav = async () => {
+    if (!user) { nav('login'); return; }
+    if (isFav) { await api.removeFavorito(p.id); setIsFav(false); toast('Eliminado de favoritos'); }
+    else { await api.addFavorito(p.id); setIsFav(true); toast('Agregado a favoritos'); }
+  };
+
+  const waNum = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
+  const shareWA = () => {
+    const txt = `Hola, consulto por: *${p.nombre || p.modelo}* — ${fmtARS(precioFinal)}`;
+    window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(txt)}`, '_blank');
+  };
+
   return (
     <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
-      <button onClick={() => nav('section', sec?.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 12 }}>← VOLVER A {(sec?.nombre || 'PRODUCTOS').toUpperCase()}</button>
+      <button onClick={() => nav('section', sec?.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#2563eb', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
 
-      {/* Breadcrumb */}
       <div style={{ fontSize: 12, color: '#959595', marginBottom: 20, fontWeight: 600 }}>
-        <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> <span style={{ color: '#E7E7E3' }}>/</span> <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <><span style={{ color: '#E7E7E3' }}>/</span> <span>{p.categoria}</span></>} <span style={{ color: '#E7E7E3' }}>/</span>
-        <span style={{ color: '#232321', fontWeight: 700 }}>{p.nombre || p.modelo}</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> / <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <> / {p.categoria}</>} / <span style={{ color: '#1a1a1a', fontWeight: 700 }}>{p.nombre || p.modelo}</span>
       </div>
 
       <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-        {/* Image */}
+        {/* Image gallery */}
         <div style={{ flex: '1 1 350px', minWidth: 280 }}>
-          <div className="product-detail-img-wrap" style={{ background: 'linear-gradient(135deg, #F3F3F3 0%, #E7EAFB 100%)', borderRadius: 24, padding: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, position: 'relative' }}>
-            {p.envio_gratis && <span style={{ position: 'absolute', top: 16, left: 16, background: '#4A69E2', color: '#fff', padding: '4px 12px', borderRadius: 8, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>ENVÍO GRATIS</span>}
-            {precioOriginal && <span style={{ position: 'absolute', top: 16, right: 16, background: '#FFA52F', color: '#232321', padding: '4px 12px', borderRadius: 8, fontSize: 10, fontWeight: 800 }}>{p.descuentoPct}% OFF</span>}
-            {p.imagen ? <img src={p.imagen} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain' }} /> : <span style={{ fontSize: 72, opacity: 0.3 }}>📦</span>}
+          <div style={{ background: '#fafafa', borderRadius: 16, padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, position: 'relative' }}>
+            {p.envio_gratis && <span style={{ position: 'absolute', top: 12, left: 12, background: '#2563eb', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ENVÍO GRATIS</span>}
+            <button onClick={toggleFav} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer' }}>{isFav ? '❤️' : '🤍'}</button>
+            {mainImg ? <img src={mainImg} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain' }} /> : <span style={{ fontSize: 72, opacity: 0.3 }}>📱</span>}
           </div>
+          {allImages.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, overflowX: 'auto' }}>
+              {allImages.map((img, i) => (
+                <img key={i} src={img} alt="" onClick={() => setMainImg(img)}
+                  style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 8, border: mainImg === img ? '2px solid #2563eb' : '1px solid #e5e7eb', cursor: 'pointer', padding: 4, background: '#fff' }} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info */}
         <div style={{ flex: '1 1 350px', minWidth: 280 }}>
-          <div style={{ fontSize: 11, color: '#4A69E2', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 6 }}>{p.categoria}</div>
-          <h1 style={{ fontSize: 28, fontWeight: 900, marginBottom: 16, lineHeight: 1.15, letterSpacing: '-0.03em' }}>{p.nombre || p.modelo}</h1>
+          <div style={{ fontSize: 11, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800, marginBottom: 6 }}>{p.categoria}</div>
+          <h1 style={{ fontSize: 26, fontWeight: 900, marginBottom: 16, lineHeight: 1.15 }}>{p.nombre || p.modelo}</h1>
 
-          {/* Price */}
           <div style={{ marginBottom: 20 }}>
             {precioOriginal ? (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ textDecoration: 'line-through', color: '#959595', fontSize: 18 }}>{fmtARS(precioOriginal)}</span>
-                <span style={{ fontWeight: 900, fontSize: 32, color: '#232321', letterSpacing: '-0.02em' }}>{fmtARS(precioFinal)}</span>
+                <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: 18 }}>{fmtARS(precioOriginal)}</span>
+                <span style={{ fontWeight: 900, fontSize: 30, color: '#1a1a1a' }}>{fmtARS(precioFinal)}</span>
               </div>
             ) : (
-              <span style={{ fontWeight: 900, fontSize: 32, color: '#232321', letterSpacing: '-0.02em' }}>{fmtARS(precioFinal)}</span>
+              <span style={{ fontWeight: 900, fontSize: 30, color: '#1a1a1a' }}>{fmtARS(precioFinal)}</span>
             )}
           </div>
 
-          {/* Precios por método de pago */}
           {preciosMetodo.length > 0 && (
-            <div style={{ background: '#F3F3F3', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+            <div style={{ background: '#f3f4f6', borderRadius: 10, padding: 14, marginBottom: 16 }}>
               {preciosMetodo.map(pm => (
-                <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>{pm.icono}</span>
-                  <strong style={{ fontWeight: 800 }}>{fmtARS(pm.precio)}</strong>
+                <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{pm.icono}</span><strong>{fmtARS(pm.precio)}</strong>
                   <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>con {pm.nombre} −{pm.descuento}%</span>
                 </div>
               ))}
             </div>
           )}
 
-          {p.envio_gratis && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#4A69E2' }}>🚚 ¡Envío gratis!</div>}
+          {/* Variantes */}
+          {variantes.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Variantes:</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {variantes.map(v => (
+                  <button key={v.id} onClick={() => setSelVariante(selVariante?.id === v.id ? null : v)}
+                    style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: selVariante?.id === v.id ? '2px solid #2563eb' : '1px solid #e5e7eb', background: selVariante?.id === v.id ? '#eff6ff' : '#fff', color: '#1a1a1a' }}>
+                    {v.nombre}: {v.valor} {v.precio_extra > 0 && `(+${fmtARS(v.precio_extra)})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {p.descripcion && <p style={{ color: '#626262', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>{p.descripcion}</p>}
-          {p.compatibilidad && <p style={{ fontSize: 13, color: '#959595', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
+          {p.envio_gratis && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#2563eb' }}>🚚 ¡Envío gratis!</div>}
+          {p.descripcion && <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>{p.descripcion}</p>}
+          {p.compatibilidad && <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
 
-          {/* Stock */}
           {sinStock ? (
-            <div style={{ padding: '14px 20px', background: '#fee2e2', borderRadius: 12, color: '#E74040', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }}>SIN STOCK</div>
+            <div>
+              <div style={{ padding: '14px 20px', background: '#fee2e2', borderRadius: 10, color: '#ef4444', fontWeight: 700, marginBottom: 12, fontSize: 13 }}>SIN STOCK</div>
+              {showNotify ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #ddd' }} />
+                  <button className="btn btn-primary" onClick={async () => { if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }}>Avisar</button>
+                </div>
+              ) : (
+                <button className="btn btn-outline" onClick={() => setShowNotify(true)} style={{ width: '100%' }}>🔔 Avisame cuando llegue</button>
+              )}
+            </div>
           ) : (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', border: '2px solid #E7E7E3', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', border: '2px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
                 <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>−</button>
-                <span style={{ padding: '12px 16px', fontWeight: 800, fontSize: 16, minWidth: 40, textAlign: 'center', borderLeft: '1px solid #E7E7E3', borderRight: '1px solid #E7E7E3' }}>{qty}</span>
+                <span style={{ padding: '12px 16px', fontWeight: 800, fontSize: 16, minWidth: 40, textAlign: 'center', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb' }}>{qty}</span>
                 <button onClick={() => setQty(qty + 1)} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>+</button>
               </div>
-              <button onClick={() => { addToCart(sec.id, p, qty, precioFinal); toast('Agregado al carrito'); }} style={{ flex: 1, padding: '14px 24px', background: '#232321', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>
+              <button onClick={() => { addToCart(sec.id, p, qty, precioFinal); toast('Agregado al carrito'); }} style={{ flex: 1, padding: '14px 24px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
                 AGREGAR AL CARRITO
               </button>
             </div>
           )}
 
-          {p.sku && <p style={{ fontSize: 11, color: '#959595', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SKU: {p.sku}</p>}
-          {p.notas && <div style={{ background: '#fff3d4', borderRadius: 12, padding: 14, marginTop: 12, fontSize: 13, color: '#232321' }}>📝 {p.notas}</div>}
+          {/* WhatsApp share */}
+          {waNum && <button onClick={shareWA} style={{ width: '100%', padding: '10px 0', background: '#25d366', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 12 }}>💬 Consultar por WhatsApp</button>}
+
+          {p.sku && <p style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SKU: {p.sku}</p>}
+          {p.notas && <div style={{ background: '#fef3c7', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, color: '#1a1a1a' }}>📝 {p.notas}</div>}
         </div>
       </div>
     </div>
@@ -1026,6 +1154,7 @@ function AdminPanel() {
     { id: 'redes', label: '🌐 Redes sociales' },
     { id: 'diseno', label: '🎨 Diseño' },
     { id: 'config', label: '⚙️ Configuración' },
+    { id: 'slider', label: '🖼️ Slider banners' },
   ];
 
   return (
@@ -1075,6 +1204,7 @@ function AdminPanel() {
         {adminTab === 'redes' && <AdminRedes />}
         {adminTab === 'diseno' && <AdminDiseno />}
         {adminTab === 'config' && <AdminConfig />}
+        {adminTab === 'slider' && <AdminSlider />}
       </div>
     </div>
   );
@@ -2457,11 +2587,124 @@ function AdminDiseno() {
           <div className="form-group"><label className="form-label">Color acento</label><input type="color" value={des.color_acento || '#f59e0b'} onChange={e => setDes({ ...des, color_acento: e.target.value })} /></div>
         </div>
         <div className="form-group"><label className="form-label">Texto del footer</label><input value={des.footer_texto || ''} onChange={e => setDes({ ...des, footer_texto: e.target.value })} /></div>
+
+        {/* Editable texts */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+          <h4 style={{ marginBottom: 8 }}>📝 Textos de la Landing</h4>
+          <div className="form-group"><label className="form-label">Título del hero</label><input value={des.hero_titulo || ''} onChange={e => setDes({ ...des, hero_titulo: e.target.value })} placeholder="Tu título principal" /></div>
+          <div className="form-group"><label className="form-label">Subtítulo del hero</label><input value={des.hero_subtitulo || ''} onChange={e => setDes({ ...des, hero_subtitulo: e.target.value })} placeholder="Descripción corta de tu tienda" /></div>
+          <div className="form-group"><label className="form-label">Texto del banner superior (marquee)</label><input value={des.promo_banner || ''} onChange={e => setDes({ ...des, promo_banner: e.target.value })} placeholder="Se usa si no hay badges. Ej: Envíos a todo el país" /></div>
+        </div>
+
+        {/* WhatsApp */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+          <h4 style={{ marginBottom: 8 }}>💬 WhatsApp flotante</h4>
+          <div className="form-group"><label className="form-label">Número (con código país, sin +)</label><input value={des.whatsapp_numero || ''} onChange={e => setDes({ ...des, whatsapp_numero: e.target.value })} placeholder="5491100000000" /></div>
+          <div className="form-group"><label className="form-label">Mensaje inicial</label><input value={des.whatsapp_mensaje || ''} onChange={e => setDes({ ...des, whatsapp_mensaje: e.target.value })} placeholder="Hola, quiero consultar..." /></div>
+        </div>
+
+        {/* Tarjetas de confianza */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+          <h4 style={{ marginBottom: 8 }}>🛡️ Tarjetas de confianza (hero)</h4>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Se muestran al lado del buscador en la landing.</p>
+          {[1, 2, 3].map(n => (
+            <div key={n} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <input value={des[`confianza_${n}_icono`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_icono`]: e.target.value })} style={{ width: 50 }} placeholder="Emoji" />
+              <input value={des[`confianza_${n}_titulo`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_titulo`]: e.target.value })} style={{ flex: 1, minWidth: 120 }} placeholder="Título" />
+              <input value={des[`confianza_${n}_sub`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_sub`]: e.target.value })} style={{ flex: 1, minWidth: 120 }} placeholder="Subtítulo" />
+            </div>
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button className="btn btn-primary" onClick={guardar}>Guardar diseño</button>
           <button className="btn btn-outline" onClick={resetDefaults}>🔄 Reset colores</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── ADMIN: Slider Banners ───
+function AdminSlider() {
+  const { toast } = useContext(Ctx);
+  const [items, setItems] = useState([]); const [show, setShow] = useState(false);
+  const [form, setForm] = useState({ titulo: '', imagen: '', url_destino: '', orden: 0, activo: true });
+  const [edit, setEdit] = useState(null);
+  const load = () => api.getSliderAll().then(s => setItems(s.sort((a, b) => (a.orden || 0) - (b.orden || 0))));
+  useEffect(() => { load(); }, []);
+  const save = async () => { if (!form.imagen) { toast('Subí una imagen', 'error'); return; } try { if (edit) await api.updateSlider(edit.id, form); else await api.createSlider(form); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const dnd = useDnDReorder(items, setItems, async (re) => { for (const s of re) { await api.updateSlider(s.id, s).catch(() => {}); } });
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Slider de banners</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', imagen: '', url_destino: '', orden: 0, activo: true }); setShow(true); }}>+ Nuevo banner</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Imágenes que rotan automáticamente en la landing. Arrastrá para reordenar.</p>
+      {items.map((s, i) => (
+        <div key={s.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()}
+          className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ opacity: 0.35 }}>⠿</span>
+          {s.imagen && <img src={s.imagen} alt="" style={{ width: 100, height: 50, objectFit: 'cover', borderRadius: 6 }} />}
+          <div style={{ flex: 1 }}><strong>{s.titulo || '(sin título)'}</strong> <span style={{ fontSize: 12, color: s.activo ? 'var(--success)' : 'var(--danger)' }}>{s.activo ? '✓ Activo' : '✗ Inactivo'}</span></div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="btn btn-outline btn-sm" onClick={() => { setEdit(s); setForm(s); setShow(true); }}>✏️</button>
+            <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteSlider(s.id); load(); }}>🗑</button>
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <div className="empty-state"><p>No hay banners. Agregá uno para activar el slider en la landing.</p></div>}
+      {show && (
+        <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setShow(false)}>✕</button>
+          <h3>{edit ? 'Editar' : 'Nuevo'} banner</h3>
+          <div className="form-group"><label className="form-label">Título (opcional)</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
+          <div className="form-group"><label className="form-label">Imagen *</label>
+            <input type="file" accept="image/*" onChange={async e => { const file = e.target.files[0]; if (file) { try { const r = await api.uploadImagen(file); setForm({ ...form, imagen: r.url }); } catch { toast('Error al subir', 'error'); } } }} />
+            {form.imagen && <img src={form.imagen} alt="" style={{ maxHeight: 100, marginTop: 8, borderRadius: 8 }} />}
+            <input value={form.imagen} onChange={e => setForm({ ...form, imagen: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+          </div>
+          <div className="form-group"><label className="form-label">URL destino (opcional)</label><input value={form.url_destino} onChange={e => setForm({ ...form, url_destino: e.target.value })} placeholder="https://..." /></div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
+          <button className="btn btn-primary" onClick={save} style={{ width: '100%' }}>Guardar</button>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// FAVORITOS PAGE
+// ═══════════════════════════════════════════════════════════
+function FavoritosPage() {
+  const { nav, toast, addToCart, getPrice } = useContext(Ctx);
+  const [favs, setFavs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { api.getFavoritos().then(f => { setFavs(f); setLoading(false); }).catch(() => setLoading(false)); }, []);
+  const remove = async (prodId) => { await api.removeFavorito(prodId); setFavs(favs.filter(f => f.producto_id !== prodId)); toast('Eliminado de favoritos'); };
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#2563eb', cursor: 'pointer', marginBottom: 16 }}>← Volver</button>
+      <h2 style={{ fontWeight: 800, marginBottom: 16 }}>❤️ Mis favoritos ({favs.length})</h2>
+      {loading ? <div className="spinner" /> : favs.length === 0 ? (
+        <div className="empty-state"><h3>No tenés favoritos todavía</h3><p>Tocá el corazón en los productos para guardarlos acá.</p></div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+          {favs.map(f => (
+            <div key={f.id} className="card" style={{ overflow: 'hidden' }}>
+              <div style={{ cursor: 'pointer' }} onClick={() => nav('section', f.seccion_id)}>
+                {f.imagen ? <img src={f.imagen} alt="" style={{ width: '100%', height: 160, objectFit: 'contain', background: '#fafafa', padding: 8 }} /> : <div style={{ height: 160, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#ccc' }}>📱</div>}
+              </div>
+              <div style={{ padding: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>{f.categoria}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{f.nombre || f.modelo}</div>
+                {f.precio_base > 0 && <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(getPrice ? getPrice(f) : f.precio_base)}</div>}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f, 1); toast('Agregado'); }}>Agregar</button>}
+                  <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}>🗑</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

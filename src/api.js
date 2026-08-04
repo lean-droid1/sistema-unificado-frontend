@@ -199,6 +199,21 @@ export async function crearOrdenAndreani(datos) { return f('/api/andreani/orden'
 export async function getTrackingAndreani(numEnvio) { return f(`/api/andreani/tracking/${numEnvio}`); }
 export function getEtiquetaAndreaniUrl(numEnvio) { return `${BASE}/api/andreani/etiqueta/${numEnvio}`; }
 
+// Slider banners
+export async function getSlider() { return f('/api/slider'); }
+export async function getSliderAll() { return f('/api/slider/all'); }
+export async function createSlider(data) { return f('/api/slider', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateSlider(id, data) { return f(`/api/slider/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteSlider(id) { return f(`/api/slider/${id}`, { method: 'DELETE' }); }
+
+// Favoritos
+export async function getFavoritos() { return f('/api/favoritos'); }
+export async function addFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'POST' }); }
+export async function removeFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'DELETE' }); }
+
+// Notificaciones stock
+export async function notificarStock(productoId, email) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email }) }); }
+
 // GA4 Tracking
 export function trackEvent(eventName, params = {}) { if (typeof window.gtag === 'function') window.gtag('event', eventName, params); }
 export function trackPageView(page, title) { trackEvent('page_view', { page_location: page, page_title: title }); }
