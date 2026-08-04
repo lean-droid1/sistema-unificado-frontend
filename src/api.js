@@ -18,8 +18,8 @@ async function f(url, opts = {}) {
 export function setToken(t) { token = t; if (t) localStorage.setItem('gm_token', t); else localStorage.removeItem('gm_token'); }
 export function getToken() { return token; }
 export function isLoggedIn() { return !!token; }
-export function logout() { token = null; localStorage.removeItem('gm_token'); }
-export async function login(usuario, password) { const data = await f('/api/login', { method: 'POST', body: JSON.stringify({ usuario, password }) }); if (data.token) { token = data.token; localStorage.setItem('gm_token', data.token); } return data; }
+export async function logout() { await f('/api/logout', { method: 'POST' }).catch(() => {}); token = null; localStorage.removeItem('gm_token'); }
+export async function login(usuario, password, otp_code) { const data = await f('/api/login', { method: 'POST', body: JSON.stringify({ usuario, password, otp_code }) }); if (data.token) { token = data.token; localStorage.setItem('gm_token', data.token); } return data; }
 export async function register(datos) { return f('/api/register', { method: 'POST', body: JSON.stringify(datos) }); }
 export async function getMe() { return f('/api/me'); }
 export async function updateMe(datos) { return f('/api/me', { method: 'PUT', body: JSON.stringify(datos) }); }
@@ -210,6 +210,10 @@ export async function deleteSlider(id) { return f(`/api/slider/${id}`, { method:
 export async function getFavoritos() { return f('/api/favoritos'); }
 export async function addFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'POST' }); }
 export async function removeFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'DELETE' }); }
+
+// Auth
+export async function refreshToken() { return f('/api/refresh-token', { method: 'POST' }); }
+export async function toggleOTP(activo) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo }) }); }
 
 // Notificaciones stock
 export async function notificarStock(productoId, email) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email }) }); }

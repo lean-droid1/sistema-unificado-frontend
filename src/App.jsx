@@ -1,13 +1,68 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from 'react';
 import * as api from './api';
+import { Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════
-// App.jsx — Sistema Unificado v4 (COMPLETO: v2 features + v3 features + fixes)
+// App.jsx — Sistema Unificado v4 (COMPLETO)
 // ═══════════════════════════════════════════════════════════
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
 const openWA = (num, msg) => window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
+
+// ─── ICON MAP (Lucide icons) ───
+const ICON_MAP = {
+  truck: Truck, shield: Shield, 'credit-card': CreditCard, clock: Clock, star: Star, lock: Lock, zap: Zap, package: Package, heart: Heart, 'thumbs-up': ThumbsUp, 'check-circle': CheckCircle, gift: Gift, headphones: Headphones, phone: Phone, mail: Mail, 'map-pin': MapPin, globe: Globe, award: Award, 'badge-check': BadgeCheck, 'shopping-cart': ShoppingCart, tag: Tag, percent: Percent, 'refresh-cw': RefreshCw, send: Send, eye: Eye, users: Users, wrench: Wrench, wifi: Wifi, battery: Battery, cpu: Cpu, monitor: Monitor, smartphone: Smartphone, camera: Camera, bookmark: Bookmark, bell: Bell, 'message-circle': MessageCircle, 'help-circle': HelpCircle, info: Info, 'alert-circle': AlertCircle
+};
+const ICON_LIST = Object.keys(ICON_MAP);
+
+// Render an icon: lucide name → SVG, URL → img, else → emoji
+function RenderIcon({ value, size = 20, color }) {
+  if (!value) return null;
+  if (value.startsWith('http') || value.startsWith('/') || value.startsWith('data:')) return <img src={value} alt="" style={{ width: size, height: size, objectFit: 'contain', borderRadius: 4 }} />;
+  const LucideIcon = ICON_MAP[value];
+  if (LucideIcon) return <LucideIcon size={size} color={color || 'currentColor'} />;
+  return <span style={{ fontSize: size * 0.9 }}>{value}</span>;
+}
+
+// IconPicker: grid of lucide icons + emoji fallback + image upload
+function IconPicker({ value, onChange, label }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const { toast } = useContext(Ctx);
+  const filtered = ICON_LIST.filter(n => n.includes(search.toLowerCase()));
+  const handleUpload = async (file) => {
+    try { const r = await api.uploadImagen(file); onChange(r.url); setOpen(false); } catch { toast('Error al subir', 'error'); }
+  };
+  return (
+    <div>
+      {label && <label className="form-label">{label}</label>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button type="button" onClick={() => setOpen(!open)} style={{ width: 44, height: 44, borderRadius: 10, border: '2px solid #e5e7eb', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 20 }}>
+          <RenderIcon value={value} size={22} />
+        </button>
+        <input value={value || ''} onChange={e => onChange(e.target.value)} placeholder="Emoji, nombre de ícono, o URL" style={{ flex: 1, fontSize: 13 }} />
+      </div>
+      {open && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginTop: 8, background: '#fff', maxHeight: 260, overflowY: 'auto' }}>
+          <input placeholder="Buscar ícono..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', marginBottom: 8, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(42px, 1fr))', gap: 4, marginBottom: 8 }}>
+            {filtered.map(name => { const I = ICON_MAP[name]; return (
+              <button key={name} type="button" onClick={() => { onChange(name); setOpen(false); }} title={name}
+                style={{ width: 42, height: 42, borderRadius: 8, border: value === name ? '2px solid #2563eb' : '1px solid #eee', background: value === name ? '#eff6ff' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <I size={18} />
+              </button>
+            ); })}
+          </div>
+          <div style={{ borderTop: '1px solid #eee', paddingTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>O subí tu imagen:</span>
+            <input type="file" accept="image/*" onChange={e => { if (e.target.files[0]) handleUpload(e.target.files[0]); }} style={{ fontSize: 11 }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Context for shared state
 const Ctx = createContext();
@@ -498,7 +553,7 @@ function Landing() {
         <div className="marquee-track">
           {[...badges, ...badges, ...badges].map((b, i) => (
             <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', padding: '0 24px', fontSize: 12, fontWeight: 600, color: '#4b5563' }}>
-              <span>{b.icono}</span>{b.texto}
+              <RenderIcon value={b.icono} size={16} />{b.texto}
               <span style={{ color: '#d1d5db' }}>|</span>
             </span>
           ))}
@@ -519,7 +574,7 @@ function Landing() {
             if (!titulo) return null;
             return (
               <div key={n} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 140px', minWidth: 140 }}>
-                <span style={{ fontSize: 20 }}>{icono || '✓'}</span>
+                <span style={{ fontSize: 20 }}><RenderIcon value={icono} size={22} color="#2563eb" /></span>
                 <div><div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>{titulo}</div><div style={{ fontSize: 11, color: '#9ca3af' }}>{design[`confianza_${n}_sub`] || ''}</div></div>
               </div>
             );
@@ -692,7 +747,7 @@ function SectionPage() {
       {/* Badges de sección */}
       {secBadges.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {secBadges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#E7EAFB', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: '#4A69E2' }}><span>{b.icono}</span><span>{b.texto}</span></div>)}
+          {secBadges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#E7EAFB', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: '#4A69E2' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>)}
         </div>
       )}
 
@@ -840,7 +895,7 @@ function CartPage() {
                 {metodos.map(m => (
                   <button key={m.id} onClick={() => setMetodoPago(m.nombre)}
                     style={{ padding: '10px 16px', borderRadius: 12, border: metodoPago === m.nombre ? '2px solid #4A69E2' : '2px solid #E7E7E3', background: metodoPago === m.nombre ? '#E7EAFB' : '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: metodoPago === m.nombre ? '#4A69E2' : '#232321' }}>
-                    {m.icono} {m.nombre}
+                    <RenderIcon value={m.icono} size={16} /> {m.nombre}
                   </button>
                 ))}
               </div>
@@ -1037,28 +1092,51 @@ function ProductDetailPage() {
 // LOGIN / REGISTER / ACCOUNT
 // ═══════════════════════════════════════════════════════════
 function LoginPage() {
-  const { handleLogin, nav, design } = useContext(Ctx);
+  const { handleLogin, nav, design, toast } = useContext(Ctx);
   const [form, setForm] = useState({ usuario: '', password: '' });
   const [showPass, setShowPass] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+
+  const doLogin = async (code) => {
+    try {
+      const r = await api.login(form.usuario, form.password, code || undefined);
+      if (r.requires_otp) { setOtpStep(true); toast('Código enviado a tu email'); return; }
+      handleLogin(null, null, r); // pass full response
+    } catch (e) { toast(e.message || 'Error', 'error'); }
+  };
+
   return (
     <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
       <div className="card" style={{ padding: 32, borderRadius: 24 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#232321', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: '#FFA52F', fontWeight: 900 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: '#f59e0b', fontWeight: 900 }}>
             {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 32, borderRadius: 8 }} /> : 'K'}
           </div>
-          <h2 style={{ fontWeight: 900, fontSize: 22, letterSpacing: '-0.03em' }}>Iniciar sesión</h2>
-          <p style={{ color: '#959595', fontSize: 13, marginTop: 4 }}>Ingresá tus datos para acceder</p>
+          <h2 style={{ fontWeight: 900, fontSize: 22 }}>{otpStep ? 'Verificación' : 'Iniciar sesión'}</h2>
+          <p style={{ color: '#9ca3af', fontSize: 13, marginTop: 4 }}>{otpStep ? 'Ingresá el código que recibiste por email' : 'Ingresá tus datos para acceder'}</p>
         </div>
-        <div className="form-group"><label className="form-label">USUARIO</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} placeholder="Tu usuario" /></div>
-        <div className="form-group"><label className="form-label">CONTRASEÑA</label>
-          <div style={{ position: 'relative' }}>
-            <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin(form.usuario, form.password)} placeholder="••••••" style={{ paddingRight: 40 }} />
-            <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
-          </div>
-        </div>
-        <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#232321', borderColor: '#232321' }} onClick={() => handleLogin(form.usuario, form.password)}>INGRESAR</button>
-        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }} style={{ color: '#4A69E2', fontWeight: 700 }}>Registrate</a></p>
+        {otpStep ? (
+          <>
+            <div className="form-group"><label className="form-label">CÓDIGO DE VERIFICACIÓN</label>
+              <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin(otpCode)} placeholder="123456" style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.3em' }} maxLength={6} autoFocus />
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#1a1a1a', borderColor: '#1a1a1a' }} onClick={() => doLogin(otpCode)}>VERIFICAR</button>
+            <button onClick={() => { setOtpStep(false); setOtpCode(''); }} style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13 }}>← Volver</button>
+          </>
+        ) : (
+          <>
+            <div className="form-group"><label className="form-label">USUARIO</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} placeholder="Tu usuario" /></div>
+            <div className="form-group"><label className="form-label">CONTRASEÑA</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="Mín 8 chars, 1 mayúscula, 1 número" style={{ paddingRight: 40 }} />
+                <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#1a1a1a', borderColor: '#1a1a1a' }} onClick={() => doLogin()}>INGRESAR</button>
+            <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }} style={{ color: '#2563eb', fontWeight: 700 }}>Registrate</a></p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -2386,7 +2464,7 @@ function AdminBadges() {
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran debajo de los productos como indicadores de confianza (envío gratis, compra segura, etc).</p>
       {bgs.map(b => (<div key={b.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ marginRight: 8 }}>{b.icono}</span><strong>{b.texto}</strong> <span style={{ fontSize: 12, color: b.visible ? 'var(--success)' : 'var(--danger)' }}>{b.visible ? '✓' : '✗'}</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteBadge(b.id); api.getBadgesAll().then(setBgs); }}>🗑</button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} badge</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
-        <div className="form-row"><div className="form-group"><label className="form-label">Icono</label><input value={form.icono} onChange={e => setForm({ ...form, icono: e.target.value })} style={{ width: 60 }} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Texto</label><input value={form.texto} onChange={e => setForm({ ...form, texto: e.target.value })} /></div></div>
+        <div className="form-row"><div className="form-group"><IconPicker label="Icono" value={form.icono} onChange={v => setForm({ ...form, icono: v })} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Texto</label><input value={form.texto} onChange={e => setForm({ ...form, texto: e.target.value })} /></div></div>
         <div className="form-group"><label className="form-label">Secciones donde mostrar</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{secciones.map(s => <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={(form.secciones_ids || '').split(',').map(Number).includes(s.id)} onChange={() => toggleSec(s.id)} />{s.nombre}</label>)}</div>
           <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sin selección = se muestra en todas</p></div>
@@ -2411,9 +2489,9 @@ function AdminMetodosPago() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de pago</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ nombre: '', descripcion: '', instrucciones: '', icono: '💳', seccion_id: null, activo: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Arrastrá para reordenar.</p>
-      {mps.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span>{m.icono} <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.descripcion}</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); loadMps(); }}>🗑</button></div></div></div>))}
+      {mps.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><RenderIcon value={m.icono} size={16} /> <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.descripcion}</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); loadMps(); }}>🗑</button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} método de pago</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
-        <div className="form-row"><div className="form-group"><label className="form-label">Icono</label><input value={form.icono} onChange={e => setForm({ ...form, icono: e.target.value })} style={{ width: 60 }} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div></div>
+        <div className="form-row"><div className="form-group"><IconPicker label="Icono" value={form.icono} onChange={v => setForm({ ...form, icono: v })} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div></div>
         <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">Instrucciones (se muestran al elegir este método)</label><textarea value={form.instrucciones} onChange={e => setForm({ ...form, instrucciones: e.target.value })} rows={3} placeholder="Ej: Transferir a CBU 0000...0000 a nombre de..." /></div>
         <div className="form-group"><label className="form-label">Sección (vacío = todas)</label>
@@ -2608,8 +2686,8 @@ function AdminDiseno() {
           <h4 style={{ marginBottom: 8 }}>🛡️ Tarjetas de confianza (hero)</h4>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Se muestran al lado del buscador en la landing.</p>
           {[1, 2, 3].map(n => (
-            <div key={n} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-              <input value={des[`confianza_${n}_icono`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_icono`]: e.target.value })} style={{ width: 50 }} placeholder="Emoji" />
+            <div key={n} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ width: 160 }}><IconPicker label={`Ícono ${n}`} value={des[`confianza_${n}_icono`] || ''} onChange={v => setDes({ ...des, [`confianza_${n}_icono`]: v })} /></div>
               <input value={des[`confianza_${n}_titulo`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_titulo`]: e.target.value })} style={{ flex: 1, minWidth: 120 }} placeholder="Título" />
               <input value={des[`confianza_${n}_sub`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_sub`]: e.target.value })} style={{ flex: 1, minWidth: 120 }} placeholder="Subtítulo" />
             </div>
