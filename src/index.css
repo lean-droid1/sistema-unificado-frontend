@@ -321,3 +321,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
   .admin-hamburger { background: none; border: none; color: #fff; font-size: 22px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .admin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 140; }
 }
+
+/* ─── MARQUEE SCROLLING BANNER ─── */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 25s linear infinite;
+}
+.marquee-track:hover { animation-play-state: paused; }
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}

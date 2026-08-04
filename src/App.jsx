@@ -198,10 +198,7 @@ function Header() {
 
   return (
     <>
-      {/* Top banner */}
-      <div style={{ background: '#1a1a1a', color: '#fff', textAlign: 'center', padding: '7px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.04em' }}>
-        {design.promo_banner || 'Envíos a todo el país · Atención por WhatsApp · Garantía en todos los productos'}
-      </div>
+      {/* Top banner handled by marquee in landing */}
       <header className="header">
         <div className="header-inner">
           <button className="header-logo" onClick={() => nav('landing')}>
@@ -350,24 +347,74 @@ function InfoPage() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// LANDING PAGE
+// LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
 function Landing() {
-  const { secciones, badges, nav, toast, design } = useContext(Ctx);
+  const { secciones, badges, nav, toast, design, addToCart, user, getPrice, userLista } = useContext(Ctx);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState(null);
   const [showPopup, setShowPopup] = useState(null);
+  const [secProds, setSecProds] = useState({});
 
   useEffect(() => {
     api.getPopups().then(p => { if (p.length) setShowPopup(p[0]); }).catch(() => {});
-    api.getBadges().then(r => {}).catch(() => {});
-  }, []);
+    // Load first 8 products per visible section
+    secciones.filter(s => s.visible !== false).forEach(s => {
+      api.getProductos({ seccion_id: s.id, limit: 8 }).then(data => {
+        const prods = data.productos || data;
+        setSecProds(prev => ({ ...prev, [s.id]: prods }));
+      }).catch(() => {});
+    });
+  }, [secciones]);
 
   const doSearch = async () => {
     if (search.length < 2) return;
     const data = await api.busquedaGlobal(search);
     setResults(data);
     api.trackSearch(search, data.total);
+  };
+
+  // Product card component
+  const ProductCard = ({ p, secId }) => {
+    const precio = getPrice ? getPrice(p) : p.precio_base;
+    const tieneOferta = p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
+    const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
+    return (
+      <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 0.2s' }}
+        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'}
+        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => { nav('section', secId); }}>
+          {p.imagen
+            ? <img src={p.imagen} alt="" style={{ width: '100%', height: 180, objectFit: 'contain', padding: 12, background: '#fafafa' }} />
+            : <div style={{ width: '100%', height: 180, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 40 }}>📱</div>
+          }
+          {tieneOferta && <span style={{ position: 'absolute', top: 8, left: 8, background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{descPct}%</span>}
+          {p.stock === 0 && <span style={{ position: 'absolute', top: 8, right: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+        </div>
+        <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{p.categoria || ''}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.3, marginBottom: 8, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.nombre || p.modelo}</div>
+          <div style={{ marginBottom: 8 }}>
+            {tieneOferta ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{fmtARS(p.precio_oferta)}</span>
+              </div>
+            ) : (
+              precio > 0 && <span style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>{fmtARS(precio)}</span>
+            )}
+          </div>
+          {p.stock !== 0 && addToCart && (
+            <button onClick={(e) => { e.stopPropagation(); addToCart(p, 1); toast('Agregado al carrito'); }}
+              style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+              onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+              Agregar
+            </button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -384,108 +431,82 @@ function Landing() {
         </div>
       )}
 
-      {/* ── HERO ── compact, no giant empty space */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 0' }}>
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ flex: '1 1 340px', minWidth: 280 }}>
-            {design.logo_url && <img src={design.logo_url} alt="" style={{ height: 40, marginBottom: 12, borderRadius: 8 }} />}
-            <h1 style={{ fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#1a1a1a', marginBottom: 8 }}>
-              {design.nombre_tienda || 'Mi Tienda'}
-            </h1>
-            <p style={{ color: '#6b7280', fontSize: 15, marginBottom: 20, lineHeight: 1.5 }}>
-              Repuestos, accesorios y herramientas para celulares. Comprá online con envío a todo el país.
-            </p>
-            <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
-              <input placeholder="Buscar por marca, modelo o repuesto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
-                style={{ flex: 1, background: '#fff', border: '1.5px solid #d1d5db', color: '#1a1a1a', borderRadius: 10, padding: '12px 16px', fontSize: 14 }} />
-              <button onClick={doSearch} style={{ background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>Buscar</button>
-            </div>
-          </div>
-          {/* Quick stats / trust */}
-          <div style={{ flex: '1 1 300px', display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            {[
-              { icon: '🚚', title: 'Envío a todo el país', sub: 'Andreani y más' },
-              { icon: '🔧', title: 'Repuestos de calidad', sub: 'Garantía incluida' },
-              { icon: '💬', title: 'Atención directa', sub: 'WhatsApp' },
-            ].map((t, i) => (
-              <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px', flex: '1 1 140px', minWidth: 140, textAlign: 'center' }}>
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{t.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>{t.title}</div>
-                <div style={{ fontSize: 11, color: '#9ca3af' }}>{t.sub}</div>
-              </div>
-            ))}
-          </div>
+      {/* ── MARQUEE BANNER ── scrolling trust badges like RXZ */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #eee', overflow: 'hidden', padding: '8px 0', position: 'relative' }}>
+        <div className="marquee-track">
+          {[...badges, ...badges, ...badges].map((b, i) => (
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', padding: '0 24px', fontSize: 12, fontWeight: 600, color: '#4b5563' }}>
+              <span>{b.icono}</span>{b.texto}
+              <span style={{ color: '#d1d5db' }}>|</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── SEARCH BAR ── */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 20px 0' }}>
+        <div style={{ display: 'flex', gap: 8, maxWidth: 600 }}>
+          <input placeholder="Buscar por marca, modelo o repuesto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
+            style={{ flex: 1, background: '#fff', border: '1.5px solid #d1d5db', color: '#1a1a1a', borderRadius: 8, padding: '10px 14px', fontSize: 14 }} />
+          <button onClick={doSearch} style={{ background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Buscar</button>
         </div>
       </div>
 
       {/* Search results */}
       {results && (
-        <div style={{ maxWidth: 800, margin: '20px auto 30px', padding: '0 16px' }}>
-          {results.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No se encontraron resultados</p> : (
+        <div style={{ maxWidth: 1200, margin: '20px auto', padding: '0 20px' }}>
+          {results.total === 0 ? <p style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>No se encontraron resultados para "{search}"</p> : (
             results.resultados.map(r => (
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
-                <h3 style={{ marginBottom: 12, fontWeight: 800 }}>{r.seccion.nombre} <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                  {r.productos.map(p => (
-                    <div key={p.id} className="card" style={{ padding: 16, cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'center' }} onClick={() => nav('section', r.seccion.id)}>
-                      {p.imagen ? <img src={p.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#9ca3af' }}>📱</div>}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre || p.modelo}</div>
-                        <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>{p.categoria}</div>
-                        {p.precio_base > 0 && <div style={{ fontWeight: 800, fontSize: 14, marginTop: 2 }}>{fmtARS(p.precio_base)}</div>}
-                      </div>
-                    </div>
-                  ))}
+                <h3 style={{ marginBottom: 12, fontWeight: 800, fontSize: 18 }}>{r.seccion.nombre} <span style={{ color: '#9ca3af', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+                  {r.productos.map(p => <ProductCard key={p.id} p={p} secId={r.seccion.id} />)}
                 </div>
-                <button className="btn btn-outline btn-sm" onClick={() => nav('section', r.seccion.id)} style={{ marginTop: 8 }}>Ver todo en {r.seccion.nombre} →</button>
               </div>
             ))
           )}
+          <button onClick={() => setResults(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>✕ Cerrar resultados</button>
         </div>
       )}
 
-      {/* ── SECCIONES ── clean cards, no gradient+emoji */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: '#1a1a1a' }}>Nuestras secciones</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-          {secciones.filter(s => s.visible !== false).map(s => {
-            const iconos = { local: '🏪', deposito: '📦', dropshipping: '🚀', mayorista: '🏭' };
-            const colores = { local: '#059669', deposito: '#2563eb', dropshipping: '#7c3aed', mayorista: '#d97706' };
-            const slug = s.slug || s.nombre.toLowerCase();
-            const color = colores[slug] || '#2563eb';
-            const icono = iconos[slug] || '🛒';
-            return (
-              <div key={s.id} onClick={() => nav('section', s.id)}
-                style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: 0, cursor: 'pointer', transition: 'all 0.2s', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}>
-                {s.imagen ? <img src={s.imagen} alt="" style={{ width: '100%', height: 160, objectFit: 'cover' }} /> : (
-                  <div style={{ height: 120, background: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #f3f4f6' }}>
-                    <span style={{ fontSize: 48 }}>{icono}</span>
-                  </div>
-                )}
-                <div style={{ padding: '16px 20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <h3 style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{s.nombre}</h3>
-                    <span style={{ fontSize: 11, background: `${color}15`, color, padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>Ver →</span>
-                  </div>
-                  {s.descripcion && <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{s.descripcion}</p>}
-                  {s.requiere_aprobacion && <span style={{ display: 'inline-block', marginTop: 8, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', padding: '3px 10px', borderRadius: 6 }}>🔒 Requiere aprobación</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Badges */}
-      {badges.length > 0 && (
-        <div style={{ maxWidth: 900, margin: '0 auto 32px', padding: '0 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '16px 24px' }}>
-            {badges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#4b5563' }}><span style={{ fontSize: 18 }}>{b.icono}</span><span>{b.texto}</span></div>)}
+      {/* ── SECTION TABS ── quick nav */}
+      {!results && (
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {secciones.filter(s => s.visible !== false).map(s => (
+              <button key={s.id} onClick={() => nav('section', s.id)}
+                style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#2563eb'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e5e7eb'; }}>
+                {s.nombre} {s.requiere_aprobacion ? '🔒' : ''}
+              </button>
+            ))}
           </div>
         </div>
       )}
+
+      {/* ── PRODUCTS PER SECTION ── */}
+      {!results && secciones.filter(s => s.visible !== false).map(s => {
+        const prods = secProds[s.id] || [];
+        if (!prods.length) return null;
+        return (
+          <div key={s.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 20px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 19, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{s.nombre}</h2>
+              <button onClick={() => nav('section', s.id)}
+                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                Ver todos →
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
+              {prods.slice(0, 8).map(p => <ProductCard key={p.id} p={p} secId={s.id} />)}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* spacer */}
+      <div style={{ height: 40 }} />
     </div>
   );
 }
