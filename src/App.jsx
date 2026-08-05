@@ -92,39 +92,26 @@ export default function App() {
 
   // Restore route from hash on load
   useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return;
-    const parts = hash.split('/');
-    if (parts[0] === 'section' && parts[1]) {
-      const secId = Number(parts[1]);
-      // Wait for secciones to load, then navigate
-      const check = setInterval(() => {
-        if (secciones.length > 0) {
-          clearInterval(check);
-          const sec = secciones.find(s => s.id === secId);
-          if (sec) { setSeccionActual(sec); setPage('section'); }
-        }
-      }, 200);
-      setTimeout(() => clearInterval(check), 5000);
-    } else if (parts[0] === 'product' && parts[1] && parts[2]) {
-      const secId = Number(parts[1]); const prodId = Number(parts[2]);
-      api.getProductos({ seccion_id: secId, limit: 999 }).then(data => {
-        const prods = data.productos || data;
-        const prod = prods.find(p => p.id === prodId);
-        if (prod) {
-          const sec = secciones.find(s => s.id === secId);
-          if (sec) setSeccionActual(sec);
-          setSelectedProduct(prod);
-          setPage('product');
-        }
-      }).catch(() => {});
-    } else if (parts[0] === 'admin') { setPage('admin'); }
-    else if (parts[0] === 'cart') { setPage('cart'); }
-    else if (parts[0] === 'login') { setPage('login'); }
-    else if (parts[0] === 'account') { setPage('account'); }
-    else if (parts[0] === 'favoritos') { setPage('favoritos'); }
-    else if (parts[0] === 'info') { setPage('info'); }
-    else { setPage(parts[0] || 'landing'); }
+    try {
+      const hash = window.location.hash.slice(1);
+      if (!hash || !secciones.length) return;
+      const parts = hash.split('/');
+      if (parts[0] === 'section' && parts[1]) {
+        const sec = secciones.find(s => s.id === Number(parts[1]));
+        if (sec) { setSeccionActual(sec); setPage('section'); }
+      } else if (parts[0] === 'product' && parts[1] && parts[2]) {
+        const secId = Number(parts[1]); const prodId = Number(parts[2]);
+        const sec = secciones.find(s => s.id === secId);
+        if (sec) setSeccionActual(sec);
+        api.getProductos({ seccion_id: secId, limit: 999 }).then(data => {
+          const prods = data.productos || data || [];
+          const prod = prods.find(p => p.id === prodId);
+          if (prod) { setSelectedProduct(prod); setPage('product'); }
+        }).catch(() => { setPage('landing'); });
+      } else if (['admin','cart','login','account','favoritos','info','register'].includes(parts[0])) {
+        setPage(parts[0]);
+      }
+    } catch (e) { console.error('Route restore error:', e); }
   }, [secciones.length]);
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
@@ -196,23 +183,24 @@ export default function App() {
 
   // Nav helper
   const nav = useCallback((p, secId) => {
-    if (p === 'product' && secId) {
-      // secId here is actually the product object
-      setSelectedProduct(secId);
-      const secActual = seccionActual || secciones.find(s => s.id === secId.seccion_id);
-      if (secActual) setSeccionActual(secActual);
-      setPage('product');
-      window.location.hash = `product/${secActual?.id || ''}/${secId.id}`;
-    } else if (p === 'section' && secId) {
-      const sec = secciones.find(s => s.id === Number(secId) || s.slug === secId);
-      setSeccionActual(sec || null);
-      setPage('section');
-      window.location.hash = `section/${sec?.id || secId}`;
-    } else {
-      setPage(p);
-      window.location.hash = p === 'landing' ? '' : p;
-    }
-    setMobileMenu(false); window.scrollTo(0, 0);
+    try {
+      if (p === 'product' && secId && typeof secId === 'object') {
+        setSelectedProduct(secId);
+        const sec = seccionActual || secciones.find(s => s.id === secId.seccion_id);
+        if (sec) setSeccionActual(sec);
+        setPage('product');
+        window.location.hash = `product/${sec?.id || 0}/${secId.id}`;
+      } else if (p === 'section' && secId) {
+        const sec = secciones.find(s => s.id === Number(secId) || s.slug === secId);
+        setSeccionActual(sec || null);
+        setPage('section');
+        window.location.hash = `section/${sec?.id || secId}`;
+      } else {
+        setPage(p);
+        window.location.hash = p === 'landing' ? '' : p;
+      }
+      setMobileMenu(false); window.scrollTo(0, 0);
+    } catch (e) { console.error('Nav error:', e); setPage('landing'); }
   }, [secciones, seccionActual]);
 
   // Handle browser back button
