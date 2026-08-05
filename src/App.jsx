@@ -88,10 +88,44 @@ function useToast() {
 // ═══════════════════════════════════════════════════════════
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState(() => {
+  const [page, setPage] = useState('landing');
+
+  // Restore route from hash on load
+  useEffect(() => {
     const hash = window.location.hash.slice(1);
-    return hash || 'landing';
-  });
+    if (!hash) return;
+    const parts = hash.split('/');
+    if (parts[0] === 'section' && parts[1]) {
+      const secId = Number(parts[1]);
+      // Wait for secciones to load, then navigate
+      const check = setInterval(() => {
+        if (secciones.length > 0) {
+          clearInterval(check);
+          const sec = secciones.find(s => s.id === secId);
+          if (sec) { setSeccionActual(sec); setPage('section'); }
+        }
+      }, 200);
+      setTimeout(() => clearInterval(check), 5000);
+    } else if (parts[0] === 'product' && parts[1] && parts[2]) {
+      const secId = Number(parts[1]); const prodId = Number(parts[2]);
+      api.getProductos({ seccion_id: secId, limit: 999 }).then(data => {
+        const prods = data.productos || data;
+        const prod = prods.find(p => p.id === prodId);
+        if (prod) {
+          const sec = secciones.find(s => s.id === secId);
+          if (sec) setSeccionActual(sec);
+          setSelectedProduct(prod);
+          setPage('product');
+        }
+      }).catch(() => {});
+    } else if (parts[0] === 'admin') { setPage('admin'); }
+    else if (parts[0] === 'cart') { setPage('cart'); }
+    else if (parts[0] === 'login') { setPage('login'); }
+    else if (parts[0] === 'account') { setPage('account'); }
+    else if (parts[0] === 'favoritos') { setPage('favoritos'); }
+    else if (parts[0] === 'info') { setPage('info'); }
+    else { setPage(parts[0] || 'landing'); }
+  }, [secciones.length]);
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -162,22 +196,40 @@ export default function App() {
 
   // Nav helper
   const nav = useCallback((p, secId) => {
-    if (secId) {
+    if (p === 'product' && secId) {
+      // secId here is actually the product object
+      setSelectedProduct(secId);
+      const secActual = seccionActual || secciones.find(s => s.id === secId.seccion_id);
+      if (secActual) setSeccionActual(secActual);
+      setPage('product');
+      window.location.hash = `product/${secActual?.id || ''}/${secId.id}`;
+    } else if (p === 'section' && secId) {
       const sec = secciones.find(s => s.id === Number(secId) || s.slug === secId);
       setSeccionActual(sec || null);
+      setPage('section');
+      window.location.hash = `section/${sec?.id || secId}`;
+    } else {
+      setPage(p);
+      window.location.hash = p === 'landing' ? '' : p;
     }
-    if (p === 'product' && secId) { setSelectedProduct(secId); setPage('product'); }
-    else { setPage(p); }
-    window.location.hash = p;
     setMobileMenu(false); window.scrollTo(0, 0);
-  }, [secciones]);
+  }, [secciones, seccionActual]);
 
   // Handle browser back button
   useEffect(() => {
-    const onHash = () => { const h = window.location.hash.slice(1); if (h) setPage(h); else setPage('landing'); };
+    const onHash = () => {
+      const h = window.location.hash.slice(1);
+      if (!h) { setPage('landing'); return; }
+      const parts = h.split('/');
+      if (parts[0] === 'section' && parts[1]) {
+        const sec = secciones.find(s => s.id === Number(parts[1]));
+        if (sec) { setSeccionActual(sec); setPage('section'); }
+      } else if (parts[0] === 'product') { /* keep current state */ }
+      else { setPage(parts[0] || 'landing'); }
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [secciones]);
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
@@ -202,13 +254,15 @@ export default function App() {
   const clearCart = (secId) => setCart(prev => ({ ...prev, [secId]: [] }));
 
   // Login
-  const handleLogin = async (usuario, password) => {
+  const handleLogin = async (usuario, password, otp_code) => {
     try {
-      const data = await api.login(usuario, password);
+      const data = await api.login(usuario, password, otp_code);
+      if (data.requires_otp) return data; // Return to LoginPage for OTP step
       setUser(data.user); toast('Bienvenido');
       if (['admin','subadmin'].includes(data.user.rol)) nav('admin');
       else nav('landing');
-    } catch (e) { toast(e.message, 'error'); }
+      return data;
+    } catch (e) { toast(e.message, 'error'); throw e; }
   };
   const handleLogout = () => { api.logout(); setUser(null); nav('landing'); toast('Sesión cerrada'); };
 
@@ -1131,10 +1185,9 @@ function LoginPage() {
 
   const doLogin = async (code) => {
     try {
-      const r = await api.login(form.usuario, form.password, code || undefined);
-      if (r.requires_otp) { setOtpStep(true); toast('Código enviado a tu email'); return; }
-      handleLogin(null, null, r); // pass full response
-    } catch (e) { toast(e.message || 'Error', 'error'); }
+      const r = await handleLogin(form.usuario, form.password, code || undefined);
+      if (r && r.requires_otp) { setOtpStep(true); toast('Código enviado a tu email'); }
+    } catch (e) { /* handleLogin already toasts */ }
   };
 
   return (
