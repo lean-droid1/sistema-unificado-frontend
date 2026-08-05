@@ -89,30 +89,6 @@ function useToast() {
 export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('landing');
-
-  // Restore route from hash on load
-  useEffect(() => {
-    try {
-      const hash = window.location.hash.slice(1);
-      if (!hash || !secciones.length) return;
-      const parts = hash.split('/');
-      if (parts[0] === 'section' && parts[1]) {
-        const sec = secciones.find(s => s.id === Number(parts[1]));
-        if (sec) { setSeccionActual(sec); setPage('section'); }
-      } else if (parts[0] === 'product' && parts[1] && parts[2]) {
-        const secId = Number(parts[1]); const prodId = Number(parts[2]);
-        const sec = secciones.find(s => s.id === secId);
-        if (sec) setSeccionActual(sec);
-        api.getProductos({ seccion_id: secId, limit: 999 }).then(data => {
-          const prods = data.productos || data || [];
-          const prod = prods.find(p => p.id === prodId);
-          if (prod) { setSelectedProduct(prod); setPage('product'); }
-        }).catch(() => { setPage('landing'); });
-      } else if (['admin','cart','login','account','favoritos','info','register'].includes(parts[0])) {
-        setPage(parts[0]);
-      }
-    } catch (e) { console.error('Route restore error:', e); }
-  }, [secciones.length]);
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -183,41 +159,20 @@ export default function App() {
 
   // Nav helper
   const nav = useCallback((p, secId) => {
-    try {
-      if (p === 'product' && secId && typeof secId === 'object') {
-        setSelectedProduct(secId);
-        const sec = seccionActual || secciones.find(s => s.id === secId.seccion_id);
-        if (sec) setSeccionActual(sec);
-        setPage('product');
-        window.location.hash = `product/${sec?.id || 0}/${secId.id}`;
-      } else if (p === 'section' && secId) {
-        const sec = secciones.find(s => s.id === Number(secId) || s.slug === secId);
-        setSeccionActual(sec || null);
-        setPage('section');
-        window.location.hash = `section/${sec?.id || secId}`;
-      } else {
-        setPage(p);
-        window.location.hash = p === 'landing' ? '' : p;
-      }
-      setMobileMenu(false); window.scrollTo(0, 0);
-    } catch (e) { console.error('Nav error:', e); setPage('landing'); }
+    if (p === 'product' && secId && typeof secId === 'object') {
+      setSelectedProduct(secId);
+      const sec = seccionActual || secciones.find(s => s.id === secId.seccion_id);
+      if (sec) setSeccionActual(sec);
+      setPage('product');
+    } else if (secId) {
+      const sec = secciones.find(s => s.id === Number(secId) || s.slug === secId);
+      setSeccionActual(sec || null);
+      setPage(p);
+    } else {
+      setPage(p);
+    }
+    setMobileMenu(false); window.scrollTo(0, 0);
   }, [secciones, seccionActual]);
-
-  // Handle browser back button
-  useEffect(() => {
-    const onHash = () => {
-      const h = window.location.hash.slice(1);
-      if (!h) { setPage('landing'); return; }
-      const parts = h.split('/');
-      if (parts[0] === 'section' && parts[1]) {
-        const sec = secciones.find(s => s.id === Number(parts[1]));
-        if (sec) { setSeccionActual(sec); setPage('section'); }
-      } else if (parts[0] === 'product') { /* keep current state */ }
-      else { setPage(parts[0] || 'landing'); }
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, [secciones]);
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
