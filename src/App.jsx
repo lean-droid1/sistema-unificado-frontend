@@ -541,7 +541,7 @@ function InfoPage() {
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
 function Landing() {
-  const { secciones, badges, nav, toast, design, addToCart, user, getPrice, userLista } = useContext(Ctx);
+  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista } = useContext(Ctx);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState(null);
   const [showPopup, setShowPopup] = useState(null);
