@@ -715,6 +715,13 @@ function Landing() {
         </div>
       </div>
 
+      {/* ── HERO ── título/subtítulo (editable desde Diseño) */}
+      {(design.hero_titulo || design.hero_subtitulo) && (
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 20px 4px', textAlign: 'center' }}>
+          {design.hero_titulo && <h1 style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>{design.hero_titulo}</h1>}
+          {design.hero_subtitulo && <p style={{ fontSize: 15, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 0 }}>{design.hero_subtitulo}</p>}
+        </div>
+      )}
       {/* ── SEARCH BAR ── */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 20px 0' }}>
         <div style={{ display: 'flex', gap: 8, maxWidth: 600 }}>
@@ -744,7 +751,7 @@ function Landing() {
             results.resultados.map(r => (
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
                 <h3 style={{ marginBottom: 12, fontWeight: 800, fontSize: 18 }}>{r.seccion.nombre} <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                   {r.productos.map(p => <ProductCard key={p.id} p={p} secId={r.seccion.id} />)}
                 </div>
               </div>
@@ -783,13 +790,22 @@ function Landing() {
                 Ver todos →
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
               {prods.slice(0, 8).map(p => <ProductCard key={p.id} p={p} secId={s.id} />)}
             </div>
           </div>
         );
       })}
 
+      {/* ── BANNER PUBLICITARIO ── al pie del catálogo (config.banner_texto) */}
+      {config.banner_texto && (
+        <div style={{ maxWidth: 1200, margin: '32px auto 0', padding: '0 20px' }}>
+          <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: 14, padding: '18px 24px', textAlign: 'center', fontWeight: 700, fontSize: 15, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
+            <span>{config.banner_texto}</span>
+            {config.banner_whatsapp && <a href={`https://wa.me/${config.banner_whatsapp}`} target="_blank" rel="noopener" style={{ background: '#fff', color: 'var(--primary)', padding: '8px 16px', borderRadius: 8, fontWeight: 800, textDecoration: 'none', fontSize: 13 }}>WhatsApp</a>}
+          </div>
+        </div>
+      )}
       {/* spacer */}
       <div style={{ height: 40 }} />
 

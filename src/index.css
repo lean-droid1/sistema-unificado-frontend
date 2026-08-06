@@ -120,7 +120,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .badge-icon { font-size: 22px; }
 
 /* ─── PRODUCT GRID ─── */
-.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .product-grid-small { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
 .product-card { background: var(--bg-card); border: none; border-radius: var(--radius); overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; box-shadow: var(--shadow); }
 .product-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
