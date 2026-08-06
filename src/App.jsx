@@ -52,7 +52,7 @@ function IconPicker({ value, onChange, label }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(42px, 1fr))', gap: 4, marginBottom: 8 }}>
             {filtered.map(name => { const I = ICON_MAP[name]; return (
               <button key={name} type="button" onClick={() => { onChange(name); setOpen(false); }} title={name}
-                style={{ width: 42, height: 42, borderRadius: 8, border: value === name ? '2px solid #2563eb' : '1px solid #eee', background: value === name ? '#eff6ff' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                style={{ width: 42, height: 42, borderRadius: 8, border: value === name ? '2px solid var(--primary)' : '1px solid #eee', background: value === name ? 'var(--primary-light)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <I size={18} />
               </button>
             ); })}
@@ -189,7 +189,7 @@ function useToast() {
 // ═══════════════════════════════════════════════════════════
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState(() => { const sv = localStorage.getItem('gm_page'); if (!sv || ['product','login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv; });
+  const [page, setPage] = useState(() => { const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv; });
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
   const [testMode, setTestMode] = useState(() => localStorage.getItem('gm_test') === 'true');
@@ -210,7 +210,7 @@ export default function App() {
     }
   }, [design.nombre_tienda, design.favicon_url]);
   const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [menuItems, setMenuItems] = useState([]);
   const [redesSociales, setRedesSociales] = useState([]);
@@ -233,6 +233,7 @@ export default function App() {
   // FIX #4: persistir ruta + seccion
   useEffect(() => { localStorage.setItem('gm_page', page); }, [page]);
   useEffect(() => { localStorage.setItem('gm_seccion', JSON.stringify(seccionActual)); }, [seccionActual]);
+  useEffect(() => { localStorage.setItem('gm_product', JSON.stringify(selectedProduct)); }, [selectedProduct]);
 
   // Init - runs once
   const initDone = useRef(false);
@@ -399,7 +400,7 @@ function Header() {
           </nav>
           <div className="header-right">
             <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? '☀️' : '🌙'}</button>
-            {isAdmin && <button className="icon-btn" onClick={() => setTestMode(!testMode)} title={testMode ? 'Modo PRUEBA activo' : 'Modo producción'} style={{ fontSize: 11, fontWeight: 800, background: testMode ? '#f59e0b' : 'transparent', color: testMode ? '#000' : 'inherit', borderRadius: 8, padding: '4px 8px' }}>{testMode ? '🧪 TEST' : '🧪'}</button>}
+            {isAdmin && <button className="icon-btn" onClick={() => setTestMode(!testMode)} title={testMode ? 'Modo PRUEBA activo' : 'Modo producción'} style={{ fontSize: 11, fontWeight: 800, background: testMode ? 'var(--warning)' : 'transparent', color: testMode ? '#000' : 'inherit', borderRadius: 8, padding: '4px 8px' }}>{testMode ? '🧪 TEST' : '🧪'}</button>}
             {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos">❤️</button>}
             <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
               🛒 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
@@ -411,7 +412,7 @@ function Header() {
                 <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
               </>
             ) : (
-              <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: '#FFA52F', color: 'var(--primary-dark)', borderColor: '#FFA52F', fontWeight: 800 }}>INGRESAR</button>
+              <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: 'var(--accent)', color: 'var(--primary-dark)', borderColor: 'var(--accent)', fontWeight: 800 }}>INGRESAR</button>
             )}
             <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}>☰</button>
           </div>
@@ -620,10 +621,10 @@ function Landing() {
             ? <img src={p.imagen} alt="" style={{ width: '100%', height: 180, objectFit: 'contain', padding: 12, background: 'var(--bg)' }} loading="lazy" />
             : <div style={{ width: '100%', height: 180, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 40 }}>📱</div>
           }
-          {tieneOferta && <span style={{ position: 'absolute', top: 8, left: 8, background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{descPct}%</span>}
+          {tieneOferta && <span style={{ position: 'absolute', top: 8, left: 8, background: 'var(--danger)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{descPct}%</span>}
           {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 8, left: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
           {p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: '#8b5cf6', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Digital</span>}
-          {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: '#f59e0b', color: '#000', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
+          {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'var(--warning)', color: '#000', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
         </div>
         <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{p.categoria || ''}</div>
@@ -632,7 +633,7 @@ function Landing() {
             {tieneOferta ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{fmtARS(p.precio_oferta)}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
               </div>
             ) : (
               precio > 0 && <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{fmtARS(precio)}</span>
@@ -644,7 +645,7 @@ function Landing() {
                 <div style={{ display: 'flex', gap: 4 }}>
                   <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 8px', borderRadius: 4, border: '1px solid #ddd' }} />
                   <button onClick={async (e) => { e.stopPropagation(); if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }}
-                    style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>OK</button>
+                    style={{ background: 'var(--warning)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>OK</button>
                 </div>
               ) : (
                 <button onClick={(e) => { e.stopPropagation(); setShowNotify(true); }}
@@ -804,9 +805,9 @@ function ScrollTriggerInit({ deps = 0 }) {
     const timer = setTimeout(() => {
       gsap.utils.toArray('.kicks-card').forEach(card => {
         if (card._gsapInit) return; card._gsapInit = true;
-        gsap.fromTo(card, { y: 40, opacity: 0 }, {
-          y: 0, opacity: 1, duration: 0.7, ease: 'power2.out',
-          scrollTrigger: { trigger: card, start: 'top 92%', toggleActions: 'play none none none' }
+        gsap.fromTo(card, { scale: 0.75 }, {
+          scale: 1.15, ease: 'none',
+          scrollTrigger: { trigger: card, start: 'top 85%', end: 'top 30%', scrub: 1.2 }
         });
       });
       ScrollTrigger.refresh();
@@ -1010,10 +1011,7 @@ function CartPage() {
   const [envio, setEnvio] = useState({});
 
   // Group cart items by section
-  const seccionesConItems = secciones.filter(s => {
-    const items = Object.values(cart).filter(i => i.seccion_id === s.id);
-    return items.length > 0;
-  });
+  const seccionesConItems = secciones.filter(s => (Array.isArray(cart[s.id]) ? cart[s.id] : []).some(i => i.qty > 0));
   const allItems = Object.entries(cart).flatMap(([secId, items]) => 
     (Array.isArray(items) ? items : []).map(i => ({ ...i, seccion_id: Number(secId) }))
   ).filter(i => i.qty > 0);
@@ -1038,6 +1036,13 @@ function CartPage() {
 
   const checkout = async () => {
     if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
+    // Bloquear si alguna tienda no llega a su compra mínima
+    const bajoMin = seccionesConItems.find(sec => {
+      const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
+      const min = Number(config[`compra_minima_${sec.id}`]) || 0;
+      return min > 0 && ss < min;
+    });
+    if (bajoMin) { toast(`No llegás al mínimo de compra en ${bajoMin.nombre}`, 'warning'); return; }
     // FIX #14: un pedido por seccion, todo transaccional (si falla uno no se crea ninguno)
     const pedidos = seccionesConItems.map(sec => {
       const secItems = allItems.filter(i => i.seccion_id === sec.id);
@@ -1071,17 +1076,31 @@ function CartPage() {
         const gratisDesde = Number(config[`envio_gratis_desde_${sec.id}`]) || 0;
         const faltaGratis = gratisDesde > 0 ? Math.max(0, gratisDesde - secSubtotal) : 0;
         const pctGratis = gratisDesde > 0 ? Math.min(100, (secSubtotal / gratisDesde) * 100) : 0;
+        const compraMinima = Number(config[`compra_minima_${sec.id}`]) || 0;
+        const faltaMin = compraMinima > 0 ? Math.max(0, compraMinima - secSubtotal) : 0;
+        const pctMin = compraMinima > 0 ? Math.min(100, (secSubtotal / compraMinima) * 100) : 0;
         return (
           <div key={sec.id} style={{ marginBottom: 24 }}>
             <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
-            {/* Barra envío gratis */}
+            {/* Barra COMPRA MÍNIMA (rojo si no llega) */}
+            {compraMinima > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pctMin}%`, background: faltaMin === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--danger), var(--accent))', borderRadius: 3, transition: 'width 0.3s' }} />
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: faltaMin === 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {faltaMin === 0 ? '✓ Llegaste al mínimo de compra' : `Mínimo ${fmtARS(compraMinima)} — te faltan ${fmtARS(faltaMin)} para poder comprar`}
+                </div>
+              </div>
+            )}
+            {/* Barra ENVÍO GRATIS (gradient primary→accent, verde al llegar) */}
             {gratisDesde > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? '#16a34a' : 'linear-gradient(90deg, #4A69E2, #FFA52F)', borderRadius: 3, transition: 'width 0.3s' }} />
+                <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--primary), var(--accent))', borderRadius: 4, transition: 'width 0.4s' }} />
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: faltaGratis === 0 ? '#16a34a' : 'var(--text-muted)' }}>
-                  {faltaGratis === 0 ? '🎉 ¡Envío gratis!' : `Te faltan ${fmtARS(faltaGratis)} para envío gratis`}
+                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: faltaGratis === 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
+                  {faltaGratis === 0 ? '🎉 ¡Envío gratis conseguido!' : `Te faltan ${fmtARS(faltaGratis)} para envío gratis`}
                 </div>
               </div>
             )}
@@ -1098,7 +1117,7 @@ function CartPage() {
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                 </div>
                 <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
-                <button onClick={() => removeFromCart(sec.id, i.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
+                <button onClick={() => removeFromCart(sec.id, i.id)} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
               </div>
             ))}
             {/* Shipping for this section */}
@@ -1120,7 +1139,7 @@ function CartPage() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {metodos.map(m => (
               <button key={m.id} onClick={() => setMetodoPago(m.nombre)}
-                style={{ padding: '8px 14px', borderRadius: 10, border: metodoPago === m.nombre ? '2px solid #2563eb' : '1.5px solid var(--border)', background: metodoPago === m.nombre ? '#eff6ff' : 'var(--bg-card)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                style={{ padding: '8px 14px', borderRadius: 10, border: metodoPago === m.nombre ? '2px solid var(--primary)' : '1.5px solid var(--border)', background: metodoPago === m.nombre ? 'var(--primary-light)' : 'var(--bg-card)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
                 <RenderIcon value={m.icono} size={14} /> {m.nombre}
               </button>
             ))}
@@ -1133,7 +1152,7 @@ function CartPage() {
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
         {costoEnvioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Envío</span><span style={{ fontWeight: 700 }}>{fmtARS(costoEnvioTotal)}</span></div>}
-        {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: '#16a34a' }}>Descuento</span><span style={{ fontWeight: 700, color: '#16a34a' }}>-{fmtARS(descuento)}</span></div>}
+        {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuento</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(descuento)}</span></div>}
         <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
       </div>
@@ -1216,7 +1235,7 @@ function ProductDetailPage() {
             <div style={{ display: 'flex', gap: 8, marginTop: 12, overflowX: 'auto' }}>
               {allImages.map((img, i) => (
                 <img key={i} src={img} alt="" onClick={() => setMainImg(img)}
-                  style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 8, border: mainImg === img ? '2px solid #2563eb' : '1px solid #e5e7eb', cursor: 'pointer', padding: 4, background: 'var(--bg-card)' }} />
+                  style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 8, border: mainImg === img ? '2px solid var(--primary)' : '1px solid #e5e7eb', cursor: 'pointer', padding: 4, background: 'var(--bg-card)' }} />
               ))}
             </div>
           )}
@@ -1243,7 +1262,7 @@ function ProductDetailPage() {
               {preciosMetodo.map(pm => (
                 <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>{pm.icono}</span><strong>{fmtARS(pm.precio)}</strong>
-                  <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>con {pm.nombre} −{pm.descuento}%</span>
+                  <span style={{ color: 'var(--success)', fontSize: 12, fontWeight: 600 }}>con {pm.nombre} −{pm.descuento}%</span>
                 </div>
               ))}
             </div>
@@ -1256,7 +1275,7 @@ function ProductDetailPage() {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {variantes.map(v => (
                   <button key={v.id} onClick={() => setSelVariante(selVariante?.id === v.id ? null : v)}
-                    style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: selVariante?.id === v.id ? '2px solid #2563eb' : '1px solid #e5e7eb', background: selVariante?.id === v.id ? '#eff6ff' : '#fff', color: 'var(--text)' }}>
+                    style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: selVariante?.id === v.id ? '2px solid var(--primary)' : '1px solid #e5e7eb', background: selVariante?.id === v.id ? 'var(--primary-light)' : '#fff', color: 'var(--text)' }}>
                     {v.nombre}: {v.valor} {v.precio_extra > 0 && `(+${fmtARS(v.precio_extra)})`}
                   </button>
                 ))}
@@ -1270,7 +1289,7 @@ function ProductDetailPage() {
 
           {sinStock ? (
             <div>
-              <div style={{ padding: '14px 20px', background: '#fee2e2', borderRadius: 10, color: '#ef4444', fontWeight: 700, marginBottom: 12, fontSize: 13 }}>SIN STOCK</div>
+              <div style={{ padding: '14px 20px', background: '#fee2e2', borderRadius: 10, color: 'var(--danger)', fontWeight: 700, marginBottom: 12, fontSize: 13 }}>SIN STOCK</div>
               {showNotify ? (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #ddd' }} />
@@ -1329,7 +1348,7 @@ function LoginPage() {
     <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
       <div className="card" style={{ padding: 32, borderRadius: 24 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: '#f59e0b', fontWeight: 900 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: 'var(--warning)', fontWeight: 900 }}>
             {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 32, borderRadius: 8 }} /> : 'K'}
           </div>
           <h2 style={{ fontWeight: 900, fontSize: 22 }}>{otpStep ? 'Verificación' : 'Iniciar sesión'}</h2>
@@ -1577,7 +1596,7 @@ function AdminDashboard() {
 
   const kpis = [
     { label: 'PEDIDOS', value: stats.total_pedidos || 0, icon: '📦', color: 'var(--primary)', bg: 'var(--primary-light)' },
-    { label: 'VENTAS', value: fmtARS(stats.total_ventas || 0), icon: '💰', color: '#16a34a', bg: '#dcfce7' },
+    { label: 'VENTAS', value: fmtARS(stats.total_ventas || 0), icon: '💰', color: 'var(--success)', bg: '#dcfce7' },
     { label: 'PRODUCTOS', value: stats.total_productos || 0, icon: '🏷️', color: 'var(--primary)', bg: '#fff3d4' },
     { label: 'USUARIOS', value: stats.total_usuarios || 0, icon: '👥', color: '#8b5cf6', bg: '#ede9fe' },
   ];
@@ -2909,7 +2928,7 @@ function AdminDiseno() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  const resetDefaults = () => { setDes({ ...des, color_primario: 'var(--primary)', color_secundario: '#1e40af', color_acento: '#f59e0b', plantilla: 'moderna' }); };
+  const resetDefaults = () => { setDes({ ...des, color_primario: 'var(--primary)', color_secundario: 'var(--primary-dark)', color_acento: 'var(--warning)', plantilla: 'moderna' }); };
 
   return (
     <div>
@@ -2921,10 +2940,10 @@ function AdminDiseno() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Elegí un estilo visual para tu tienda. Después podés personalizar los colores.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
           {[
-            { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', colors: { p: 'var(--primary)', s: 'var(--primary-dark)', a: '#FFA52F' }, font: 'Archivo' },
-            { id: 'minimal', name: 'Minimal', desc: 'Limpio y elegante', colors: { p: '#18181b', s: '#71717a', a: '#f59e0b' }, font: 'Inter' },
+            { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', colors: { p: 'var(--primary)', s: 'var(--primary-dark)', a: 'var(--accent)' }, font: 'Archivo' },
+            { id: 'minimal', name: 'Minimal', desc: 'Limpio y elegante', colors: { p: '#18181b', s: '#71717a', a: 'var(--warning)' }, font: 'Inter' },
             { id: 'tech', name: 'Tech', desc: 'Para electrónica', colors: { p: '#0ea5e9', s: '#0c4a6e', a: '#22c55e' }, font: 'Space Grotesk' },
-            { id: 'classic', name: 'Classic', desc: 'Profesional neutro', colors: { p: 'var(--primary)', s: '#1e40af', a: '#f59e0b' }, font: 'Open Sans' },
+            { id: 'classic', name: 'Classic', desc: 'Profesional neutro', colors: { p: 'var(--primary)', s: 'var(--primary-dark)', a: 'var(--warning)' }, font: 'Open Sans' },
             { id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', colors: { p: '#a78bfa', s: '#1e1b4b', a: '#f472b6' }, font: 'Outfit' },
           ].map(t => (
             <div key={t.id} onClick={() => setDes({ ...des, plantilla: t.id, color_primario: t.colors.p, color_secundario: t.colors.s, color_acento: t.colors.a, fuente: t.font })}
@@ -2948,8 +2967,8 @@ function AdminDiseno() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aplicá una paleta rápida o editá los colores individuales abajo.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
-            { name: 'Azul Pro', p: 'var(--primary)', s: '#1e40af', a: '#f59e0b' },
-            { name: 'Verde Negocio', p: '#16a34a', s: '#15803d', a: '#eab308' },
+            { name: 'Azul Pro', p: 'var(--primary)', s: 'var(--primary-dark)', a: 'var(--warning)' },
+            { name: 'Verde Negocio', p: 'var(--success)', s: '#15803d', a: '#eab308' },
             { name: 'Rojo Audaz', p: '#dc2626', s: '#991b1b', a: '#f97316' },
             { name: 'Violeta', p: '#7c3aed', s: '#5b21b6', a: '#f472b6' },
             { name: 'Naranja', p: '#ea580c', s: '#c2410c', a: '#facc15' },
@@ -2988,8 +3007,8 @@ function AdminDiseno() {
         </div>
         <div className="form-row">
           <div className="form-group"><label className="form-label">Color primario</label><input type="color" value={des.color_primario || 'var(--primary)'} onChange={e => setDes({ ...des, color_primario: e.target.value })} /></div>
-          <div className="form-group"><label className="form-label">Color secundario</label><input type="color" value={des.color_secundario || '#1e40af'} onChange={e => setDes({ ...des, color_secundario: e.target.value })} /></div>
-          <div className="form-group"><label className="form-label">Color acento</label><input type="color" value={des.color_acento || '#f59e0b'} onChange={e => setDes({ ...des, color_acento: e.target.value })} /></div>
+          <div className="form-group"><label className="form-label">Color secundario</label><input type="color" value={des.color_secundario || 'var(--primary-dark)'} onChange={e => setDes({ ...des, color_secundario: e.target.value })} /></div>
+          <div className="form-group"><label className="form-label">Color acento</label><input type="color" value={des.color_acento || 'var(--warning)'} onChange={e => setDes({ ...des, color_acento: e.target.value })} /></div>
         </div>
         <div className="form-group"><label className="form-label">Texto del footer</label><input value={des.footer_texto || ''} onChange={e => setDes({ ...des, footer_texto: e.target.value })} /></div>
 
@@ -3164,13 +3183,13 @@ function AdminEnviosCustom() {
 function SectionStockConfig() {
   const { secciones, setSecciones, toast, config, setConfig } = useContext(Ctx);
   const [secData, setSecData] = useState({});
-  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888', gratis_desde: config[`envio_gratis_desde_${s.id}`] || '' }; }); setSecData(d); }, [secciones, config]);
+  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888', gratis_desde: config[`envio_gratis_desde_${s.id}`] || '', compra_minima: config[`compra_minima_${s.id}`] || '' }; }); setSecData(d); }, [secciones, config]);
   const saveSec = async (sec) => {
     try {
       const d = secData[sec.id];
       await api.updateSeccion(sec.id, { ...sec, ignorar_stock: d.ignorar_stock, permitir_sin_stock: d.permitir_sin_stock, cp_origen: d.cp_origen });
       // FIX #10: envio gratis desde $X se guarda en config
-      const upd = { [`envio_gratis_desde_${sec.id}`]: String(d.gratis_desde || 0) };
+      const upd = { [`envio_gratis_desde_${sec.id}`]: String(d.gratis_desde || 0), [`compra_minima_${sec.id}`]: String(d.compra_minima || 0) };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
       toast(`${sec.nombre} actualizada`);
@@ -3193,6 +3212,10 @@ function SectionStockConfig() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <label style={{ fontSize: 12 }}>🚚 Envío gratis desde $:</label>
               <input type="number" value={secData[s.id]?.gratis_desde || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], gratis_desde: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <label style={{ fontSize: 12 }}>🛒 Compra mínima $:</label>
+              <input type="number" value={secData[s.id]?.compra_minima || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], compra_minima: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
             </div>
           </div>
           <button className="btn btn-outline btn-sm" onClick={() => saveSec(s)} style={{ marginTop: 6 }}>Guardar {s.nombre}</button>
