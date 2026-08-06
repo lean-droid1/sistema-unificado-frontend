@@ -71,7 +71,7 @@ export async function uploadImagen(file) {
   const fd = new FormData(); fd.append('imagen', file);
   const headers = {}; if (token) headers['Authorization'] = `Bearer ${token}`;
   const r = await fetch(`${BASE}/api/upload`, { method: 'POST', headers, body: fd });
-  if (!r.ok) throw new Error('Error al subir imagen');
+  if (!r.ok) { const err = await r.json().catch(() => ({ error: r.statusText })); throw new Error(err.error || 'Error al subir imagen'); }
   return r.json();
 }
 export async function uploadBase64(data, filename) { return f('/api/upload-base64', { method: 'POST', body: JSON.stringify({ data, filename }) }); }
@@ -118,7 +118,7 @@ export async function resetPasswordAdmin(id) { return f(`/api/usuarios/${id}/res
 export async function deleteUsuario(id) { return f(`/api/usuarios/${id}`, { method: 'DELETE' }); }
 
 // pedidos
-export async function getPedidos(params={}) { const p=new URLSearchParams(params); return f(`/api/pedidos?${p}`); }
+export async function getPedidos(params={}) { const clean = Object.fromEntries(Object.entries(params).filter(([,v]) => v !== null && v !== undefined && v !== '')); const p=new URLSearchParams(clean); return f(`/api/pedidos?${p}`); }
 export async function getPedido(id) { return f(`/api/pedidos/${id}`); }
 export async function createPedido(data) { return f('/api/pedidos', { method: 'POST', body: JSON.stringify(data) }); }
 export async function createPedidosMulti(pedidos, is_test=false) { return f('/api/pedidos/multi', { method: 'POST', body: JSON.stringify({ pedidos, is_test }) }); }

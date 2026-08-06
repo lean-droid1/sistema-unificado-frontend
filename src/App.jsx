@@ -189,7 +189,7 @@ function useToast() {
 // ═══════════════════════════════════════════════════════════
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState('landing');
+  const [page, setPage] = useState(() => { const sv = localStorage.getItem('gm_page'); if (!sv || ['product','login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv; });
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
   const [testMode, setTestMode] = useState(() => localStorage.getItem('gm_test') === 'true');
@@ -209,7 +209,7 @@ export default function App() {
       link.href = design.favicon_url;
     }
   }, [design.nombre_tienda, design.favicon_url]);
-  const [seccionActual, setSeccionActual] = useState(null);
+  const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [menuItems, setMenuItems] = useState([]);
@@ -229,6 +229,10 @@ export default function App() {
 
   // Save cart
   useEffect(() => { localStorage.setItem('gm_cart', JSON.stringify(cart)); }, [cart]);
+
+  // FIX #4: persistir ruta + seccion
+  useEffect(() => { localStorage.setItem('gm_page', page); }, [page]);
+  useEffect(() => { localStorage.setItem('gm_seccion', JSON.stringify(seccionActual)); }, [seccionActual]);
 
   // Init - runs once
   const initDone = useRef(false);
@@ -385,7 +389,7 @@ function Header() {
       <header className="header">
         <div className="header-inner">
           <button className="header-logo" onClick={() => nav('landing')}>
-            {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: '#4A69E2', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+            {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
             <span>{design.nombre_tienda || 'MI TIENDA'}</span>
           </button>
           <nav className="header-nav desktop-only">
@@ -407,7 +411,7 @@ function Header() {
                 <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
               </>
             ) : (
-              <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: '#FFA52F', color: '#232321', borderColor: '#FFA52F', fontWeight: 800 }}>INGRESAR</button>
+              <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: '#FFA52F', color: 'var(--primary-dark)', borderColor: '#FFA52F', fontWeight: 800 }}>INGRESAR</button>
             )}
             <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}>☰</button>
           </div>
@@ -466,7 +470,7 @@ function Footer() {
             {infoPags.map(p => <a key={p.id} href="#" onClick={e => { e.preventDefault(); nav('info'); }} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
           </div>
         )}
-        <div style={{ width: 40, height: 3, background: '#4A69E2', margin: '0 auto 16px', borderRadius: 2 }} />
+        <div style={{ width: 40, height: 3, background: 'var(--primary)', margin: '0 auto 16px', borderRadius: 2 }} />
         <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>{design.footer_texto || '© 2026 — Todos los derechos reservados'}</p>
       </div>
     </footer>
@@ -516,7 +520,7 @@ function InfoPage() {
   }, []);
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 20px' }}>
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
       {paginas.length > 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
           {paginas.map(p => <button key={p.id} className={`btn btn-sm ${active?.id === p.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActive(p)}>{p.titulo}</button>)}
@@ -651,9 +655,9 @@ function Landing() {
             </div>
           ) : addToCart && (
             <button onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); }}
-              style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
+              style={{ width: '100%', padding: '8px 0', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--primary)'}>
               Agregar
             </button>
           )}
@@ -745,7 +749,7 @@ function Landing() {
               </div>
             ))
           )}
-          <button onClick={() => setResults(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>✕ Cerrar resultados</button>
+          <button onClick={() => setResults(null)} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>✕ Cerrar resultados</button>
         </div>
       )}
 
@@ -756,7 +760,7 @@ function Landing() {
             {secciones.map(s => (
               <button key={s.id} onClick={() => nav('section', s.id)}
                 style={{ background: 'var(--border-light)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#2563eb'; }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e5e7eb'; }}>
                 {s.nombre} {s.requiere_aprobacion ? '🔒' : ''}
               </button>
@@ -774,7 +778,7 @@ function Landing() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{s.nombre}</h2>
               <button onClick={() => nav('section', s.id)}
-                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Ver todos →
               </button>
             </div>
@@ -788,24 +792,28 @@ function Landing() {
       {/* spacer */}
       <div style={{ height: 40 }} />
 
-      {/* GSAP ScrollTrigger parallax on product cards */}
-      <ScrollTriggerInit />
+      {/* GSAP reveal on product cards */}
+      <ScrollTriggerInit deps={Object.values(secProds).reduce((n, a) => n + (a?.length || 0), 0)} />
     </div>
   );
 }
 
-function ScrollTriggerInit() {
+function ScrollTriggerInit({ deps = 0 }) {
+  // FIX #16: re-corre cuando cargan productos (async) y refresca ScrollTrigger
   useEffect(() => {
     const timer = setTimeout(() => {
       gsap.utils.toArray('.kicks-card').forEach(card => {
-        gsap.fromTo(card, { scale: 0.85, y: 40, opacity: 0.6 }, {
-          scale: 1, y: 0, opacity: 1, duration: 0.8, ease: 'power2.out',
-          scrollTrigger: { trigger: card, start: 'top 90%', end: 'top 40%', scrub: 1.2, toggleActions: 'play none none reverse' }
+        if (card._gsapInit) return; card._gsapInit = true;
+        gsap.fromTo(card, { y: 40, opacity: 0 }, {
+          y: 0, opacity: 1, duration: 0.7, ease: 'power2.out',
+          scrollTrigger: { trigger: card, start: 'top 92%', toggleActions: 'play none none none' }
         });
       });
-    }, 500);
-    return () => { clearTimeout(timer); ScrollTrigger.getAll().forEach(t => t.kill()); };
-  }, []);
+      ScrollTrigger.refresh();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [deps]);
+  useEffect(() => () => ScrollTrigger.getAll().forEach(t => t.kill()), []);
   return null;
 }
 
@@ -828,15 +836,8 @@ function SectionPage() {
   const esMayorista = sec?.slug === 'mayorista';
   const esDropshipping = sec?.slug === 'dropshipping';
 
-  useEffect(() => {
-    if (!sec) return;
-    api.trackSectionView(sec.nombre);
-    loadData();
-  }, [sec?.id, catFiltro, busqueda, pagina]);
-
-  if (!sec) return <Landing />;
-
   const loadData = async () => {
+    if (!sec) return;
     try {
       const [prodData, cats, promoData, bdg, mp] = await Promise.all([
         api.getProductos({ seccion_id: sec.id, categoria: catFiltro, q: busqueda, page: pagina }),
@@ -853,6 +854,14 @@ function SectionPage() {
       }
     } catch (e) { console.error(e); }
   };
+
+  useEffect(() => {
+    if (!sec) return;
+    api.trackSectionView(sec.nombre);
+    loadData();
+  }, [sec?.id, catFiltro, busqueda, pagina]);
+
+  if (!sec) return <Landing />;
 
   // Price with promos
   const getPrecio = (p) => {
@@ -900,12 +909,12 @@ function SectionPage() {
   return (
     <div style={{ padding: '24px 20px', maxWidth: 1200, margin: '0 auto' }}>
       {/* KICKS back + title */}
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>← VOLVER AL INICIO</button>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>← VOLVER AL INICIO</button>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontWeight: 900, fontSize: 28, letterSpacing: '-0.03em' }}>{sec.nombre}</h2>
-          {sec.descripcion && <p style={{ color: '#959595', fontSize: 14, marginTop: 4 }}>{sec.descripcion}</p>}
+          {sec.descripcion && <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 4 }}>{sec.descripcion}</p>}
         </div>
         {esMayorista && dolarBlue && (
           <div style={{ background: 'var(--bg-card)', color: 'var(--primary)', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}>💵 USD Blue: ${fmt(dolarBlue)}</div>
@@ -915,18 +924,26 @@ function SectionPage() {
       {/* Badges de sección */}
       {secBadges.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {secBadges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#E7EAFB', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: '#4A69E2' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>)}
+          {secBadges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>)}
         </div>
       )}
 
       {/* KICKS filters row */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
         <input placeholder="¿Qué buscás?" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 200, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontSize: 14, fontWeight: 500 }} />
-        <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontWeight: 600, fontSize: 13, minWidth: 180, background: 'var(--bg-card)' }}>
+        <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ borderRadius: 12, padding: '12px 16px', border: '2px solid var(--border)', fontWeight: 600, fontSize: 13, minWidth: 180, background: 'var(--bg-card)' }}>
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
+
+      {/* FIX #8: categorias por tienda (chips) */}
+      {categorias.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+          <button onClick={() => { setCatFiltro(''); setPagina(1); }} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: catFiltro === '' ? 'var(--primary)' : 'var(--border-light)', color: catFiltro === '' ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Todas</button>
+          {categorias.map(c => <button key={c} onClick={() => { setCatFiltro(c); setPagina(1); }} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: catFiltro === c ? 'var(--primary)' : 'var(--border-light)', color: catFiltro === c ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{c}</button>)}
+        </div>
+      )}
 
       {/* Products grid */}
       <div className="product-grid">
@@ -1021,31 +1038,32 @@ function CartPage() {
 
   const checkout = async () => {
     if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
+    // FIX #14: un pedido por seccion, todo transaccional (si falla uno no se crea ninguno)
+    const pedidos = seccionesConItems.map(sec => {
+      const secItems = allItems.filter(i => i.seccion_id === sec.id);
+      const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+      const secEnvio = envio[sec.id];
+      return {
+        seccion_id: sec.id, metodo_pago: metodoPago, notas, cupon_codigo: cupon,
+        subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
+        total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
+        costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: '',
+        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
+      };
+    }).filter(pp => pp.items.length);
     try {
-      for (const sec of seccionesConItems) {
-        const secItems = allItems.filter(i => i.seccion_id === sec.id);
-        if (!secItems.length) continue;
-        const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
-        const secEnvio = envio[sec.id];
-        await api.createPedido({
-          seccion_id: sec.id, tipo: 'pedido', metodo_pago: metodoPago, notas,
-          cupon_codigo: cupon, subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
-          total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
-          is_test: testMode,
-          costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: '',
-          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
-        });
-        clearCart(sec.id);
-      }
+      await api.createPedidosMulti(pedidos, testMode);
+      seccionesConItems.forEach(sec => clearCart(sec.id));
       toast('¡Pedido creado!'); nav('landing');
     } catch (e) { toast(e.message, 'error'); }
   };
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 700, margin: '0 auto' }}>
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#2563eb', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
       <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🛒 Carrito</h2>
-      {testMode && <div style={{ background: '#f59e0b', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
+      {testMode && <div style={{ background: 'var(--warning)', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
+      {seccionesConItems.length > 1 && <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>ℹ️ Tenés productos de {seccionesConItems.length} tiendas. Se genera un pedido separado por cada una (no se mezclan).</div>}
 
       {seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
@@ -1120,7 +1138,7 @@ function CartPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
       </div>
 
-      <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 14, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+      <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
         {testMode ? '🧪 CONFIRMAR PEDIDO (PRUEBA)' : 'CONFIRMAR PEDIDO'}
       </button>
     </div>
@@ -1180,9 +1198,9 @@ function ProductDetailPage() {
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
-      <button onClick={() => nav('section', sec?.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#2563eb', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
+      <button onClick={() => nav('section', sec?.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
 
-      <div style={{ fontSize: 12, color: '#959595', marginBottom: 20, fontWeight: 600 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, fontWeight: 600 }}>
         <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> / <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <> / {p.categoria}</>} / <span style={{ color: 'var(--text)', fontWeight: 700 }}>{p.nombre || p.modelo}</span>
       </div>
 
@@ -1190,7 +1208,7 @@ function ProductDetailPage() {
         {/* Image gallery */}
         <div style={{ flex: '1 1 350px', minWidth: 280 }}>
           <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, position: 'relative' }}>
-            {p.envio_gratis && <span style={{ position: 'absolute', top: 12, left: 12, background: '#2563eb', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ENVÍO GRATIS</span>}
+            {p.envio_gratis && <span style={{ position: 'absolute', top: 12, left: 12, background: 'var(--primary)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ENVÍO GRATIS</span>}
             <button onClick={toggleFav} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer' }}>{isFav ? '❤️' : '🤍'}</button>
             {mainImg ? <img src={mainImg} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain' }} /> : <span style={{ fontSize: 72, opacity: 0.3 }}>📱</span>}
           </div>
@@ -1246,7 +1264,7 @@ function ProductDetailPage() {
             </div>
           )}
 
-          {p.envio_gratis && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#2563eb' }}>🚚 ¡Envío gratis!</div>}
+          {p.envio_gratis && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--primary)' }}>🚚 ¡Envío gratis!</div>}
           {p.descripcion && <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>{p.descripcion}</p>}
           {p.compatibilidad && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
 
@@ -1335,7 +1353,7 @@ function LoginPage() {
               </div>
             </div>
             <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#1a1a1a', borderColor: '#1a1a1a' }} onClick={() => doLogin()}>INGRESAR</button>
-            <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }} style={{ color: '#2563eb', fontWeight: 700 }}>Registrate</a></p>
+            <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }} style={{ color: 'var(--primary)', fontWeight: 700 }}>Registrate</a></p>
             <p style={{ textAlign: 'center', marginTop: 8, fontSize: 13 }}><a href="#" onClick={e => { e.preventDefault(); nav('forgot'); }} style={{ color: 'var(--text-muted)' }}>¿Olvidaste tu contraseña?</a></p>
           </>
         )}
@@ -1355,7 +1373,7 @@ function RegisterPage() {
       <div className="card" style={{ padding: 32, borderRadius: 24 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <h2 style={{ fontWeight: 900, fontSize: 22, letterSpacing: '-0.03em' }}>Crear cuenta</h2>
-          <p style={{ color: '#959595', fontSize: 13, marginTop: 4 }}>Completá tus datos para registrarte</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Completá tus datos para registrarte</p>
         </div>
         <div className="form-group"><label className="form-label">NOMBRE COMPLETO *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">USUARIO *</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
@@ -1363,8 +1381,8 @@ function RegisterPage() {
         <div className="form-group"><label className="form-label">TELÉFONO / WHATSAPP</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">EMAIL</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">NOMBRE DE FANTASÍA</label><input value={form.nombre_fantasia} onChange={e => setForm({ ...form, nombre_fantasia: e.target.value })} placeholder="Opcional" /></div>
-        <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, borderRadius: 12, background: '#4A69E2', borderColor: '#4A69E2' }} onClick={submit}>CREAR CUENTA</button>
-        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿Ya tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: '#4A69E2', fontWeight: 700 }}>Iniciá sesión</a></p>
+        <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, borderRadius: 12, background: 'var(--primary)', borderColor: 'var(--primary)' }} onClick={submit}>CREAR CUENTA</button>
+        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿Ya tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: 'var(--primary)', fontWeight: 700 }}>Iniciá sesión</a></p>
       </div>
     </div>
   );
@@ -1404,13 +1422,14 @@ function ForgotPasswordPage() {
           </>
         ) : (
           <>
-            {result?.telefono && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>También podés enviarlo por WhatsApp: <a href={`https://wa.me/${result.telefono}?text=Tu código de recuperación: ${result.codigo}`} target="_blank" rel="noopener" style={{ color: '#25d366', fontWeight: 700 }}>Enviar por WA</a></p>}
+            {result?.codigo && <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: 12, borderRadius: 8, marginBottom: 12, textAlign: 'center' }}><div style={{ fontSize: 11, fontWeight: 600 }}>Tu código de recuperación:</div><div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.05em', userSelect: 'all' }}>{result.codigo}</div></div>}
+            {result?.telefono && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>También por WhatsApp: <a href={`https://wa.me/${result.telefono}?text=Tu código de recuperación: ${result.codigo}`} target="_blank" rel="noopener" style={{ color: '#25d366', fontWeight: 700 }}>Enviar por WA</a></p>}
             <div className="form-group"><label className="form-label">Código</label><input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="KICKS-XXXXXX" /></div>
             <div className="form-group"><label className="form-label">Nueva contraseña</label><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Mín 8 chars, 1 mayúscula, 1 número" /></div>
             <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={resetPass}>Cambiar contraseña</button>
           </>
         )}
-        <p style={{ textAlign: 'center', marginTop: 16 }}><a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: '#2563eb', fontWeight: 600, fontSize: 13 }}>← Volver al login</a></p>
+        <p style={{ textAlign: 'center', marginTop: 16 }}><a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>← Volver al login</a></p>
       </div>
     </div>
   );
@@ -1433,25 +1452,25 @@ function AccountPanel() {
 
   return (
     <div style={{ maxWidth: 500, margin: '48px auto', padding: '0 16px' }}>
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
       <h2 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em', marginBottom: 20 }}>Mi cuenta</h2>
 
-      <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 20, marginBottom: 24, color: '#fff' }}>
+      <div style={{ background: 'var(--primary-dark)', borderRadius: 20, padding: 20, marginBottom: 24, color: '#fff' }}>
         <div style={{ fontWeight: 800, fontSize: 18 }}>{user.nombre} {user.nombre_fantasia && <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>({user.nombre_fantasia})</span>}</div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>@{user.usuario} • {user.email} • {user.telefono}</div>
-        {userLista && <div style={{ marginTop: 8 }}><span style={{ background: userLista.color || '#4A69E2', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{userLista.nombre}</span></div>}
+        {userLista && <div style={{ marginTop: 8 }}><span style={{ background: userLista.color || 'var(--primary)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{userLista.nombre}</span></div>}
       </div>
 
       <div className="card" style={{ padding: 24, borderRadius: 20 }}>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>NOMBRE</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>TELÉFONO</label><input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>EMAIL</label><input value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>DIRECCIÓN</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>TELÉFONO</label><input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>EMAIL</label><input value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>DIRECCIÓN</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
+        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
 
-        <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
-        <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: '#E74040', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
+        <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
+        <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
       </div>
     </div>
   );
@@ -1557,7 +1576,7 @@ function AdminDashboard() {
   useEffect(() => { loadStats(); }, [adminSeccion, desde, hasta]);
 
   const kpis = [
-    { label: 'PEDIDOS', value: stats.total_pedidos || 0, icon: '📦', color: '#4A69E2', bg: '#E7EAFB' },
+    { label: 'PEDIDOS', value: stats.total_pedidos || 0, icon: '📦', color: 'var(--primary)', bg: 'var(--primary-light)' },
     { label: 'VENTAS', value: fmtARS(stats.total_ventas || 0), icon: '💰', color: '#16a34a', bg: '#dcfce7' },
     { label: 'PRODUCTOS', value: stats.total_productos || 0, icon: '🏷️', color: 'var(--primary)', bg: '#fff3d4' },
     { label: 'USUARIOS', value: stats.total_usuarios || 0, icon: '👥', color: '#8b5cf6', bg: '#ede9fe' },
@@ -1578,7 +1597,7 @@ function AdminDashboard() {
           <div key={k.label} className="stat-card" style={{ borderRadius: 20, padding: '24px 20px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 12, right: 16, width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{k.icon}</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{k.value}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#959595', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6 }}>{k.label}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6 }}>{k.label}</div>
           </div>
         ))}
       </div>
@@ -1587,7 +1606,7 @@ function AdminDashboard() {
         <div className="card" style={{ padding: 24, marginTop: 20, borderRadius: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h4 style={{ fontWeight: 800, fontSize: 16 }}>Ventas por día</h4>
-            <span style={{ fontSize: 12, color: '#959595', fontWeight: 600 }}>{stats.ventas_por_dia.length} días</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{stats.ventas_por_dia.length} días</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
             {stats.ventas_por_dia.slice(0, 14).reverse().map((d, i) => {
@@ -1596,7 +1615,7 @@ function AdminDashboard() {
               return (
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                   <div style={{ width: '100%', background: 'linear-gradient(180deg, #4A69E2 0%, #232321 120%)', borderRadius: 6, height: h, minHeight: 4, transition: 'height 0.3s' }} title={`$${fmt(d.total)}`} />
-                  <span style={{ fontSize: 9, color: '#959595', fontWeight: 600 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
                 </div>
               );
             })}
@@ -1737,28 +1756,38 @@ function MultiImageUpload({ productoId }) {
   );
 }
 
-// ─── VARIANTES EDITOR ───
+// ─── VARIANTES EDITOR (FIX #7: edicion inline + reutilizar opciones) ───
 function VariantesEditor({ productoId }) {
   const { toast } = useContext(Ctx);
   const [vars, setVars] = useState([]);
   const [form, setForm] = useState({ nombre: '', valor: '', stock: 0, precio_extra: 0 });
   useEffect(() => { api.getVariantes(productoId).then(setVars).catch(() => {}); }, [productoId]);
+  const setLocal = (id, field, value) => setVars(vars.map(x => x.id === id ? { ...x, [field]: value } : x));
   const add = async () => {
     if (!form.nombre) return;
-    try { const r = await api.addVariante({ producto_id: productoId, ...form }); setVars([...vars, r]); setForm({ nombre: '', valor: '', stock: 0, precio_extra: 0 }); } catch (e) { toast(e.message, 'error'); }
+    try { const r = await api.addVariante({ producto_id: productoId, ...form }); setVars([...vars, r]); setForm({ nombre: form.nombre, valor: '', stock: 0, precio_extra: 0 }); } catch (e) { toast(e.message, 'error'); }
+  };
+  const saveVar = async (v) => {
+    try { await api.updateVariante(v.id, { nombre: v.nombre, valor: v.valor, stock: Number(v.stock) || 0, precio_extra: Number(v.precio_extra) || 0 }); } catch (e) { toast(e.message, 'error'); }
   };
   const remove = async (id) => { await api.deleteVariante(id); setVars(vars.filter(v => v.id !== id)); };
+  const nombresUsados = [...new Set(vars.map(v => v.nombre).filter(Boolean))];
+  const dlId = `varnames-${productoId}`;
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <h4 style={{ marginBottom: 8, fontSize: 14 }}>🔀 Variantes (opcional)</h4>
+      <datalist id={dlId}>{nombresUsados.map(n => <option key={n} value={n} />)}</datalist>
       {vars.map(v => (
-        <div key={v.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, fontSize: 13 }}>
-          <strong>{v.nombre}:</strong> {v.valor} {v.precio_extra > 0 && <span style={{ color: 'var(--success)' }}>+${v.precio_extra}</span>} <span style={{ color: 'var(--text-muted)' }}>Stock: {v.stock}</span>
+        <div key={v.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+          <input value={v.nombre} list={dlId} onChange={e => setLocal(v.id, 'nombre', e.target.value)} onBlur={() => saveVar(v)} placeholder="Nombre" style={{ width: 110, fontSize: 13 }} />
+          <input value={v.valor} onChange={e => setLocal(v.id, 'valor', e.target.value)} onBlur={() => saveVar(v)} placeholder="Valor" style={{ width: 110, fontSize: 13 }} />
+          <input type="number" value={v.stock} onChange={e => setLocal(v.id, 'stock', e.target.value)} onBlur={() => saveVar(v)} placeholder="Stock" style={{ width: 70, fontSize: 13 }} />
+          <input type="number" value={v.precio_extra} onChange={e => setLocal(v.id, 'precio_extra', e.target.value)} onBlur={() => saveVar(v)} placeholder="+$" style={{ width: 70, fontSize: 13 }} />
           <button onClick={() => remove(v.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <input placeholder="Nombre (ej: Color)" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ width: 120 }} />
+        <input placeholder="Nombre (ej: Color)" list={dlId} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ width: 120 }} />
         <input placeholder="Valor (ej: Rojo)" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ width: 120 }} />
         <input type="number" placeholder="Stock" value={form.stock || ''} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ width: 70 }} />
         <input type="number" placeholder="+$" value={form.precio_extra || ''} onChange={e => setForm({ ...form, precio_extra: Number(e.target.value) })} style={{ width: 70 }} />
@@ -1769,10 +1798,10 @@ function VariantesEditor({ productoId }) {
 }
 
 // ─── CATEGORY OPTIONS HELPER ───
-function CatOptions({ seccionId }) {
+function CatOptions({ seccionId, exclude }) {
   const [cats, setCats] = useState([]);
   useEffect(() => { api.getCategorias(seccionId).then(setCats).catch(() => {}); }, [seccionId]);
-  return cats.map(c => <option key={c} value={c}>{c}</option>);
+  return cats.filter(c => c && c !== exclude).map(c => <option key={c} value={c}>{c}</option>);
 }
 
 // ─── PRODUCT MODAL (add/edit with image upload + precios fijos) ───
@@ -1834,7 +1863,8 @@ function ProductModal({ product, onClose }) {
               <div style={{ display: 'flex', gap: 8 }}>
                 <select value={f._catCustom ? '__new__' : f.categoria} onChange={e => { if (e.target.value === '__new__') setF({ ...f, categoria: '', _catCustom: true }); else setF({ ...f, categoria: e.target.value, _catCustom: false }); }} style={{ flex: 1 }}>
                   <option value="">— Seleccionar —</option>
-                  {(secciones.length > 0 ? [] : []).length === 0 && <CatOptions seccionId={f.seccion_id} />}
+                  {f.categoria && <option value={f.categoria}>{f.categoria}</option>}
+                  <CatOptions seccionId={f.seccion_id} exclude={f.categoria} />
                   <option value="__new__">+ Nueva categoría...</option>
                 </select>
                 {f._catCustom && <input value={f.categoria} onChange={e => setF({ ...f, categoria: e.target.value })} placeholder="Nueva categoría" style={{ flex: 1 }} autoFocus />}
@@ -1948,7 +1978,15 @@ function ImportModal({ onClose }) {
       const cC = keys.find(k => /producto|categor|tipo/i.test(k)) || keys[0];
       const cM = keys.find(k => /modelo|model|nombre/i.test(k)) || keys[1];
       const cP = keys.find(k => /precio|price|costo/i.test(k)) || keys[2];
-      const prods = json.map(r => ({ seccion_id: secId, categoria: r[cC] || '', modelo: r[cM] || '', nombre: r[cM] || '', precio_base: Number(r[cP]) || 0, stock: Number(r.stock || r.Stock || 0) }));
+      const pick = (r, re) => { const k = keys.find(k => re.test(k)); return k ? r[k] : undefined; };
+      const prods = json.map(r => ({
+        seccion_id: secId, categoria: r[cC] || '', modelo: r[cM] || '', nombre: r[cM] || '',
+        precio_base: Number(r[cP]) || 0, stock: Number(r.stock || r.Stock || 0),
+        sku: pick(r, /sku|codigo|c\u00f3digo/i) || '', descripcion: pick(r, /descrip/i) || '',
+        compatibilidad: pick(r, /compatib/i) || '', imagen: pick(r, /imagen|image|foto|url/i) || '',
+        peso: Number(pick(r, /peso|weight|kg/i)) || 0, alto: Number(pick(r, /alto|height/i)) || 0,
+        ancho: Number(pick(r, /ancho|width/i)) || 0, largo: Number(pick(r, /largo|length|profund/i)) || 0
+      }));
       setData({ productos: prods, total: prods.length, columns: { categoria: cC, modelo: cM, precio: cP } });
     };
     reader.readAsArrayBuffer(f);
@@ -2049,7 +2087,7 @@ function PriceHistoryModal({ onClose }) {
 
 // ─── ADMIN: Pedidos (4 tabs + full OrderDetailModal) ───
 function AdminPedidos() {
-  const { adminSeccion, toast } = useContext(Ctx);
+  const { adminSeccion, toast, testMode } = useContext(Ctx);
   const [pedidos, setPedidos] = useState([]);
   const [ordTab, setOrdTab] = useState('pedidos');
   const [viewOrder, setViewOrder] = useState(null);
@@ -2058,6 +2096,7 @@ function AdminPedidos() {
     const t = tab || ordTab;
     const params = { all: true, seccion_id: adminSeccion !== 'all' ? adminSeccion : null };
     if (t === 'archivados') params.archivado = true;
+    if (!testMode) params.is_test = false; // FIX #13: en produccion oculta pedidos de prueba
     api.getPedidos(params).then(ords => {
       if (t === 'pedidos') setPedidos(ords.filter(o => o.tipo !== 'presupuesto' && o.estado !== 'cancelado' && !o.archivado));
       else if (t === 'presupuestos') setPedidos(ords.filter(o => o.tipo === 'presupuesto' && o.estado !== 'cancelado' && !o.archivado));
@@ -2065,7 +2104,7 @@ function AdminPedidos() {
       else setPedidos(ords);
     });
   };
-  useEffect(() => { load(); }, [adminSeccion, ordTab]);
+  useEffect(() => { load(); }, [adminSeccion, ordTab, testMode]);
 
   const changeTab = (t) => { setOrdTab(t); load(t); };
   const tabs = [{ id: 'pedidos', label: '📦 Pedidos' }, { id: 'presupuestos', label: '📋 Presupuestos' }, { id: 'cancelados', label: '❌ Cancelados' }, { id: 'archivados', label: '🗃 Archivados' }];
@@ -2093,7 +2132,7 @@ function AdminPedidos() {
         <div key={p.id} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <strong>#{p.id}</strong> — {p.usuario_nombre || '(sin nombre)'} {p.nombre_fantasia && `(${p.nombre_fantasia})`}
+              <strong>#{p.id}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>🧪 TEST</span>} — {p.usuario_nombre || '(sin nombre)'} {p.nombre_fantasia && `(${p.nombre_fantasia})`}
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2452,7 +2491,7 @@ function AdminListas() {
 function TierModal({ tier, onClose }) {
   const { toast } = useContext(Ctx);
   const isNew = !tier;
-  const [f, setF] = useState(tier || { id: '', nombre: '', multiplicador: 1, modo: 'porcentaje', color: '#2563eb', compra_minima: 0, promo_msg: '' });
+  const [f, setF] = useState(tier || { id: '', nombre: '', multiplicador: 1, modo: 'porcentaje', color: 'var(--primary)', compra_minima: 0, promo_msg: '' });
   const [sv, setSv] = useState(false);
   const save = async () => {
     if (!f.id || !f.nombre) { toast('ID y nombre obligatorios'); return; }
@@ -2498,10 +2537,14 @@ function AdminCupones() {
 
   useEffect(() => { api.getCupones().then(setCupones); }, []);
 
-  const openEdit = (c) => {
+  const openEdit = async (c) => {
     setEdit(c);
-    setForm({ codigo: c.codigo, tipo: c.tipo, valor: c.valor, secciones_ids: c.secciones_ids || '', categoria: c.categoria || '', uso_maximo: c.uso_maximo || 0, monto_minimo: c.monto_minimo || 0, metodo_pago: c.metodo_pago || '', fecha_desde: c.fecha_desde || '', fecha_hasta: c.fecha_hasta || '' });
-    setSelProds([]); setShowForm(true);
+    setForm({ codigo: c.codigo, tipo: c.tipo, valor: c.valor, secciones_ids: c.secciones_ids || '', categoria: c.categoria || '', uso_maximo: c.uso_maximo || 0, monto_minimo: c.monto_minimo || 0, metodo_pago: c.metodo_pago || '', fecha_desde: c.fecha_desde ? String(c.fecha_desde).slice(0, 10) : '', fecha_hasta: c.fecha_hasta ? String(c.fecha_hasta).slice(0, 10) : '' });
+    // FIX #6: recuperar productos asociados para no borrarlos al guardar
+    const pids = Array.isArray(c.productos_ids) ? c.productos_ids.filter(Boolean) : [];
+    if (pids.length) { try { const d = await api.getProductos({ limit: 9999 }); setSelProds((d.productos || []).filter(pp => pids.includes(pp.id))); } catch { setSelProds([]); } }
+    else setSelProds([]);
+    setShowForm(true);
   };
   const openNew = () => {
     setEdit(null); setForm({ codigo: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', uso_maximo: 0, monto_minimo: 0, metodo_pago: '', fecha_desde: '', fecha_hasta: '' });
@@ -2557,6 +2600,14 @@ function AdminCupones() {
               <div className="form-row">
                 <div className="form-group"><label className="form-label">{form.tipo === 'porcentaje' ? 'Porcentaje (%)' : form.tipo === 'monto_fijo' ? 'Monto ($)' : 'Valor'}</label><input type="number" value={form.valor} onChange={e => setForm({ ...form, valor: Number(e.target.value) })} /></div>
                 <div className="form-group"><label className="form-label">Máximo de usos (0=ilimitado)</label><input type="number" value={form.uso_maximo} onChange={e => setForm({ ...form, uso_maximo: Number(e.target.value) })} /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Válido desde</label><input type="date" value={form.fecha_desde} onChange={e => setForm({ ...form, fecha_desde: e.target.value })} /></div>
+                <div className="form-group"><label className="form-label">Válido hasta</label><input type="date" value={form.fecha_hasta} onChange={e => setForm({ ...form, fecha_hasta: e.target.value })} /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Monto mínimo ($, 0=sin mínimo)</label><input type="number" value={form.monto_minimo} onChange={e => setForm({ ...form, monto_minimo: Number(e.target.value) })} /></div>
+                <div className="form-group"><label className="form-label">Solo con método de pago (opcional)</label><input value={form.metodo_pago} onChange={e => setForm({ ...form, metodo_pago: e.target.value })} placeholder="Ej: Efectivo" /></div>
               </div>
               <div className="form-group">
                 <label className="form-label">Secciones donde aplica</label>
@@ -2729,14 +2780,14 @@ function useDnDReorder(items, setItems, onSave) {
 function AdminBadges() {
   const { secciones, toast } = useContext(Ctx);
   const [bgs, setBgs] = useState([]); const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ icono: '⭐', texto: '', color: '#2563eb', secciones_ids: '', visible: true, orden: 0 });
+  const [form, setForm] = useState({ icono: '⭐', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 });
   const [edit, setEdit] = useState(null);
   useEffect(() => { api.getBadgesAll().then(setBgs); }, []);
   const toggleSec = (id) => { const ids = form.secciones_ids ? form.secciones_ids.split(',').map(Number).filter(Boolean) : []; const nw = ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]; setForm({ ...form, secciones_ids: nw.join(',') }); };
   const save = async () => { if (!form.texto?.trim()) { toast('El texto del badge es obligatorio', 'error'); return; } try { if (edit) await api.updateBadge(edit.id, form); else await api.createBadge(form); api.getBadgesAll().then(setBgs); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: '⭐', texto: '', color: '#2563eb', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: '⭐', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran debajo de los productos como indicadores de confianza (envío gratis, compra segura, etc).</p>
       {bgs.map(b => (<div key={b.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ marginRight: 8 }}>{b.icono}</span><strong>{b.texto}</strong> <span style={{ fontSize: 12, color: b.visible ? 'var(--success)' : 'var(--danger)' }}>{b.visible ? '✓' : '✗'}</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteBadge(b.id); api.getBadgesAll().then(setBgs); }}>🗑</button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} badge</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
@@ -2858,7 +2909,7 @@ function AdminDiseno() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  const resetDefaults = () => { setDes({ ...des, color_primario: '#2563eb', color_secundario: '#1e40af', color_acento: '#f59e0b', plantilla: 'moderna' }); };
+  const resetDefaults = () => { setDes({ ...des, color_primario: 'var(--primary)', color_secundario: '#1e40af', color_acento: '#f59e0b', plantilla: 'moderna' }); };
 
   return (
     <div>
@@ -2870,10 +2921,10 @@ function AdminDiseno() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Elegí un estilo visual para tu tienda. Después podés personalizar los colores.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
           {[
-            { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', colors: { p: '#4A69E2', s: '#232321', a: '#FFA52F' }, font: 'Archivo' },
+            { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', colors: { p: 'var(--primary)', s: 'var(--primary-dark)', a: '#FFA52F' }, font: 'Archivo' },
             { id: 'minimal', name: 'Minimal', desc: 'Limpio y elegante', colors: { p: '#18181b', s: '#71717a', a: '#f59e0b' }, font: 'Inter' },
             { id: 'tech', name: 'Tech', desc: 'Para electrónica', colors: { p: '#0ea5e9', s: '#0c4a6e', a: '#22c55e' }, font: 'Space Grotesk' },
-            { id: 'classic', name: 'Classic', desc: 'Profesional neutro', colors: { p: '#2563eb', s: '#1e40af', a: '#f59e0b' }, font: 'Open Sans' },
+            { id: 'classic', name: 'Classic', desc: 'Profesional neutro', colors: { p: 'var(--primary)', s: '#1e40af', a: '#f59e0b' }, font: 'Open Sans' },
             { id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', colors: { p: '#a78bfa', s: '#1e1b4b', a: '#f472b6' }, font: 'Outfit' },
           ].map(t => (
             <div key={t.id} onClick={() => setDes({ ...des, plantilla: t.id, color_primario: t.colors.p, color_secundario: t.colors.s, color_acento: t.colors.a, fuente: t.font })}
@@ -2897,7 +2948,7 @@ function AdminDiseno() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aplicá una paleta rápida o editá los colores individuales abajo.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
-            { name: 'Azul Pro', p: '#2563eb', s: '#1e40af', a: '#f59e0b' },
+            { name: 'Azul Pro', p: 'var(--primary)', s: '#1e40af', a: '#f59e0b' },
             { name: 'Verde Negocio', p: '#16a34a', s: '#15803d', a: '#eab308' },
             { name: 'Rojo Audaz', p: '#dc2626', s: '#991b1b', a: '#f97316' },
             { name: 'Violeta', p: '#7c3aed', s: '#5b21b6', a: '#f472b6' },
@@ -2936,7 +2987,7 @@ function AdminDiseno() {
           </div>
         </div>
         <div className="form-row">
-          <div className="form-group"><label className="form-label">Color primario</label><input type="color" value={des.color_primario || '#2563eb'} onChange={e => setDes({ ...des, color_primario: e.target.value })} /></div>
+          <div className="form-group"><label className="form-label">Color primario</label><input type="color" value={des.color_primario || 'var(--primary)'} onChange={e => setDes({ ...des, color_primario: e.target.value })} /></div>
           <div className="form-group"><label className="form-label">Color secundario</label><input type="color" value={des.color_secundario || '#1e40af'} onChange={e => setDes({ ...des, color_secundario: e.target.value })} /></div>
           <div className="form-group"><label className="form-label">Color acento</label><input type="color" value={des.color_acento || '#f59e0b'} onChange={e => setDes({ ...des, color_acento: e.target.value })} /></div>
         </div>
@@ -3035,7 +3086,7 @@ function FavoritosPage() {
   const remove = async (prodId) => { await api.removeFavorito(prodId); setFavs(favs.filter(f => f.producto_id !== prodId)); toast('Eliminado de favoritos'); };
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#2563eb', cursor: 'pointer', marginBottom: 16 }}>← Volver</button>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← Volver</button>
       <h2 style={{ fontWeight: 800, marginBottom: 16 }}>❤️ Mis favoritos ({favs.length})</h2>
       {loading ? <div className="spinner" /> : favs.length === 0 ? (
         <div className="empty-state"><h3>No tenés favoritos todavía</h3><p>Tocá el corazón en los productos para guardarlos acá.</p></div>
@@ -3111,13 +3162,17 @@ function AdminEnviosCustom() {
 // ─── ADMIN: Configuración completa (restored from v2) ───
 // ─── Section-level stock + envio config ───
 function SectionStockConfig() {
-  const { secciones, setSecciones, toast } = useContext(Ctx);
+  const { secciones, setSecciones, toast, config, setConfig } = useContext(Ctx);
   const [secData, setSecData] = useState({});
-  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888' }; }); setSecData(d); }, [secciones]);
+  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888', gratis_desde: config[`envio_gratis_desde_${s.id}`] || '' }; }); setSecData(d); }, [secciones, config]);
   const saveSec = async (sec) => {
     try {
       const d = secData[sec.id];
-      await api.updateSeccion(sec.id, { ...sec, ...d });
+      await api.updateSeccion(sec.id, { ...sec, ignorar_stock: d.ignorar_stock, permitir_sin_stock: d.permitir_sin_stock, cp_origen: d.cp_origen });
+      // FIX #10: envio gratis desde $X se guarda en config
+      const upd = { [`envio_gratis_desde_${sec.id}`]: String(d.gratis_desde || 0) };
+      await api.updateConfig(upd);
+      setConfig({ ...config, ...upd });
       toast(`${sec.nombre} actualizada`);
       api.getSecciones().then(setSecciones).catch(() => {});
     } catch (e) { toast(e.message, 'error'); }
@@ -3134,6 +3189,10 @@ function SectionStockConfig() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <label style={{ fontSize: 12 }}>CP Origen:</label>
               <input value={secData[s.id]?.cp_origen || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], cp_origen: e.target.value } })} style={{ width: 80, fontSize: 12 }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <label style={{ fontSize: 12 }}>🚚 Envío gratis desde $:</label>
+              <input type="number" value={secData[s.id]?.gratis_desde || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], gratis_desde: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
             </div>
           </div>
           <button className="btn btn-outline btn-sm" onClick={() => saveSec(s)} style={{ marginTop: 6 }}>Guardar {s.nombre}</button>
