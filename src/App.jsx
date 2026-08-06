@@ -373,7 +373,8 @@ export default function App() {
 // HEADER
 // ═══════════════════════════════════════════════════════════
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode } = useContext(Ctx);
+  const ctx = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
 
   return (
@@ -392,7 +393,7 @@ function Header() {
           </nav>
           <div className="header-right">
             <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? '☀️' : '🌙'}</button>
-            {isAdmin && <button className="icon-btn" onClick={() => ctx.setTestMode(!testMode)} title={testMode ? 'Modo PRUEBA activo' : 'Modo producción'} style={{ fontSize: 11, fontWeight: 800, background: testMode ? '#f59e0b' : 'transparent', color: testMode ? '#000' : 'inherit', borderRadius: 8, padding: '4px 8px' }}>{testMode ? '🧪 TEST' : '🧪'}</button>}
+            {isAdmin && <button className="icon-btn" onClick={() => setTestMode(!testMode)} title={testMode ? 'Modo PRUEBA activo' : 'Modo producción'} style={{ fontSize: 11, fontWeight: 800, background: testMode ? '#f59e0b' : 'transparent', color: testMode ? '#000' : 'inherit', borderRadius: 8, padding: '4px 8px' }}>{testMode ? '🧪 TEST' : '🧪'}</button>}
             {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos">❤️</button>}
             <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
               🛒 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
