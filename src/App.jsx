@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from 'react';
 import * as api from './api';
 import { Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle } from 'lucide-react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+gsap.registerPlugin(ScrollTrigger);
 
 // ═══════════════════════════════════════════════════════════
 // App.jsx — Sistema Unificado v4 (COMPLETO)
@@ -64,6 +67,104 @@ function IconPicker({ value, onChange, label }) {
   );
 }
 
+// ─── ANDREANI CALCULATOR (product detail) ───
+function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
+  const [cp, setCp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [customShipping, setCustomShipping] = useState([]);
+  const { toast } = useContext(Ctx);
+
+  useEffect(() => {
+    api.getEnvioCustom(seccionId).then(setCustomShipping).catch(() => {});
+  }, [seccionId]);
+
+  const calcular = async () => {
+    if (cp.length < 4) { toast('Ingresá un código postal válido', 'error'); return; }
+    setLoading(true);
+    try {
+      const [cotiz, sucs] = await Promise.all([
+        api.cotizarAndreani(cp, peso || 0.5, volumen || 0.001, seccionId).catch(() => null),
+        api.getSucursalesAndreani(cp).catch(() => [])
+      ]);
+      setResult({ cotiz, sucursales: Array.isArray(sucs) ? sucs.slice(0, 3) : [] });
+    } catch { toast('Error al consultar envío', 'error'); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginTop: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Truck size={18} /> Calculá el costo de envío
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input value={cp} onChange={e => setCp(e.target.value)} placeholder="Tu código postal" maxLength={8}
+          style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14 }}
+          onKeyDown={e => e.key === 'Enter' && calcular()} />
+        <button onClick={calcular} disabled={loading}
+          style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          {loading ? '...' : 'CALCULAR'}
+        </button>
+      </div>
+
+      {/* Custom shipping options */}
+      {customShipping.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          {customShipping.map(m => (
+            <div key={m.id} onClick={() => onSelect && onSelect({ nombre: m.nombre, costo: m.precio, tipo: 'custom' })}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer', transition: 'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--border-light)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span style={{ fontSize: 20 }}><RenderIcon value={m.icono} size={20} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{m.nombre}</div>
+                {m.descripcion && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.descripcion}</div>}
+                {m.tiempo_estimado && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.tiempo_estimado}</div>}
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{m.precio > 0 ? fmtARS(m.precio) : 'Gratis'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Andreani results */}
+      {result && (
+        <div>
+          {result.cotiz && result.cotiz.costo > 0 && (
+            <div onClick={() => onSelect && onSelect({ nombre: 'Envío a domicilio (Andreani)', costo: result.cotiz.costo, tipo: 'andreani' })}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--border-light)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span>🚚</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Envío a domicilio</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>1 a 3 días hábiles</div>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(result.cotiz.costo)}</div>
+            </div>
+          )}
+          {result.sucursales.map((s, i) => (
+            <div key={i} onClick={() => onSelect && onSelect({ nombre: `Retiro en ${s.direccion?.localidad || 'sucursal'}`, costo: (result.cotiz?.costo || 0) * 0.6, tipo: 'sucursal' })}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--border-light)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span>📍</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Retiro en sucursal</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.direccion?.calle} {s.direccion?.numero}, {s.direccion?.localidad}</div>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--success)' }}>{fmtARS((result.cotiz?.costo || 0) * 0.6)}</div>
+            </div>
+          ))}
+          {!result.cotiz && result.sucursales.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>No hay opciones de envío para este código postal</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Context for shared state
 const Ctx = createContext();
 
@@ -91,6 +192,7 @@ export default function App() {
   const [page, setPage] = useState('landing');
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
+  const [testMode, setTestMode] = useState(() => localStorage.getItem('gm_test') === 'true');
   const [mobileMenu, setMobileMenu] = useState(false);
   const { show: toast, ToastContainer } = useToast();
 
@@ -230,7 +332,8 @@ export default function App() {
     redesSociales, setRedesSociales, badges, setBadges, listas, setListas,
     preciosFijos, setPreciosFijos, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
-    handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA
+    handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
+    testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); }
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
@@ -245,6 +348,7 @@ export default function App() {
       case 'register': return <RegisterPage />;
       case 'admin': return isAdmin ? <AdminPanel /> : <Landing />;
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
+      case 'forgot': return <ForgotPasswordPage />;
       case 'info': return <InfoPage />;
       case 'favoritos': return user ? <FavoritosPage /> : <LoginPage />;
       case 'maintenance': return <MaintenancePage />;
@@ -288,6 +392,7 @@ function Header() {
           </nav>
           <div className="header-right">
             <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? '☀️' : '🌙'}</button>
+            {isAdmin && <button className="icon-btn" onClick={() => ctx.setTestMode(!testMode)} title={testMode ? 'Modo PRUEBA activo' : 'Modo producción'} style={{ fontSize: 11, fontWeight: 800, background: testMode ? '#f59e0b' : 'transparent', color: testMode ? '#000' : 'inherit', borderRadius: 8, padding: '4px 8px' }}>{testMode ? '🧪 TEST' : '🧪'}</button>}
             {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos">❤️</button>}
             <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
               🛒 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
@@ -442,12 +547,23 @@ function Landing() {
     api.getSlider().then(s => setSliders(s)).catch(() => {});
     if (user) api.getFavoritos().then(favs => setFavIds(new Set(favs.map(f => f.producto_id)))).catch(() => {});
     // Load first 8 products per visible section
-    secciones.filter(s => s.visible !== false).forEach(s => {
-      api.getProductos({ seccion_id: s.id, limit: 8 }).then(data => {
-        const prods = data.productos || data;
-        setSecProds(prev => ({ ...prev, [s.id]: prods }));
-      }).catch(() => {});
-    });
+    const visibleSecs = secciones.filter(s => s.visible !== false);
+    if (visibleSecs.length === 0 && secciones.length > 0) {
+      // No visible flag set — show all sections
+      secciones.forEach(s => {
+        api.getProductos({ seccion_id: s.id, limit: 8 }).then(data => {
+          const prods = data?.productos || (Array.isArray(data) ? data : []);
+          setSecProds(prev => ({ ...prev, [s.id]: prods }));
+        }).catch(e => console.log('Fetch prods error:', s.nombre, e));
+      });
+    } else {
+      visibleSecs.forEach(s => {
+        api.getProductos({ seccion_id: s.id, limit: 8 }).then(data => {
+          const prods = data?.productos || (Array.isArray(data) ? data : []);
+          setSecProds(prev => ({ ...prev, [s.id]: prods }));
+        }).catch(e => console.log('Fetch prods error:', s.nombre, e));
+      });
+    }
   }, [secciones]);
 
   // Slider auto-rotate
@@ -482,8 +598,9 @@ function Landing() {
     const [notifyEmail, setNotifyEmail] = useState('');
     const [showNotify, setShowNotify] = useState(false);
     const sinStock = p.stock === 0;
+    const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital;
     return (
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 0.2s', position: 'relative' }}
+      <div className="kicks-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 0.2s', position: 'relative' }}
         onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'}
         onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
         {/* Fav button */}
@@ -491,13 +608,15 @@ function Landing() {
           style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 30, height: 30, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {favIds.has(p.id) ? '❤️' : '🤍'}
         </button>
-        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>
+        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => nav('product', p)}>
           {p.imagen
-            ? <img src={p.imagen} alt="" style={{ width: '100%', height: 180, objectFit: 'contain', padding: 12, background: 'var(--bg)' }} />
+            ? <img src={p.imagen} alt="" style={{ width: '100%', height: 180, objectFit: 'contain', padding: 12, background: 'var(--bg)' }} loading="lazy" />
             : <div style={{ width: '100%', height: 180, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 40 }}>📱</div>
           }
           {tieneOferta && <span style={{ position: 'absolute', top: 8, left: 8, background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{descPct}%</span>}
-          {sinStock && <span style={{ position: 'absolute', top: 8, left: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+          {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 8, left: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+          {p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: '#8b5cf6', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Digital</span>}
+          {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: '#f59e0b', color: '#000', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
         </div>
         <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{p.categoria || ''}</div>
@@ -512,7 +631,7 @@ function Landing() {
               precio > 0 && <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{fmtARS(precio)}</span>
             )}
           </div>
-          {sinStock ? (
+          {sinStock && !puedeComprar ? (
             <div>
               {showNotify ? (
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -631,7 +750,7 @@ function Landing() {
       {!results && (
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {secciones.filter(s => s.visible !== false).map(s => (
+            {secciones.map(s => (
               <button key={s.id} onClick={() => nav('section', s.id)}
                 style={{ background: 'var(--border-light)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#2563eb'; }}
@@ -644,7 +763,7 @@ function Landing() {
       )}
 
       {/* ── PRODUCTS PER SECTION ── */}
-      {!results && secciones.filter(s => s.visible !== false).map(s => {
+      {!results && secciones.map(s => {
         const prods = secProds[s.id] || [];
         if (!prods.length) return null;
         return (
@@ -665,8 +784,26 @@ function Landing() {
 
       {/* spacer */}
       <div style={{ height: 40 }} />
+
+      {/* GSAP ScrollTrigger parallax on product cards */}
+      <ScrollTriggerInit />
     </div>
   );
+}
+
+function ScrollTriggerInit() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      gsap.utils.toArray('.kicks-card').forEach(card => {
+        gsap.fromTo(card, { scale: 0.85, y: 40, opacity: 0.6 }, {
+          scale: 1, y: 0, opacity: 1, duration: 0.8, ease: 'power2.out',
+          scrollTrigger: { trigger: card, start: 'top 90%', end: 'top 40%', scrub: 1.2, toggleActions: 'play none none reverse' }
+        });
+      });
+    }, 500);
+    return () => { clearTimeout(timer); ScrollTrigger.getAll().forEach(t => t.kill()); };
+  }, []);
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -844,115 +981,143 @@ function SectionPage() {
 // CART PAGE
 // ═══════════════════════════════════════════════════════════
 function CartPage() {
-  const { seccionActual: sec, user, nav, toast, cartForSection, removeFromCart, updateCartQty, clearCart } = useContext(Ctx);
+  const { secciones, user, nav, toast, cart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
   const [cupon, setCupon] = useState('');
   const [descuento, setDescuento] = useState(0);
   const [metodoPago, setMetodoPago] = useState('');
   const [metodos, setMetodos] = useState([]);
   const [notas, setNotas] = useState('');
+  const [envio, setEnvio] = useState({});
 
-  useEffect(() => { if (sec) api.getMetodosPago(sec.id).then(setMetodos).catch(() => {}); }, [sec?.id]);
+  // Group cart items by section
+  const seccionesConItems = secciones.filter(s => {
+    const items = Object.values(cart).filter(i => i.seccion_id === s.id);
+    return items.length > 0;
+  });
+  const allItems = Object.values(cart).filter(i => i.qty > 0);
 
-  if (!sec) return <Landing />;
-  const items = cartForSection(sec.id);
-  const subtotal = items.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
-  const total = Math.max(0, subtotal - descuento);
+  useEffect(() => {
+    if (seccionesConItems.length) api.getMetodosPago(seccionesConItems[0].id).then(setMetodos).catch(() => {});
+  }, [seccionesConItems.length]);
 
-  const aplicarCupon = async () => {
-    try {
-      const r = await api.validarCupon(cupon, sec.id, subtotal, metodoPago, items);
-      setDescuento(r.descuento); toast(`Cupón aplicado: -$${fmt(r.descuento)}`);
-    } catch (e) { toast(e.message, 'error'); }
-  };
+  if (!allItems.length) {
+    return (
+      <div style={{ padding: '48px 20px', textAlign: 'center', maxWidth: 500, margin: '0 auto' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🛒</div>
+        <h3 style={{ fontWeight: 800, marginBottom: 12 }}>Tu carrito está vacío</h3>
+        <button onClick={() => nav('landing')} className="btn btn-primary">Ver productos</button>
+      </div>
+    );
+  }
+
+  const subtotal = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+  const costoEnvioTotal = Object.values(envio).reduce((s, e) => s + (e?.costo || 0), 0);
+  const total = Math.max(0, subtotal - descuento + costoEnvioTotal);
 
   const checkout = async () => {
-    if (!user) { toast('Necesitás iniciar sesión para comprar', 'warning'); nav('login'); return; }
-    if (!items.length) { toast('El carrito está vacío', 'warning'); return; }
+    if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
     try {
-      await api.createPedido({
-        seccion_id: sec.id, tipo: 'pedido', metodo_pago: metodoPago, notas,
-        cupon_codigo: cupon, subtotal, descuento, total,
-        items: items.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
-      });
-      clearCart(sec.id);
+      for (const sec of seccionesConItems) {
+        const secItems = allItems.filter(i => i.seccion_id === sec.id);
+        if (!secItems.length) continue;
+        const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        const secEnvio = envio[sec.id];
+        await api.createPedido({
+          seccion_id: sec.id, tipo: 'pedido', metodo_pago: metodoPago, notas,
+          cupon_codigo: cupon, subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
+          total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
+          is_test: testMode,
+          costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: '',
+          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
+        });
+        clearCart(sec.id);
+      }
       toast('¡Pedido creado!'); nav('landing');
     } catch (e) { toast(e.message, 'error'); }
   };
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 700, margin: '0 auto' }}>
-      <button onClick={() => nav('section', sec.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#4A69E2', cursor: 'pointer', marginBottom: 12 }}>← VOLVER A {sec.nombre.toUpperCase()}</button>
-      <h2 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em', marginBottom: 20 }}>🛒 Carrito — {sec.nombre}</h2>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: '#2563eb', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
+      <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🛒 Carrito</h2>
+      {testMode && <div style={{ background: '#f59e0b', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
 
-      {items.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 20px' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🛒</div>
-          <h3 style={{ fontWeight: 800, marginBottom: 12 }}>Tu carrito está vacío</h3>
-          <button onClick={() => nav('section', sec.id)} style={{ background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 800, fontSize: 14, cursor: 'pointer', textTransform: 'uppercase' }}>VER PRODUCTOS</button>
-        </div>
-      ) : (
-        <>
-          {items.map(i => (
-            <div key={i.id} className="card" style={{ padding: 16, marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center', borderRadius: 16 }}>
-              {i.imagen ? <img src={i.imagen} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 12 }} /> : <div style={{ width: 56, height: 56, borderRadius: 12, background: '#F3F3F3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📦</div>}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{i.nombre || i.modelo}</div>
-                <div style={{ fontSize: 12, color: '#959595' }}>{i.categoria} — {fmtARS(i.precio_unitario || i.precio_base)} c/u</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '2px solid #E7E7E3', borderRadius: 10, overflow: 'hidden' }}>
-                <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1)} style={{ background: 'none', border: 'none', padding: '8px 12px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>−</button>
-                <span style={{ padding: '8px 10px', fontWeight: 800, fontSize: 14, borderLeft: '1px solid #E7E7E3', borderRight: '1px solid #E7E7E3' }}>{i.qty}</span>
-                <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)} style={{ background: 'none', border: 'none', padding: '8px 12px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>+</button>
-              </div>
-              <span style={{ fontWeight: 900, minWidth: 80, textAlign: 'right', fontSize: 15 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
-              <button onClick={() => removeFromCart(sec.id, i.id)} style={{ background: '#E74040', color: '#fff', border: 'none', borderRadius: 10, width: 36, height: 36, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>✕</button>
-            </div>
-          ))}
-
-          {/* Coupon */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-            <input placeholder="Código de cupón" value={cupon} onChange={e => setCupon(e.target.value.toUpperCase())} style={{ flex: 1, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3' }} />
-            <button onClick={aplicarCupon} style={{ background: 'var(--bg-card)', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 20px', fontWeight: 800, fontSize: 13, cursor: 'pointer', textTransform: 'uppercase' }}>APLICAR</button>
-          </div>
-
-          {/* Payment methods */}
-          {metodos.length > 0 && (
-            <div style={{ marginTop: 20 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#959595', marginBottom: 8, display: 'block' }}>MÉTODO DE PAGO</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {metodos.map(m => (
-                  <button key={m.id} onClick={() => setMetodoPago(m.nombre)}
-                    style={{ padding: '10px 16px', borderRadius: 12, border: metodoPago === m.nombre ? '2px solid #4A69E2' : '2px solid #E7E7E3', background: metodoPago === m.nombre ? '#E7EAFB' : '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: metodoPago === m.nombre ? '#4A69E2' : '#232321' }}>
-                    <RenderIcon value={m.icono} size={16} /> {m.nombre}
-                  </button>
-                ))}
-              </div>
-              {metodoPago && metodos.find(m => m.nombre === metodoPago)?.instrucciones && (
-                <div className="card" style={{ padding: 12, marginTop: 8, fontSize: 13, borderRadius: 12 }}>
-                  {metodos.find(m => m.nombre === metodoPago).instrucciones}
+      {seccionesConItems.map(sec => {
+        const secItems = allItems.filter(i => i.seccion_id === sec.id);
+        const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        const gratisDesde = Number(config[`envio_gratis_desde_${sec.id}`]) || 0;
+        const faltaGratis = gratisDesde > 0 ? Math.max(0, gratisDesde - secSubtotal) : 0;
+        const pctGratis = gratisDesde > 0 ? Math.min(100, (secSubtotal / gratisDesde) * 100) : 0;
+        return (
+          <div key={sec.id} style={{ marginBottom: 24 }}>
+            <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
+            {/* Barra envío gratis */}
+            {gratisDesde > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? '#16a34a' : 'linear-gradient(90deg, #4A69E2, #FFA52F)', borderRadius: 3, transition: 'width 0.3s' }} />
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Notes */}
-          <div style={{ marginTop: 20 }}>
-            <textarea placeholder="Notas del pedido (opcional)" value={notas} onChange={e => setNotas(e.target.value)} rows={2} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3' }} />
+                <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: faltaGratis === 0 ? '#16a34a' : 'var(--text-muted)' }}>
+                  {faltaGratis === 0 ? '🎉 ¡Envío gratis!' : `Te faltan ${fmtARS(faltaGratis)} para envío gratis`}
+                </div>
+              </div>
+            )}
+            {secItems.map(i => (
+              <div key={i.id} className="card" style={{ padding: 12, marginBottom: 6, display: 'flex', gap: 10, alignItems: 'center', borderRadius: 12 }}>
+                {i.imagen ? <img src={i.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{i.nombre || i.modelo}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {fmtARS(i.precio_unitario || i.precio_base)} c/u</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
+                  <span style={{ padding: '6px 8px', fontWeight: 800, fontSize: 13, borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>{i.qty}</span>
+                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
+                </div>
+                <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
+                <button onClick={() => removeFromCart(sec.id, i.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
+              </div>
+            ))}
+            {/* Shipping for this section */}
+            <AndreaniCalculator seccionId={sec.id} peso={0.5} volumen={0.001} onSelect={e => setEnvio(prev => ({ ...prev, [sec.id]: e }))} />
+            {envio[sec.id] && <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', marginTop: 4 }}>✓ {envio[sec.id].nombre}: {fmtARS(envio[sec.id].costo)}</div>}
           </div>
+        );
+      })}
 
-          {/* KICKS Totals */}
-          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 24, marginTop: 20, color: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14 }}><span style={{ color: 'rgba(255,255,255,0.6)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
-            {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 14 }}><span style={{ color: 'var(--primary)' }}>Descuento</span><span style={{ fontWeight: 700, color: 'var(--primary)' }}>-{fmtARS(descuento)}</span></div>}
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <input placeholder="Código de cupón" value={cupon} onChange={e => setCupon(e.target.value.toUpperCase())} style={{ flex: 1, borderRadius: 10, padding: '10px 14px', border: '1.5px solid var(--border)' }} />
+        <button onClick={async () => { try { const r = await api.validarCupon(cupon, seccionesConItems[0]?.id, subtotal, metodoPago, allItems); setDescuento(r.descuento); toast(`Cupón: -${fmtARS(r.descuento)}`); } catch (e) { toast(e.message, 'error'); } }}
+          className="btn btn-outline" style={{ fontWeight: 700 }}>APLICAR</button>
+      </div>
+
+      {metodos.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Método de pago</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {metodos.map(m => (
+              <button key={m.id} onClick={() => setMetodoPago(m.nombre)}
+                style={{ padding: '8px 14px', borderRadius: 10, border: metodoPago === m.nombre ? '2px solid #2563eb' : '1.5px solid var(--border)', background: metodoPago === m.nombre ? '#eff6ff' : 'var(--bg-card)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                <RenderIcon value={m.icono} size={14} /> {m.nombre}
+              </button>
+            ))}
           </div>
-
-          <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 16, background: '#4A69E2', color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}>
-            CONFIRMAR PEDIDO
-          </button>
-        </>
+        </div>
       )}
+
+      <textarea placeholder="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)} rows={2} style={{ width: '100%', borderRadius: 10, padding: '10px 14px', border: '1.5px solid var(--border)', marginTop: 16 }} />
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
+        {costoEnvioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Envío</span><span style={{ fontWeight: 700 }}>{fmtARS(costoEnvioTotal)}</span></div>}
+        {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: '#16a34a' }}>Descuento</span><span style={{ fontWeight: 700, color: '#16a34a' }}>-{fmtARS(descuento)}</span></div>}
+        <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
+      </div>
+
+      <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 14, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+        {testMode ? '🧪 CONFIRMAR PEDIDO (PRUEBA)' : 'CONFIRMAR PEDIDO'}
+      </button>
     </div>
   );
 }
@@ -1110,6 +1275,10 @@ function ProductDetailPage() {
 
           {p.sku && <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SKU: {p.sku}</p>}
           {p.notas && <div style={{ background: '#fef3c7', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, color: 'var(--text)' }}>📝 {p.notas}</div>}
+
+          {/* Andreani + custom shipping calculator */}
+          <AndreaniCalculator seccionId={sec?.id} peso={p.peso} volumen={(p.alto * p.ancho * p.largo) / 1000000 || 0.001}
+            onSelect={(envio) => toast(`${envio.nombre}: ${fmtARS(envio.costo)}`)} />
         </div>
       </div>
     </div>
@@ -1162,6 +1331,7 @@ function LoginPage() {
             </div>
             <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#1a1a1a', borderColor: '#1a1a1a' }} onClick={() => doLogin()}>INGRESAR</button>
             <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿No tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('register'); }} style={{ color: '#2563eb', fontWeight: 700 }}>Registrate</a></p>
+            <p style={{ textAlign: 'center', marginTop: 8, fontSize: 13 }}><a href="#" onClick={e => { e.preventDefault(); nav('forgot'); }} style={{ color: 'var(--text-muted)' }}>¿Olvidaste tu contraseña?</a></p>
           </>
         )}
       </div>
@@ -1190,6 +1360,52 @@ function RegisterPage() {
         <div className="form-group"><label className="form-label">NOMBRE DE FANTASÍA</label><input value={form.nombre_fantasia} onChange={e => setForm({ ...form, nombre_fantasia: e.target.value })} placeholder="Opcional" /></div>
         <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, borderRadius: 12, background: '#4A69E2', borderColor: '#4A69E2' }} onClick={submit}>CREAR CUENTA</button>
         <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿Ya tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: '#4A69E2', fontWeight: 700 }}>Iniciá sesión</a></p>
+      </div>
+    </div>
+  );
+}
+
+// ═══ FORGOT PASSWORD PAGE ═══
+function ForgotPasswordPage() {
+  const { nav, toast } = useContext(Ctx);
+  const [step, setStep] = useState(1);
+  const [usuario, setUsuario] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [result, setResult] = useState(null);
+
+  const requestCode = async () => {
+    try {
+      const r = await api.forgotPassword(usuario);
+      setResult(r); setStep(2);
+      toast(r.mensaje || 'Código generado');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const resetPass = async () => {
+    try {
+      await api.resetPassword(codigo, newPass);
+      toast('Contraseña cambiada. Iniciá sesión.'); nav('login');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
+      <div className="card" style={{ padding: 32, borderRadius: 20 }}>
+        <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 16 }}>Recuperar contraseña</h2>
+        {step === 1 ? (
+          <>
+            <div className="form-group"><label className="form-label">Usuario o email</label><input value={usuario} onChange={e => setUsuario(e.target.value)} onKeyDown={e => e.key === 'Enter' && requestCode()} /></div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={requestCode}>Enviar código</button>
+          </>
+        ) : (
+          <>
+            {result?.telefono && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>También podés enviarlo por WhatsApp: <a href={`https://wa.me/${result.telefono}?text=Tu código de recuperación: ${result.codigo}`} target="_blank" rel="noopener" style={{ color: '#25d366', fontWeight: 700 }}>Enviar por WA</a></p>}
+            <div className="form-group"><label className="form-label">Código</label><input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="KICKS-XXXXXX" /></div>
+            <div className="form-group"><label className="form-label">Nueva contraseña</label><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Mín 8 chars, 1 mayúscula, 1 número" /></div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={resetPass}>Cambiar contraseña</button>
+          </>
+        )}
+        <p style={{ textAlign: 'center', marginTop: 16 }}><a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: '#2563eb', fontWeight: 600, fontSize: 13 }}>← Volver al login</a></p>
       </div>
     </div>
   );
@@ -1243,22 +1459,28 @@ function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const tabs = [
-    { id: 'dashboard', label: '📊 Dashboard' },
-    { id: 'productos', label: '📦 Productos' },
-    { id: 'pedidos', label: '🧾 Pedidos' },
-    { id: 'usuarios', label: '👥 Usuarios' },
-    { id: 'listas', label: '💰 Listas precio' },
-    { id: 'cupones', label: '🎟️ Cupones' },
-    { id: 'promociones', label: '🏷️ Promociones' },
-    { id: 'popups', label: '📢 Pop-ups' },
-    { id: 'paginas', label: '📄 Páginas info' },
-    { id: 'badges', label: '⭐ Badges' },
-    { id: 'metodos_pago', label: '💳 Métodos pago' },
-    { id: 'menu', label: '📋 Menú' },
-    { id: 'redes', label: '🌐 Redes sociales' },
-    { id: 'diseno', label: '🎨 Diseño y Config' },
+  const tabGroups = [
+    { label: 'Inicio', tabs: [{ id: 'dashboard', label: 'Estadísticas', icon: '📊' }] },
+    { label: 'Administración', tabs: [
+      { id: 'pedidos', label: 'Ventas', icon: '🧾' },
+      { id: 'productos', label: 'Productos', icon: '📦' },
+      { id: 'usuarios', label: 'Clientes', icon: '👥' },
+      { id: 'listas', label: 'Listas precio', icon: '💰' },
+      { id: 'cupones', label: 'Cupones', icon: '🎟️' },
+      { id: 'promociones', label: 'Promociones', icon: '🏷️' },
+    ]},
+    { label: 'Personalización', tabs: [
+      { id: 'diseno', label: 'Diseño y Config', icon: '🎨' },
+      { id: 'menu', label: 'Menú', icon: '📋' },
+      { id: 'paginas', label: 'Páginas', icon: '📄' },
+      { id: 'popups', label: 'Pop-ups', icon: '📢' },
+      { id: 'badges', label: 'Badges', icon: '⭐' },
+      { id: 'metodos_pago', label: 'Métodos pago', icon: '💳' },
+      { id: 'redes', label: 'Redes sociales', icon: '🌐' },
+      { id: 'envios', label: 'Envíos custom', icon: '🚚' },
+    ]},
   ];
+  const tabs = tabGroups.flatMap(g => g.tabs);
 
   return (
     <div className="admin-layout">
@@ -1279,10 +1501,15 @@ function AdminPanel() {
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
         <nav className="admin-nav">
-          {tabs.map(t => (
-            <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => { setAdminTab(t.id); setSidebarOpen(false); }}>
-              {t.label}
-            </button>
+          {tabGroups.map(g => (
+            <div key={g.label}>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.35)', padding: '16px 16px 6px', marginTop: 4 }}>{g.label}</div>
+              {g.tabs.map(t => (
+                <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => { setAdminTab(t.id); setSidebarOpen(false); }}>
+                  <span style={{ marginRight: 8 }}>{t.icon}</span>{t.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
       </aside>
@@ -1304,6 +1531,7 @@ function AdminPanel() {
         {adminTab === 'badges' && <AdminBadges />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
         {adminTab === 'menu' && <AdminMenu />}
+        {adminTab === 'envios' && <AdminEnviosCustom />}
         {adminTab === 'redes' && <AdminRedes />}
         {adminTab === 'diseno' && <><AdminDiseno /><hr style={{margin:'24px 0'}}/><AdminSlider /><hr style={{margin:'24px 0'}}/><AdminConfig /></>}
       </div>
@@ -1626,6 +1854,19 @@ function ProductModal({ product, onClose }) {
           <div className="form-row">
             <div className="form-group"><label className="form-label">Stock *</label><input type="number" value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
             <div className="form-group"><label className="form-label">Stock mínimo</label><input type="number" value={f.stock_minimo} onChange={e => setF({ ...f, stock_minimo: Number(e.target.value) })} /></div>
+          </div>
+          {/* Stock options */}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '8px 0 12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock || false} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir compra sin stock</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
+          </div>
+          {/* Peso y dimensiones (para Andreani) */}
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Peso (kg)</label><input type="number" step="0.01" value={f.peso || ''} onChange={e => setF({ ...f, peso: Number(e.target.value) })} placeholder="0.5" /></div>
+            <div className="form-group"><label className="form-label">Alto (cm)</label><input type="number" value={f.alto || ''} onChange={e => setF({ ...f, alto: Number(e.target.value) })} /></div>
+            <div className="form-group"><label className="form-label">Ancho (cm)</label><input type="number" value={f.ancho || ''} onChange={e => setF({ ...f, ancho: Number(e.target.value) })} /></div>
+            <div className="form-group"><label className="form-label">Largo (cm)</label><input type="number" value={f.largo || ''} onChange={e => setF({ ...f, largo: Number(e.target.value) })} /></div>
           </div>
           {/* Image upload (principal) */}
           <div className="form-group">
@@ -2817,7 +3058,86 @@ function FavoritosPage() {
   );
 }
 
+// ─── ADMIN: Envíos Custom ───
+function AdminEnviosCustom() {
+  const { secciones, toast } = useContext(Ctx);
+  const [items, setItems] = useState([]); const [show, setShow] = useState(false);
+  const [form, setForm] = useState({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 });
+  const [edit, setEdit] = useState(null);
+  const load = () => api.getEnvioCustomAll().then(setItems).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const save = async () => { if (!form.nombre?.trim()) { toast('Nombre obligatorio', 'error'); return; } try { if (edit) await api.updateEnvioCustom(edit.id, form); else await api.createEnvioCustom(form); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de envío custom</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aparecen junto a Andreani en el checkout. Ej: Uber Moto CABA, Retiro Local, Didi.</p>
+      {items.map(m => (
+        <div key={m.id} className="card" style={{ padding: 12, marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+          <RenderIcon value={m.icono} size={20} />
+          <div style={{ flex: 1 }}><strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>— {m.descripcion}</span>}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{secciones.find(s => s.id === m.seccion_id)?.nombre || 'Todas'} · {m.precio > 0 ? fmtARS(m.precio) : 'Gratis'} {m.tiempo_estimado && `· ${m.tiempo_estimado}`}</div>
+          </div>
+          <span style={{ fontSize: 11, color: m.activo ? 'var(--success)' : 'var(--danger)' }}>{m.activo ? '✓' : '✗'}</span>
+          <button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button>
+          <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteEnvioCustom(m.id); load(); }}>🗑</button>
+        </div>
+      ))}
+      {show && (
+        <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setShow(false)}>✕</button>
+          <h3>{edit ? 'Editar' : 'Nuevo'} envío custom</h3>
+          <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Uber Moto CABA" /></div>
+          <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="A coordinar por WhatsApp" /></div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Precio</label><input type="number" value={form.precio} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} /></div>
+            <div className="form-group"><label className="form-label">Gratis desde $</label><input type="number" value={form.gratis_desde} onChange={e => setForm({ ...form, gratis_desde: Number(e.target.value) })} /></div>
+          </div>
+          <div className="form-group"><label className="form-label">Tiempo estimado</label><input value={form.tiempo_estimado} onChange={e => setForm({ ...form, tiempo_estimado: e.target.value })} placeholder="2-3 horas" /></div>
+          <div className="form-group"><label className="form-label">Sección</label><select value={form.seccion_id || ''} onChange={e => setForm({ ...form, seccion_id: e.target.value ? Number(e.target.value) : null })}><option value="">Todas</option>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></div>
+          <IconPicker label="Ícono" value={form.icono} onChange={v => setForm({ ...form, icono: v })} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0' }}><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
+          <button className="btn btn-primary" onClick={save} style={{ width: '100%' }}>Guardar</button>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
 // ─── ADMIN: Configuración completa (restored from v2) ───
+// ─── Section-level stock + envio config ───
+function SectionStockConfig() {
+  const { secciones, setSecciones, toast } = useContext(Ctx);
+  const [secData, setSecData] = useState({});
+  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888' }; }); setSecData(d); }, [secciones]);
+  const saveSec = async (sec) => {
+    try {
+      const d = secData[sec.id];
+      await api.updateSeccion(sec.id, { ...sec, ...d });
+      toast(`${sec.nombre} actualizada`);
+      api.getSecciones().then(setSecciones).catch(() => {});
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  return (
+    <div className="card" style={{ padding: 16, marginTop: 16 }}>
+      <h4 style={{ marginBottom: 12 }}>📦 Config por sección (stock y envío)</h4>
+      {secciones.map(s => (
+        <div key={s.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
+          <strong>{s.nombre}</strong>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><input type="checkbox" checked={secData[s.id]?.ignorar_stock || false} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], ignorar_stock: e.target.checked } })} /> Ignorar stock (vende siempre)</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><input type="checkbox" checked={secData[s.id]?.permitir_sin_stock || false} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], permitir_sin_stock: e.target.checked } })} /> Permitir sin stock</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <label style={{ fontSize: 12 }}>CP Origen:</label>
+              <input value={secData[s.id]?.cp_origen || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], cp_origen: e.target.value } })} style={{ width: 80, fontSize: 12 }} />
+            </div>
+          </div>
+          <button className="btn btn-outline btn-sm" onClick={() => saveSec(s)} style={{ marginTop: 6 }}>Guardar {s.nombre}</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AdminConfig() {
   const { toast, config, setConfig, listas } = useContext(Ctx);
   const [c, setC] = useState({ ...config });
@@ -2889,6 +3209,9 @@ function AdminConfig() {
 
         <button className="btn btn-primary" onClick={saveAll} style={{ marginTop: 16, width: '100%' }}>Guardar configuración</button>
       </div>
+
+      {/* Section-level config */}
+      <SectionStockConfig />
 
       {/* Mantenimiento */}
       <div className="card" style={{ padding: 16 }}>
