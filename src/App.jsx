@@ -278,7 +278,10 @@ export default function App() {
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
-  const cartCount = Object.values(cart).reduce((s, items) => s + items.length, 0);
+  const cartCount = Object.values(cart).reduce((s, items) => {
+    if (!Array.isArray(items)) return s;
+    return s + items.reduce((sum, i) => sum + (i.qty || 0), 0);
+  }, 0);
   const addToCart = (secId, product, qty = 1, precio) => {
     setCart(prev => {
       const items = [...(prev[secId] || [])];
@@ -343,7 +346,7 @@ export default function App() {
     switch (page) {
       case 'section': return seccionActual ? <SectionPage /> : <Landing />;
       case 'product': return selectedProduct ? <ProductDetailPage /> : <Landing />;
-      case 'cart': return seccionActual ? <CartPage /> : <Landing />;
+      case 'cart': return <CartPage />;
       case 'login': return <LoginPage />;
       case 'register': return <RegisterPage />;
       case 'admin': return isAdmin ? <AdminPanel /> : <Landing />;
@@ -374,7 +377,6 @@ export default function App() {
 // ═══════════════════════════════════════════════════════════
 function Header() {
   const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode } = useContext(Ctx);
-  const ctx = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
 
   return (
@@ -648,7 +650,7 @@ function Landing() {
               )}
             </div>
           ) : addToCart && (
-            <button onClick={(e) => { e.stopPropagation(); addToCart(p, 1); toast('Agregado al carrito'); }}
+            <button onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); }}
               style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
               onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
@@ -995,7 +997,9 @@ function CartPage() {
     const items = Object.values(cart).filter(i => i.seccion_id === s.id);
     return items.length > 0;
   });
-  const allItems = Object.values(cart).filter(i => i.qty > 0);
+  const allItems = Object.entries(cart).flatMap(([secId, items]) => 
+    (Array.isArray(items) ? items : []).map(i => ({ ...i, seccion_id: Number(secId) }))
+  ).filter(i => i.qty > 0);
 
   useEffect(() => {
     if (seccionesConItems.length) api.getMetodosPago(seccionesConItems[0].id).then(setMetodos).catch(() => {});
@@ -1265,7 +1269,7 @@ function ProductDetailPage() {
                 <span style={{ padding: '12px 16px', fontWeight: 800, fontSize: 16, minWidth: 40, textAlign: 'center', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb' }}>{qty}</span>
                 <button onClick={() => setQty(qty + 1)} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>+</button>
               </div>
-              <button onClick={() => { addToCart(sec.id, p, qty, precioFinal); toast('Agregado al carrito'); }} style={{ flex: 1, padding: '14px 24px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+              <button onClick={() => { addToCart(sec?.id || p.seccion_id, p, qty, precioFinal); toast('Agregado al carrito'); }} style={{ flex: 1, padding: '14px 24px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
                 AGREGAR AL CARRITO
               </button>
             </div>
@@ -3047,7 +3051,7 @@ function FavoritosPage() {
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{f.nombre || f.modelo}</div>
                 {f.precio_base > 0 && <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(getPrice ? getPrice(f) : f.precio_base)}</div>}
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f, 1); toast('Agregado'); }}>Agregar</button>}
+                  {f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
                   <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}>🗑</button>
                 </div>
               </div>
