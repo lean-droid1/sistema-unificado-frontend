@@ -295,8 +295,14 @@ export default function App() {
       setSeccionActual(snap.sec || null);
       setPage(snap.page || 'landing');
       const y = snap.scrollY || 0;
-      let n = 0; const tick = () => { window.scrollTo(0, y); if (++n < 12) requestAnimationFrame(tick); };
-      requestAnimationFrame(tick);
+      if (y > 0) {
+        let n = 0;
+        const restore = () => {
+          window.scrollTo(0, y);
+          if (Math.abs(window.scrollY - y) > 3 && ++n < 40) setTimeout(restore, 50);
+        };
+        setTimeout(restore, 30);
+      } else window.scrollTo(0, 0);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -949,6 +955,7 @@ function SectionPage() {
     <div style={{ padding: '24px 20px', maxWidth: 1200, margin: '0 auto' }}>
       {/* KICKS back + title */}
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>← VOLVER AL INICIO</button>
+      <ScrollTriggerInit deps={productos.length} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -1255,7 +1262,7 @@ function ProductDetailPage() {
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
-      <button onClick={() => nav('section', sec?.id)} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
+      <button onClick={() => { if (window._navHist && window._navHist.length) window.history.back(); else nav('section', sec?.id); }} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
 
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, fontWeight: 600 }}>
         <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> / <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <> / {p.categoria}</>} / <span style={{ color: 'var(--text)', fontWeight: 700 }}>{p.nombre || p.modelo}</span>
