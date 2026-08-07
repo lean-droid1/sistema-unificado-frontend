@@ -859,9 +859,9 @@ function ScrollTriggerInit({ deps = 0 }) {
     const timer = setTimeout(() => {
       gsap.utils.toArray('.kicks-card').forEach(card => {
         if (card._gsapInit) return; card._gsapInit = true;
-        gsap.fromTo(card, { scale: 0.8 }, {
-          scale: 1, duration: 0.5, ease: 'back.out(1.5)',
-          scrollTrigger: { trigger: card, start: 'top 96%', toggleActions: 'play none none none' }
+        gsap.fromTo(card, { scale: 0.82 }, {
+          scale: 1, ease: 'none',
+          scrollTrigger: { trigger: card, start: 'top bottom', end: 'top center', scrub: 1 }
         });
       });
       ScrollTrigger.refresh();
@@ -995,13 +995,6 @@ function SectionPage() {
         </select>
       </div>
 
-      {/* FIX #8: categorias por tienda (chips) */}
-      {categorias.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          <button onClick={() => { setCatFiltro(''); setPagina(1); }} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: catFiltro === '' ? 'var(--primary)' : 'var(--border-light)', color: catFiltro === '' ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Todas</button>
-          {categorias.map(c => <button key={c} onClick={() => { setCatFiltro(c); setPagina(1); }} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: catFiltro === c ? 'var(--primary)' : 'var(--border-light)', color: catFiltro === c ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{c}</button>)}
-        </div>
-      )}
 
       {/* Cantidad por página */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 12 }}>

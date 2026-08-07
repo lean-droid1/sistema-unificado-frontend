@@ -70,7 +70,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .header-nav a { color: var(--text-secondary); font-size: 14px; font-weight: 600; transition: color 0.2s; }
 .header-nav a:hover { color: var(--primary); }
 .header-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.icon-btn { background: none; border: none; font-size: 18px; padding: 8px; border-radius: var(--radius-sm); transition: background 0.2s; }
+.icon-btn { background: none; border: none; font-size: 18px; padding: 8px; border-radius: var(--radius-sm); transition: background 0.2s; color: var(--text); }
+.icon-btn svg { filter: drop-shadow(0 0 0.7px var(--primary)); }
+.dark .icon-btn svg { filter: drop-shadow(0 0 1.2px var(--primary)); }
 .icon-btn:hover { background: var(--border-light); }
 .cart-btn { position: relative; }
 .cart-badge { position: absolute; top: 0; right: 0; background: var(--accent); color: var(--primary-dark); font-size: 10px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
@@ -335,7 +337,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 }
 
 /* Bloque 3: evitar scroll horizontal por el efecto de las cards */
-html, body { overflow-x: hidden; }
 .kicks-card { will-change: transform; }
 
 /* Bloque 4: 2 columnas de productos en mobile (secciones) */
