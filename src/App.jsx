@@ -979,13 +979,6 @@ function SectionPage() {
         )}
       </div>
 
-      {/* Badges de sección */}
-      {secBadges.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {secBadges.map(b => <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>)}
-        </div>
-      )}
-
       {/* KICKS filters row */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
         <input placeholder="¿Qué buscás?" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 200, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontSize: 14, fontWeight: 500 }} />
@@ -1226,7 +1219,7 @@ function CartPage() {
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
-  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user, design } = useContext(Ctx);
+  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user, design, badges } = useContext(Ctx);
   const [qty, setQty] = useState(1);
   const [metodosPago, setMetodosPago] = useState([]);
   const [gallery, setGallery] = useState([]);
@@ -1376,6 +1369,14 @@ function ProductDetailPage() {
           {p.sku && <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SKU: {p.sku}</p>}
           {p.notas && <div style={{ background: '#fef3c7', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, color: 'var(--text)' }}>📝 {p.notas}</div>}
 
+          {/* Carteles de confianza (movidos desde la sección) */}
+          {badges.filter(b => b.visible !== false && (!b.secciones_ids || String(b.secciones_ids).split(',').map(x => x.trim()).filter(Boolean).length === 0 || String(b.secciones_ids).split(',').map(x => x.trim()).includes(String(sec?.id)))).length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0' }}>
+              {badges.filter(b => b.visible !== false && (!b.secciones_ids || String(b.secciones_ids).split(',').map(x => x.trim()).filter(Boolean).length === 0 || String(b.secciones_ids).split(',').map(x => x.trim()).includes(String(sec?.id)))).map(b => (
+                <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>
+              ))}
+            </div>
+          )}
           {/* Andreani + custom shipping calculator */}
           <AndreaniCalculator seccionId={sec?.id} peso={p.peso} volumen={(p.alto * p.ancho * p.largo) / 1000000 || 0.001}
             onSelect={(envio) => toast(`${envio.nombre}: ${fmtARS(envio.costo)}`)} />
