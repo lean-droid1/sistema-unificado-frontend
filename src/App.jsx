@@ -221,6 +221,17 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('dashboard');
   const [adminSeccion, setAdminSeccion] = useState('all');
 
+  // Global search (shared across Header + Landing + all pages)
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalResults, setGlobalResults] = useState(null);
+  const doGlobalSearch = useCallback(async (q) => {
+    const term = q !== undefined ? q : globalSearch;
+    if (term.length < 2) { setGlobalResults(null); return; }
+    const data = await api.busquedaGlobal(term);
+    setGlobalResults(data);
+    api.trackSearch(term, data.total);
+  }, [globalSearch]);
+
   // Dark mode
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -384,7 +395,8 @@ export default function App() {
     preciosFijos, setPreciosFijos, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
-    testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); }
+    testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); },
+    globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
@@ -434,61 +446,94 @@ function Ico({ n, s = 18 }) {
 }
 
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, globalSearch, setGlobalSearch, doGlobalSearch } = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
+  const showSearch = !['admin','login','register','forgot','maintenance'].includes(page);
+
+  // Debounced live search
+  useEffect(() => {
+    if (globalSearch.length < 2) return;
+    const t = setTimeout(() => doGlobalSearch(globalSearch), 400);
+    return () => clearTimeout(t);
+  }, [globalSearch]);
 
   return (
-    <>
-      {/* Top banner handled by marquee in landing */}
-      <header className="header">
-        <div className="header-inner">
-          <button className="header-logo" onClick={() => nav('landing')}>
-            {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+    <header className="header">
+      {/* ROW 1: logo + nav + actions */}
+      <div className="header-inner">
+        <button className="header-logo" onClick={() => nav('landing')}>
+          {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+        </button>
+        <nav className="header-nav desktop-only">
+          {menuItems.map(m => (
+            <a key={m.id} href={m.url || '#'} onClick={e => { if (!m.url || m.url === '#') { e.preventDefault(); } }}>{m.titulo}</a>
+          ))}
+        </nav>
+        <div className="header-right">
+          <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
+          {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
+          <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
+            <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
-          <nav className="header-nav desktop-only">
-            {menuItems.map(m => (
-              <a key={m.id} href={m.url || '#'} onClick={e => { if (!m.url || m.url === '#') { e.preventDefault(); } }}>{m.titulo}</a>
-            ))}
-          </nav>
-          <div className="header-right">
-            <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
-            {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
-            <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
-              <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-            </button>
-            {user ? (
-              <>
-                {isAdmin && <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('admin')}>PANEL</button>}
-                <button className="btn btn-sm btn-outline desktop-only" onClick={() => nav('account')}>MI CUENTA</button>
-                <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
-              </>
-            ) : (
-              <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: 'var(--accent)', color: 'var(--primary-dark)', borderColor: 'var(--accent)', fontWeight: 800 }}>INGRESAR</button>
-            )}
-            <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}><Ico n="menu" s={20} /></button>
+          {user ? (
+            <>
+              {isAdmin && <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('admin')}>PANEL</button>}
+              <button className="btn btn-sm btn-outline desktop-only" onClick={() => nav('account')}>MI CUENTA</button>
+              <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
+            </>
+          ) : (
+            <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: 'var(--accent)', color: 'var(--primary-dark)', borderColor: 'var(--accent)', fontWeight: 800 }}>INGRESAR</button>
+          )}
+          <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}><Ico n="menu" s={20} /></button>
+        </div>
+      </div>
+
+      {/* ROW 2: GLOBAL SEARCH BAR (all pages except admin/auth) */}
+      {showSearch && (
+        <div className="header-search-row">
+          <div className="header-search-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input className="header-search-input" placeholder="Buscar por marca, modelo o repuesto..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doGlobalSearch()} />
+            {globalSearch && <button className="header-search-clear" onClick={() => { setGlobalSearch(''); }}>✕</button>}
           </div>
         </div>
-        {mobMenu && (
-          <div className="mobile-menu" style={{ background: 'var(--bg-card)', padding: '16px 20px' }}>
-            {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
-            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-            {user ? (
-              <>
-                {isAdmin && <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('admin'); }}>Panel admin</button>}
-                {isAdmin && <button style={{ color: testMode ? 'var(--warning)' : 'var(--text-secondary)', fontWeight: 700 }} onClick={() => setTestMode(!testMode)}>{testMode ? 'Modo prueba: ON' : 'Modo prueba: OFF'}</button>}
-                <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
-                <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
-              </>
-            ) : (
-              <>
-                <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('login'); }}>Ingresar</button>
-                <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('register'); }}>Registrarse</button>
-              </>
-            )}
+      )}
+
+      {/* ROW 3: MARQUEE BANNER (trust badges scrolling) */}
+      {badges.length > 0 && showSearch && (
+        <div className="header-marquee">
+          <div className="marquee-track">
+            {[...badges, ...badges, ...badges].map((b, i) => (
+              <span key={i} className="marquee-item">
+                <RenderIcon value={b.icono} size={14} />{b.texto}
+                <span style={{ color: 'var(--border)', margin: '0 4px' }}>|</span>
+              </span>
+            ))}
           </div>
-        )}
-      </header>
-    </>
+        </div>
+      )}
+
+      {/* MOBILE MENU */}
+      {mobMenu && (
+        <div className="mobile-menu" style={{ background: 'var(--bg-card)', padding: '16px 20px' }}>
+          {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
+          <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+          {user ? (
+            <>
+              {isAdmin && <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('admin'); }}>Panel admin</button>}
+              {isAdmin && <button style={{ color: testMode ? 'var(--warning)' : 'var(--text-secondary)', fontWeight: 700 }} onClick={() => setTestMode(!testMode)}>{testMode ? 'Modo prueba: ON' : 'Modo prueba: OFF'}</button>}
+              <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
+              <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
+            </>
+          ) : (
+            <>
+              <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('login'); }}>Ingresar</button>
+              <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('register'); }}>Registrarse</button>
+            </>
+          )}
+        </div>
+      )}
+    </header>
   );
 }
 
@@ -593,9 +638,7 @@ function InfoPage() {
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
 function Landing() {
-  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista } = useContext(Ctx);
-  const [search, setSearch] = useState('');
-  const [results, setResults] = useState(null);
+  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
   const [secProds, setSecProds] = useState({});
   const [sliders, setSliders] = useState([]);
@@ -634,21 +677,6 @@ function Landing() {
     if (favIds.has(prodId)) { await api.removeFavorito(prodId); setFavIds(prev => { const n = new Set(prev); n.delete(prodId); return n; }); }
     else { await api.addFavorito(prodId); setFavIds(prev => new Set(prev).add(prodId)); }
   };
-
-  const doSearch = async (q) => {
-    const term = q !== undefined ? q : search;
-    if (term.length < 2) { setResults(null); return; }
-    const data = await api.busquedaGlobal(term);
-    setResults(data);
-    api.trackSearch(term, data.total);
-  };
-
-  // Live search as you type (debounced)
-  useEffect(() => {
-    if (search.length < 2) { setResults(null); return; }
-    const t = setTimeout(() => doSearch(search), 400);
-    return () => clearTimeout(t);
-  }, [search]);
 
   // Product card component
   const ProductCard = ({ p, secId }) => {
@@ -755,18 +783,6 @@ function Landing() {
         </div>
       )}
 
-      {/* ── MARQUEE BANNER ── scrolling trust badges like RXZ */}
-      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid #eee', overflow: 'hidden', padding: '8px 0', position: 'relative' }}>
-        <div className="marquee-track">
-          {[...badges, ...badges, ...badges].map((b, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', padding: '0 24px', fontSize: 12, fontWeight: 600, color: '#4b5563' }}>
-              <RenderIcon value={b.icono} size={16} />{b.texto}
-              <span style={{ color: '#d1d5db' }}>|</span>
-            </span>
-          ))}
-        </div>
-      </div>
-
       {/* ── HERO ── título/subtítulo (editable desde Diseño) */}
       {(design.hero_titulo || design.hero_subtitulo) && (
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 20px 4px', textAlign: 'center' }}>
@@ -774,14 +790,7 @@ function Landing() {
           {design.hero_subtitulo && <p style={{ fontSize: 15, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 0 }}>{design.hero_subtitulo}</p>}
         </div>
       )}
-      {/* ── SEARCH BAR ── */}
-      <div style={{ position: 'sticky', top: 56, zIndex: 90, background: 'var(--bg)', padding: '12px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', gap: 8, maxWidth: 900, margin: '0 auto' }}>
-          <input placeholder="Buscar por marca, modelo o repuesto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
-            style={{ flex: 1, background: 'var(--bg-card)', border: '1.5px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '11px 14px', fontSize: 14 }} />
-          <button onClick={() => doSearch()} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px 22px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Buscar</button>
-        </div>
-      </div>
+      {/* Search bar is now in Header */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
         {/* Confianza cards — editable from Diseño */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
@@ -798,11 +807,11 @@ function Landing() {
         </div>
       </div>
 
-      {/* Search results */}
-      {results && (
+      {/* Search results (from global header search) */}
+      {globalResults && (
         <div style={{ maxWidth: 1200, margin: '20px auto', padding: '0 20px' }}>
-          {results.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No se encontraron resultados para "{search}"</p> : (
-            results.resultados.map(r => (
+          {globalResults.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No se encontraron resultados para "{globalSearch}"</p> : (
+            globalResults.resultados.map(r => (
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
                 <h3 style={{ marginBottom: 12, fontWeight: 800, fontSize: 18 }}>{r.seccion.nombre} <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
@@ -811,12 +820,12 @@ function Landing() {
               </div>
             ))
           )}
-          <button onClick={() => setResults(null)} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>✕ Cerrar resultados</button>
+          <button onClick={() => setGlobalResults(null)} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>✕ Cerrar resultados</button>
         </div>
       )}
 
       {/* ── SECTION TABS ── quick nav */}
-      {!results && (
+      {!globalResults && (
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {secciones.map(s => (
@@ -832,7 +841,7 @@ function Landing() {
       )}
 
       {/* ── PRODUCTS PER SECTION ── */}
-      {!results && secciones.map(s => {
+      {!globalResults && secciones.map(s => {
         const prods = secProds[s.id] || [];
         if (!prods.length) return null;
         return (
