@@ -266,6 +266,11 @@ export default function App() {
 
   // Nav helper
   const nav = useCallback((p, secId) => {
+    // Bloque 2: guardar scroll de la lista al entrar a un producto + push al historial (botón atrás)
+    if (p === 'product') { window._listScroll = window._listScroll || {}; window._listScroll[(seccionActual && seccionActual.id) || 0] = window.scrollY; }
+    window._navHist = window._navHist || [];
+    window._navHist.push({ page, sec: seccionActual, prod: selectedProduct });
+    try { window.history.pushState({ d: window._navHist.length }, ''); } catch (e) {}
     if (p === 'product' && secId && typeof secId === 'object') {
       setSelectedProduct(secId);
       const sec = seccionActual || secciones.find(s => s.id === secId.seccion_id);
@@ -279,7 +284,22 @@ export default function App() {
       setPage(p);
     }
     setMobileMenu(false); window.scrollTo(0, 0);
-  }, [secciones, seccionActual]);
+  }, [secciones, seccionActual, page, selectedProduct]);
+
+  // Bloque 2: el botón atrás del navegador navega dentro de la app (no sale del sitio)
+  useEffect(() => {
+    const onPop = () => {
+      const h = window._navHist || [];
+      const snap = h.pop();
+      if (!snap) { setPage('landing'); return; }
+      setSelectedProduct(snap.prod || null);
+      setSeccionActual(snap.sec || null);
+      setPage(snap.page || 'landing');
+      if (snap.page !== 'section') window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
@@ -877,6 +897,12 @@ function SectionPage() {
     api.trackSectionView(sec.nombre);
     loadData();
   }, [sec?.id, catFiltro, busqueda, pagina]);
+
+  // Bloque 2: al volver de un producto, restaurar la posición de scroll en la lista
+  useEffect(() => {
+    const y = window._listScroll && sec && window._listScroll[sec.id];
+    if (y) { window.scrollTo(0, y); delete window._listScroll[sec.id]; }
+  }, [productos]);
 
   if (!sec) return <Landing />;
 
