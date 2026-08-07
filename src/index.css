@@ -333,3 +333,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
   0% { transform: translateX(0); }
   100% { transform: translateX(-33.333%); }
 }
+
+/* Bloque 3: evitar scroll horizontal por el efecto de las cards */
+html, body { overflow-x: hidden; }
+.kicks-card { will-change: transform; }

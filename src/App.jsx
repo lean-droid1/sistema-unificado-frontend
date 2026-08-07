@@ -266,10 +266,9 @@ export default function App() {
 
   // Nav helper
   const nav = useCallback((p, secId) => {
-    // Bloque 2: guardar scroll de la lista al entrar a un producto + push al historial (botón atrás)
-    if (p === 'product') { window._listScroll = window._listScroll || {}; window._listScroll[(seccionActual && seccionActual.id) || 0] = window.scrollY; }
+    // snapshot (con scroll) para el botón atrás del navegador
     window._navHist = window._navHist || [];
-    window._navHist.push({ page, sec: seccionActual, prod: selectedProduct });
+    window._navHist.push({ page, sec: seccionActual, prod: selectedProduct, scrollY: window.scrollY });
     try { window.history.pushState({ d: window._navHist.length }, ''); } catch (e) {}
     if (p === 'product' && secId && typeof secId === 'object') {
       setSelectedProduct(secId);
@@ -295,7 +294,9 @@ export default function App() {
       setSelectedProduct(snap.prod || null);
       setSeccionActual(snap.sec || null);
       setPage(snap.page || 'landing');
-      if (snap.page !== 'section') window.scrollTo(0, 0);
+      const y = snap.scrollY || 0;
+      let n = 0; const tick = () => { window.scrollTo(0, y); if (++n < 12) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -841,9 +842,9 @@ function ScrollTriggerInit({ deps = 0 }) {
     const timer = setTimeout(() => {
       gsap.utils.toArray('.kicks-card').forEach(card => {
         if (card._gsapInit) return; card._gsapInit = true;
-        gsap.fromTo(card, { scale: 0.75 }, {
-          scale: 1.15, ease: 'none',
-          scrollTrigger: { trigger: card, start: 'top 85%', end: 'top 30%', scrub: 1.2 }
+        gsap.fromTo(card, { scale: 0.9, opacity: 0.85 }, {
+          scale: 1, opacity: 1, ease: 'none',
+          scrollTrigger: { trigger: card, start: 'top 92%', end: 'top 60%', scrub: 1 }
         });
       });
       ScrollTrigger.refresh();
@@ -898,11 +899,6 @@ function SectionPage() {
     loadData();
   }, [sec?.id, catFiltro, busqueda, pagina]);
 
-  // Bloque 2: al volver de un producto, restaurar la posición de scroll en la lista
-  useEffect(() => {
-    const y = window._listScroll && sec && window._listScroll[sec.id];
-    if (y) { window.scrollTo(0, y); delete window._listScroll[sec.id]; }
-  }, [productos]);
 
   if (!sec) return <Landing />;
 
