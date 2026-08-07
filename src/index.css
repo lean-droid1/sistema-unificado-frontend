@@ -337,3 +337,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 /* Bloque 3: evitar scroll horizontal por el efecto de las cards */
 html, body { overflow-x: hidden; }
 .kicks-card { will-change: transform; }
+
+/* Bloque 4: 2 columnas de productos en mobile (secciones) */
+@media (max-width: 768px) {
+  .product-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+}

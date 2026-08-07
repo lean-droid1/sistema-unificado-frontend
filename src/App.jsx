@@ -407,6 +407,16 @@ export default function App() {
 // ═══════════════════════════════════════════════════════════
 // HEADER
 // ═══════════════════════════════════════════════════════════
+function Ico({ n, s = 18 }) {
+  const p = { width: s, height: s, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (n === 'sun') return <svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
+  if (n === 'moon') return <svg {...p}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>;
+  if (n === 'heart') return <svg {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l7.8-7.6a5.5 5.5 0 0 0 0-7.8z" /></svg>;
+  if (n === 'cart') return <svg {...p}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>;
+  if (n === 'menu') return <svg {...p}><path d="M3 12h18M3 6h18M3 18h18" /></svg>;
+  return null;
+}
+
 function Header() {
   const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode } = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
@@ -418,7 +428,6 @@ function Header() {
         <div className="header-inner">
           <button className="header-logo" onClick={() => nav('landing')}>
             {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
-            <span>{design.nombre_tienda || 'MI TIENDA'}</span>
           </button>
           <nav className="header-nav desktop-only">
             {menuItems.map(m => (
@@ -426,22 +435,21 @@ function Header() {
             ))}
           </nav>
           <div className="header-right">
-            <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? '☀️' : '🌙'}</button>
-            {isAdmin && <button className="icon-btn" onClick={() => setTestMode(!testMode)} title={testMode ? 'Modo PRUEBA activo' : 'Modo producción'} style={{ fontSize: 11, fontWeight: 800, background: testMode ? 'var(--warning)' : 'transparent', color: testMode ? '#000' : 'inherit', borderRadius: 8, padding: '4px 8px' }}>{testMode ? '🧪 TEST' : '🧪'}</button>}
-            {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos">❤️</button>}
+            <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
+            {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
             <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
-              🛒 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+              <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
             </button>
             {user ? (
               <>
-                {isAdmin && <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('admin')}>⚙ PANEL</button>}
+                {isAdmin && <button className="btn btn-sm btn-primary desktop-only" onClick={() => nav('admin')}>PANEL</button>}
                 <button className="btn btn-sm btn-outline desktop-only" onClick={() => nav('account')}>MI CUENTA</button>
                 <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
               </>
             ) : (
               <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: 'var(--accent)', color: 'var(--primary-dark)', borderColor: 'var(--accent)', fontWeight: 800 }}>INGRESAR</button>
             )}
-            <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}>☰</button>
+            <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}><Ico n="menu" s={20} /></button>
           </div>
         </div>
         {mobMenu && (
@@ -450,7 +458,8 @@ function Header() {
             <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
             {user ? (
               <>
-                {isAdmin && <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('admin'); }}>⚙ Panel admin</button>}
+                {isAdmin && <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('admin'); }}>Panel admin</button>}
+                {isAdmin && <button style={{ color: testMode ? 'var(--warning)' : 'var(--text-secondary)', fontWeight: 700 }} onClick={() => setTestMode(!testMode)}>{testMode ? 'Modo prueba: ON' : 'Modo prueba: OFF'}</button>}
                 <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
                 <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
               </>
@@ -750,12 +759,14 @@ function Landing() {
         </div>
       )}
       {/* ── SEARCH BAR ── */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 20px 0' }}>
-        <div style={{ display: 'flex', gap: 8, maxWidth: 600 }}>
+      <div style={{ position: 'sticky', top: 56, zIndex: 90, background: 'var(--bg)', padding: '12px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', gap: 8, maxWidth: 900, margin: '0 auto' }}>
           <input placeholder="Buscar por marca, modelo o repuesto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()}
-            style={{ flex: 1, background: 'var(--bg-card)', border: '1.5px solid #d1d5db', color: 'var(--text)', borderRadius: 8, padding: '10px 14px', fontSize: 14 }} />
-          <button onClick={() => doSearch()} style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Buscar</button>
+            style={{ flex: 1, background: 'var(--bg-card)', border: '1.5px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '11px 14px', fontSize: 14 }} />
+          <button onClick={() => doSearch()} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px 22px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Buscar</button>
         </div>
+      </div>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
         {/* Confianza cards — editable from Diseño */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
           {[1, 2, 3].map(n => {
@@ -848,9 +859,9 @@ function ScrollTriggerInit({ deps = 0 }) {
     const timer = setTimeout(() => {
       gsap.utils.toArray('.kicks-card').forEach(card => {
         if (card._gsapInit) return; card._gsapInit = true;
-        gsap.fromTo(card, { scale: 0.9, opacity: 0.85 }, {
-          scale: 1, opacity: 1, ease: 'none',
-          scrollTrigger: { trigger: card, start: 'top 92%', end: 'top 60%', scrub: 1 }
+        gsap.fromTo(card, { scale: 0.8 }, {
+          scale: 1, duration: 0.5, ease: 'back.out(1.5)',
+          scrollTrigger: { trigger: card, start: 'top 96%', toggleActions: 'play none none none' }
         });
       });
       ScrollTrigger.refresh();
@@ -871,6 +882,7 @@ function SectionPage() {
   const [catFiltro, setCatFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(50);
   const [total, setTotal] = useState(0);
   const [promos, setPromos] = useState([]);
   const [secBadges, setSecBadges] = useState([]);
@@ -884,7 +896,7 @@ function SectionPage() {
     if (!sec) return;
     try {
       const [prodData, cats, promoData, bdg, mp] = await Promise.all([
-        api.getProductos({ seccion_id: sec.id, categoria: catFiltro, q: busqueda, page: pagina }),
+        api.getProductos({ seccion_id: sec.id, categoria: catFiltro, q: busqueda, page: pagina, limit: porPagina === 'todos' ? 100000 : porPagina }),
         api.getCategorias(sec.id),
         api.getPromocionesActivas(sec.id).catch(() => []),
         api.getBadges(sec.id).catch(() => []),
@@ -903,7 +915,7 @@ function SectionPage() {
     if (!sec) return;
     api.trackSectionView(sec.nombre);
     loadData();
-  }, [sec?.id, catFiltro, busqueda, pagina]);
+  }, [sec?.id, catFiltro, busqueda, pagina, porPagina]);
 
 
   if (!sec) return <Landing />;
@@ -991,6 +1003,14 @@ function SectionPage() {
         </div>
       )}
 
+      {/* Cantidad por página */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ver:</span>
+        {[50, 100, 'todos'].map(n => (
+          <button key={n} onClick={() => { setPorPagina(n); setPagina(1); }} style={{ padding: '4px 12px', borderRadius: 8, border: '1px solid var(--border)', background: porPagina === n ? 'var(--primary)' : 'transparent', color: porPagina === n ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{n === 'todos' ? 'Todos' : n}</button>
+        ))}
+      </div>
+
       {/* Products grid */}
       <div className="product-grid">
         {productos.map(p => {
@@ -1032,11 +1052,11 @@ function SectionPage() {
       {productos.length === 0 && <div className="empty-state"><h3>No hay productos</h3></div>}
 
       {/* Pagination */}
-      {total > 50 && (
+      {porPagina !== 'todos' && total > porPagina && (
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20 }}>
           {pagina > 1 && <button className="btn btn-outline btn-sm" onClick={() => setPagina(pagina - 1)}>← Anterior</button>}
-          <span style={{ padding: '6px 12px' }}>Pág {pagina} / {Math.ceil(total / 50)}</span>
-          {pagina < Math.ceil(total / 50) && <button className="btn btn-outline btn-sm" onClick={() => setPagina(pagina + 1)}>Siguiente →</button>}
+          <span style={{ padding: '6px 12px' }}>Pág {pagina} / {Math.ceil(total / porPagina)}</span>
+          {pagina < Math.ceil(total / porPagina) && <button className="btn btn-outline btn-sm" onClick={() => setPagina(pagina + 1)}>Siguiente →</button>}
         </div>
       )}
     </div>
