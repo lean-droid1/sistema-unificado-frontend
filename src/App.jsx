@@ -1219,7 +1219,9 @@ function CartPage() {
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
-  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user, design, badges } = useContext(Ctx);
+  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user, design } = useContext(Ctx);
+  const [prodBadges, setProdBadges] = useState([]);
+  useEffect(() => { if (sec?.id) api.getBadges(sec.id).then(setProdBadges).catch(() => {}); }, [sec?.id]);
   const [qty, setQty] = useState(1);
   const [metodosPago, setMetodosPago] = useState([]);
   const [gallery, setGallery] = useState([]);
@@ -1370,9 +1372,9 @@ function ProductDetailPage() {
           {p.notas && <div style={{ background: '#fef3c7', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, color: 'var(--text)' }}>📝 {p.notas}</div>}
 
           {/* Carteles de confianza (movidos desde la sección) */}
-          {badges.filter(b => b.visible !== false && (!b.secciones_ids || String(b.secciones_ids).split(',').map(x => x.trim()).filter(Boolean).length === 0 || String(b.secciones_ids).split(',').map(x => x.trim()).includes(String(sec?.id)))).length > 0 && (
+          {prodBadges.length > 0 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0' }}>
-              {badges.filter(b => b.visible !== false && (!b.secciones_ids || String(b.secciones_ids).split(',').map(x => x.trim()).filter(Boolean).length === 0 || String(b.secciones_ids).split(',').map(x => x.trim()).includes(String(sec?.id)))).map(b => (
+              {prodBadges.map(b => (
                 <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>
               ))}
             </div>
