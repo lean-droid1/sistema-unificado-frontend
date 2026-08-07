@@ -230,6 +230,22 @@ export default function App() {
   // Save cart
   useEffect(() => { localStorage.setItem('gm_cart', JSON.stringify(cart)); }, [cart]);
 
+  // Auto-limpieza: quitar del carrito secciones inexistentes o ítems inválidos (fantasmas)
+  useEffect(() => {
+    if (!secciones.length) return;
+    const valid = new Set(secciones.map(x => String(x.id)));
+    setCart(prev => {
+      let changed = false; const next = {};
+      for (const [k, items] of Object.entries(prev)) {
+        if (valid.has(String(k)) && Array.isArray(items)) {
+          const clean = items.filter(i => i && i.qty > 0 && ((i.precio_unitario || i.precio_base || 0) > 0));
+          next[k] = clean; if (clean.length !== items.length) changed = true;
+        } else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [secciones.length]);
+
   // FIX #4: persistir ruta + seccion
   useEffect(() => { localStorage.setItem('gm_page', page); }, [page]);
   useEffect(() => { localStorage.setItem('gm_seccion', JSON.stringify(seccionActual)); }, [seccionActual]);
@@ -310,9 +326,9 @@ export default function App() {
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
-  const cartCount = Object.values(cart).reduce((s, items) => {
-    if (!Array.isArray(items)) return s;
-    return s + items.reduce((sum, i) => sum + (i.qty || 0), 0);
+  const cartCount = secciones.reduce((s, sec) => {
+    const items = Array.isArray(cart[sec.id]) ? cart[sec.id] : [];
+    return s + items.reduce((sum, i) => sum + (i.qty > 0 ? i.qty : 0), 0);
   }, 0);
   const addToCart = (secId, product, qty = 1, precio) => {
     setCart(prev => {
@@ -1063,8 +1079,9 @@ function CartPage() {
 
   // Group cart items by section
   const seccionesConItems = secciones.filter(s => (Array.isArray(cart[s.id]) ? cart[s.id] : []).some(i => i.qty > 0));
+  const _validSecIds = new Set(secciones.map(x => String(x.id)));
   const allItems = Object.entries(cart).flatMap(([secId, items]) => 
-    (Array.isArray(items) ? items : []).map(i => ({ ...i, seccion_id: Number(secId) }))
+    _validSecIds.has(String(secId)) && Array.isArray(items) ? items.map(i => ({ ...i, seccion_id: Number(secId) })) : []
   ).filter(i => i.qty > 0);
 
   useEffect(() => {
