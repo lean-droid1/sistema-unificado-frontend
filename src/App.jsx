@@ -761,22 +761,28 @@ function Landing() {
         </div>
       )}
 
-      {/* ── SLIDER BANNERS ── */}
+      {/* ── SLIDER BANNERS ── estilo demo con overlay de texto */}
       {sliders.length > 0 && (
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0', position: 'relative' }}>
-          <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ maxWidth: 1200, margin: '16px auto 0', padding: '0 20px' }}>
+          <div className="hero-slider">
             {sliders.map((s, i) => (
-              <div key={s.id} style={{ display: i === sliderIdx ? 'block' : 'none', cursor: s.url_destino ? 'pointer' : 'default' }}
+              <div key={s.id} className="hero-slide" style={{ display: i === sliderIdx ? 'block' : 'none', cursor: s.url_destino ? 'pointer' : 'default' }}
                 onClick={() => s.url_destino && window.open(s.url_destino, '_blank')}>
-                <img src={s.imagen} alt={s.titulo || ''} style={{ width: '100%', height: 'auto', maxHeight: 320, objectFit: 'cover', display: 'block' }} />
-                {s.titulo && <div style={{ position: 'absolute', bottom: 16, left: 16, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '6px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700 }}>{s.titulo}</div>}
+                <img src={s.imagen} alt={s.titulo || ''} className="hero-slide-img" />
+                {(s.titulo || s.subtitulo) && (
+                  <div className="hero-slide-overlay">
+                    {s.etiqueta && <span className="hero-slide-tag">{s.etiqueta}</span>}
+                    {s.titulo && <h2 className="hero-slide-title">{s.titulo}</h2>}
+                    {s.subtitulo && <p className="hero-slide-sub">{s.subtitulo}</p>}
+                  </div>
+                )}
               </div>
             ))}
             {sliders.length > 1 && <>
-              <button onClick={() => setSliderIdx((sliderIdx - 1 + sliders.length) % sliders.length)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}>‹</button>
-              <button onClick={() => setSliderIdx((sliderIdx + 1) % sliders.length)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}>›</button>
-              <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
-                {sliders.map((_, i) => <button key={i} onClick={() => setSliderIdx(i)} style={{ width: 8, height: 8, borderRadius: '50%', border: 'none', background: i === sliderIdx ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />)}
+              <button className="hero-slide-nav hero-slide-prev" onClick={() => setSliderIdx((sliderIdx - 1 + sliders.length) % sliders.length)}>‹</button>
+              <button className="hero-slide-nav hero-slide-next" onClick={() => setSliderIdx((sliderIdx + 1) % sliders.length)}>›</button>
+              <div className="hero-slide-dots">
+                {sliders.map((_, i) => <button key={i} onClick={() => setSliderIdx(i)} className={`hero-slide-dot${i === sliderIdx ? ' active' : ''}`} />)}
               </div>
             </>}
           </div>
@@ -792,15 +798,15 @@ function Landing() {
       )}
       {/* Search bar is now in Header */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
-        {/* Confianza cards — editable from Diseño */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+        {/* Confianza cards — editable from Diseño, estilo demo */}
+        <div className="confianza-row">
           {[1, 2, 3].map(n => {
             const icono = design[`confianza_${n}_icono`]; const titulo = design[`confianza_${n}_titulo`];
             if (!titulo) return null;
             return (
-              <div key={n} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 140px', minWidth: 140 }}>
-                <span style={{ fontSize: 20 }}><RenderIcon value={icono} size={22} color="#2563eb" /></span>
-                <div><div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{titulo}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{design[`confianza_${n}_sub`] || ''}</div></div>
+              <div key={n} className="confianza-card">
+                <div className="confianza-icon"><RenderIcon value={icono} size={20} color="var(--text)" /></div>
+                <div><div className="confianza-title">{titulo}</div><div className="confianza-sub">{design[`confianza_${n}_sub`] || ''}</div></div>
               </div>
             );
           })}
@@ -824,18 +830,19 @@ function Landing() {
         </div>
       )}
 
-      {/* ── SECTION TABS ── quick nav */}
+      {/* ── SECTION TABS ── quick nav, con color por sección */}
       {!globalResults && (
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {secciones.map(s => (
+            {secciones.map(s => {
+              const col = s.color || 'var(--primary)';
+              return (
               <button key={s.id} onClick={() => nav('section', s.id)}
-                style={{ background: 'var(--border-light)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e5e7eb'; }}>
+                className="section-tab"
+                style={{ '--tab-color': col }}>
                 {s.nombre} {s.requiere_aprobacion ? '🔒' : ''}
               </button>
-            ))}
+            ); })}
           </div>
         </div>
       )}
@@ -3170,7 +3177,7 @@ function AdminDiseno() {
 function AdminSlider() {
   const { toast } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ titulo: '', imagen: '', url_destino: '', orden: 0, activo: true });
+  const [form, setForm] = useState({ titulo: '', subtitulo: '', etiqueta: '', imagen: '', url_destino: '', orden: 0, activo: true });
   const [edit, setEdit] = useState(null);
   const load = () => api.getSliderAll().then(s => setItems(s.sort((a, b) => (a.orden || 0) - (b.orden || 0))));
   useEffect(() => { load(); }, []);
@@ -3178,7 +3185,7 @@ function AdminSlider() {
   const dnd = useDnDReorder(items, setItems, async (re) => { for (const s of re) { await api.updateSlider(s.id, s).catch(() => {}); } });
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Slider de banners</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', imagen: '', url_destino: '', orden: 0, activo: true }); setShow(true); }}>+ Nuevo banner</button></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Slider de banners</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', subtitulo: '', etiqueta: '', imagen: '', url_destino: '', orden: 0, activo: true }); setShow(true); }}>+ Nuevo banner</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Imágenes que rotan automáticamente en la landing. Arrastrá para reordenar.</p>
       {items.map((s, i) => (
         <div key={s.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()}
@@ -3197,7 +3204,9 @@ function AdminSlider() {
         <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
           <button className="modal-close" onClick={() => setShow(false)}>✕</button>
           <h3>{edit ? 'Editar' : 'Nuevo'} banner</h3>
-          <div className="form-group"><label className="form-label">Título (opcional)</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
+          <div className="form-group"><label className="form-label">Etiqueta (arriba, ej: NUEVA COLECCIÓN)</label><input value={form.etiqueta || ''} onChange={e => setForm({ ...form, etiqueta: e.target.value })} placeholder="Opcional — texto chico arriba del título" /></div>
+          <div className="form-group"><label className="form-label">Título (opcional)</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} placeholder="Título grande sobre la imagen" /></div>
+          <div className="form-group"><label className="form-label">Subtítulo (opcional)</label><input value={form.subtitulo || ''} onChange={e => setForm({ ...form, subtitulo: e.target.value })} placeholder="Texto debajo del título" /></div>
           <div className="form-group"><label className="form-label">Imagen *</label>
             <input type="file" accept="image/*" onChange={async e => { const file = e.target.files[0]; if (file) { try { const r = await api.uploadImagen(file); setForm({ ...form, imagen: r.url }); } catch { toast('Error al subir', 'error'); } } }} />
             {form.imagen && <img src={form.imagen} alt="" style={{ maxHeight: 100, marginTop: 8, borderRadius: 8 }} />}
