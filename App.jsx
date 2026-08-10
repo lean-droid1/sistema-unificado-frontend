@@ -438,14 +438,21 @@ export default function App() {
 // ═══════════════════════════════════════════════════════════
 // HEADER
 // ═══════════════════════════════════════════════════════════
-function Ico({ n, s = 18 }) {
-  const p = { width: s, height: s, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
-  if (n === 'sun') return <svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
-  if (n === 'moon') return <svg {...p}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>;
+function Ico({ n, s = 18, fill = false }) {
+  const p = { width: s, height: s, viewBox: '0 0 24 24', fill: fill ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (n === 'sun') return <svg {...p} fill="none"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
+  if (n === 'moon') return <svg {...p} fill="none"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>;
   if (n === 'heart') return <svg {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l7.8-7.6a5.5 5.5 0 0 0 0-7.8z" /></svg>;
-  if (n === 'cart') return <svg {...p}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>;
-  if (n === 'menu') return <svg {...p}><path d="M3 12h18M3 6h18M3 18h18" /></svg>;
-  if (n === 'message') return <svg {...p}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>;
+  if (n === 'cart') return <svg {...p} fill="none"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>;
+  if (n === 'menu') return <svg {...p} fill="none"><path d="M3 12h18M3 6h18M3 18h18" /></svg>;
+  if (n === 'message') return <svg {...p} fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>;
+  if (n === 'edit') return <svg {...p} fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+  if (n === 'trash') return <svg {...p} fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" /></svg>;
+  if (n === 'eye') return <svg {...p} fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>;
+  if (n === 'eye-off') return <svg {...p} fill="none"><path d="M17.9 17.9A10.4 10.4 0 0 1 12 19c-6.5 0-10-7-10-7a18.4 18.4 0 0 1 5.1-6M9.9 4.2A10.1 10.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.2 3.2M1 1l22 22M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>;
+  if (n === 'shuffle') return <svg {...p} fill="none"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>;
+  if (n === 'bell') return <svg {...p} fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>;
+  if (n === 'plus') return <svg {...p} fill="none"><path d="M12 5v14M5 12h14" /></svg>;
   return null;
 }
 
@@ -536,7 +543,7 @@ function TextBar({ barra }) {
 }
 
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, globalSearch, setGlobalSearch, doGlobalSearch } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch } = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
   const showSearch = !['admin','login','register','forgot','maintenance'].includes(page);
   const barrasTop = (barras || []).filter(b => b.activo && b.posicion === 'top');
@@ -550,17 +557,17 @@ function Header() {
       {/* ROW 1: logo + buscador + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
-          {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+          {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 46 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
         </button>
-        {/* Buscador inline (desktop) */}
+        {/* Buscador inline (siempre visible, al lado del logo) */}
         {showSearch && (
-          <div className="header-search-inline desktop-only">
+          <div className="header-search-inline">
             <HeaderSearch />
           </div>
         )}
         <div className="header-right">
-          <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
-          {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
+          <button className="icon-btn desktop-only" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
+          {user && <button className="icon-btn desktop-only" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
           <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
             <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
@@ -577,15 +584,20 @@ function Header() {
         </div>
       </div>
 
-      {/* Buscador full-width (solo mobile) */}
-      {showSearch && (
-        <div className="header-search-row mobile-only">
-          <HeaderSearch />
-        </div>
-      )}
-
       {/* BARRA BAJO EL BUSCADOR */}
       {showSearch && barrasSearch.map(b => <TextBar key={b.id} barra={b} />)}
+
+      {/* NAV SECCIONES (fijo, scrolleable en mobile) */}
+      {showSearch && secciones.length > 0 && (
+        <nav className="header-secnav">
+          <button className={`secnav-item${page === 'landing' ? ' active' : ''}`} onClick={() => nav('landing')}>Inicio</button>
+          {secciones.map(s => (
+            <button key={s.id} className="secnav-item" onClick={() => nav('section', s.id)} style={{ '--sec-color': s.color || 'var(--primary)' }}>
+              {s.nombre}{s.requiere_aprobacion ? ' 🔒' : ''}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* MARQUEE de badges de confianza (si hay badges y no hay barra configurada) */}
       {badges.length > 0 && showSearch && barrasSearch.length === 0 && barrasTop.length === 0 && (
@@ -603,6 +615,9 @@ function Header() {
       {/* MOBILE MENU */}
       {mobMenu && (
         <div className="mobile-menu" style={{ background: 'var(--bg-card)', padding: '16px 20px' }}>
+          <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? <Ico n="sun" s={18} /> : <Ico n="moon" s={18} />} {dark ? 'Modo claro' : 'Modo oscuro'}</button>
+          {user && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setMobMenu(false); nav('favoritos'); }}><span style={{ color: 'var(--danger)', display: 'inline-flex' }}><Ico n="heart" s={18} fill /></span> Favoritos</button>}
+          <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
           {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
           <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
           {user ? (
@@ -663,17 +678,83 @@ function Footer() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// WHATSAPP FLOAT
+// WHATSAPP CONTACT WIDGET (multi-agente + captura de leads)
 // ═══════════════════════════════════════════════════════════
 function WhatsAppFloat() {
-  const { config, design } = useContext(Ctx);
-  const num = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
-  if (!num) return null;
-  const msg = encodeURIComponent(design.whatsapp_mensaje || 'Hola, quiero consultar sobre un producto');
+  const { config, design, user, seccionActual } = useContext(Ctx);
+  const [contactos, setContactos] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState(null); // contacto elegido → muestra formulario
+  const [form, setForm] = useState({ nombre: '', telefono: '' });
+
+  useEffect(() => { api.getContactos(seccionActual || undefined).then(c => setContactos(Array.isArray(c) ? c : [])).catch(() => {}); }, [seccionActual]);
+
+  // precargar datos si el cliente está logueado
+  useEffect(() => {
+    if (user) setForm({ nombre: user.nombre_fantasia || user.nombre || '', telefono: user.telefono || '' });
+    else setForm({ nombre: '', telefono: '' });
+  }, [user, sel]);
+
+  // Fallback: si no hay contactos cargados, usar el número legacy de config
+  const legacyNum = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
+  const lista = contactos.length ? contactos : (legacyNum ? [{ id: 0, nombre: config.nombre_tienda || 'Atención', rol: 'WhatsApp', telefono: legacyNum, online: true, mensaje_default: design.whatsapp_mensaje || '' }] : []);
+  if (!lista.length) return null;
+
+  const enviar = async () => {
+    if (!form.nombre.trim() || !form.telefono.trim()) return;
+    // guardar lead
+    api.createLead({ nombre: form.nombre, telefono: form.telefono, contacto_id: sel.id || null, contacto_nombre: sel.nombre, usuario_id: user?.id || null }).catch(() => {});
+    // abrir WhatsApp con mensaje pre-armado
+    const saludo = sel.mensaje_default || `Hola ${sel.nombre}, soy ${form.nombre}. Quiero hacer una consulta.`;
+    const msg = encodeURIComponent(saludo);
+    window.open(`https://wa.me/${sel.telefono}?text=${msg}`, '_blank');
+    setOpen(false); setSel(null);
+  };
+
   return (
-    <a href={`https://wa.me/${num}?text=${msg}`} target="_blank" rel="noopener" className="wa-float" title="WhatsApp">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-    </a>
+    <div className="wa-widget">
+      {open && (
+        <div className="wa-panel">
+          <div className="wa-panel-head">
+            <div>
+              <div className="wa-panel-title">{sel ? sel.nombre : '¿Necesitás ayuda?'}</div>
+              <div className="wa-panel-sub">{sel ? sel.rol : 'Elegí con quién querés hablar'}</div>
+            </div>
+            <button className="wa-panel-close" onClick={() => { setOpen(false); setSel(null); }}>✕</button>
+          </div>
+          <div className="wa-panel-body">
+            {!sel ? (
+              lista.map(c => (
+                <button key={c.id} className="wa-contact" onClick={() => setSel(c)}>
+                  <div className="wa-avatar" style={c.avatar ? { backgroundImage: `url(${c.avatar})` } : {}}>
+                    {!c.avatar && (c.nombre || '?').charAt(0).toUpperCase()}
+                    {c.online && <span className="wa-online" />}
+                  </div>
+                  <div className="wa-contact-info">
+                    <div className="wa-contact-name">{c.nombre}</div>
+                    <div className="wa-contact-role">{c.rol}{c.online ? ' · En línea' : ''}</div>
+                  </div>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                </button>
+              ))
+            ) : (
+              <div className="wa-form">
+                <p className="wa-form-hint">{user ? 'Confirmá tus datos y te llevamos al chat:' : 'Dejanos tus datos para contactarte:'}</p>
+                <input placeholder="Tu nombre" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
+                <input placeholder="Tu número de WhatsApp" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} inputMode="tel" />
+                <button className="wa-form-send" onClick={enviar} disabled={!form.nombre.trim() || !form.telefono.trim()}>
+                  Abrir WhatsApp
+                </button>
+                <button className="wa-form-back" onClick={() => setSel(null)}>← Volver</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <button className="wa-float" onClick={() => setOpen(!open)} title="Contacto">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      </button>
+    </div>
   );
 }
 
@@ -777,9 +858,8 @@ function Landing() {
     return (
       <div className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {/* Fav button */}
-        <button className="card-fav" onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}>
-          <Ico n="heart" s={16} />
-          {favIds.has(p.id) && <span className="card-fav-on" />}
+        <button className={`card-fav${favIds.has(p.id) ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}>
+          <Ico n="heart" s={16} fill={favIds.has(p.id)} />
         </button>
         <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', p)}>
           {p.imagen
@@ -907,23 +987,6 @@ function Landing() {
             ))
           )}
           <button onClick={() => setGlobalResults(null)} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>✕ Cerrar resultados</button>
-        </div>
-      )}
-
-      {/* ── SECTION TABS ── quick nav, con color por sección */}
-      {!globalResults && (
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {secciones.map(s => {
-              const col = s.color || 'var(--primary)';
-              return (
-              <button key={s.id} onClick={() => nav('section', s.id)}
-                className="section-tab"
-                style={{ '--tab-color': col }}>
-                {s.nombre} {s.requiere_aprobacion ? '🔒' : ''}
-              </button>
-            ); })}
-          </div>
         </div>
       )}
 
@@ -1417,7 +1480,7 @@ function ProductDetailPage() {
         <div className="pdp-gallery">
           <div className="pdp-main-img">
             {p.envio_gratis && <span className="pdp-free-badge">ENVÍO GRATIS</span>}
-            <button className="card-fav pdp-fav" onClick={toggleFav}><Ico n="heart" s={18} />{isFav && <span className="card-fav-on" />}</button>
+            <button className={`card-fav pdp-fav${isFav ? ' active' : ''}`} onClick={toggleFav}><Ico n="heart" s={18} fill={isFav} /></button>
             {mainImg ? <img src={mainImg} alt={p.nombre || ''} /> : <div className="pdp-noimg"><Ico n="cart" s={64} /></div>}
           </div>
           {allImages.length > 1 && (
@@ -1562,7 +1625,7 @@ function LoginPage() {
             <div className="form-group"><label className="form-label">CONTRASEÑA</label>
               <div style={{ position: 'relative' }}>
                 <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="Mín 8 chars, 1 mayúscula, 1 número" style={{ paddingRight: 40 }} />
-                <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+                <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>{showPass ? <Ico n="eye-off" s={16} /> : <Ico n="eye" s={16} />}</button>
               </div>
             </div>
             <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, fontSize: 14, borderRadius: 12, background: '#1a1a1a', borderColor: '#1a1a1a' }} onClick={() => doLogin()}>INGRESAR</button>
@@ -1702,6 +1765,7 @@ function AdminPanel() {
       { id: 'pedidos', label: 'Ventas', icon: '🧾' },
       { id: 'productos', label: 'Productos', icon: '📦' },
       { id: 'usuarios', label: 'Clientes', icon: '👥' },
+      { id: 'leads', label: 'Leads WhatsApp', icon: '💬' },
       { id: 'listas', label: 'Listas precio', icon: '💰' },
       { id: 'cupones', label: 'Cupones', icon: '🎟️' },
       { id: 'promociones', label: 'Promociones', icon: '🏷️' },
@@ -1709,6 +1773,7 @@ function AdminPanel() {
     { label: 'Personalización', tabs: [
       { id: 'diseno', label: 'Diseño y Config', icon: '🎨' },
       { id: 'barras', label: 'Barras de texto', icon: '📰' },
+      { id: 'contactos', label: 'Contactos WhatsApp', icon: '💬' },
       { id: 'menu', label: 'Menú', icon: '📋' },
       { id: 'paginas', label: 'Páginas', icon: '📄' },
       { id: 'popups', label: 'Pop-ups', icon: '📢' },
@@ -1773,6 +1838,8 @@ function AdminPanel() {
         {adminTab === 'redes' && <AdminRedes />}
         {adminTab === 'diseno' && <><AdminDiseno /><hr style={{margin:'24px 0'}}/><AdminSlider /><hr style={{margin:'24px 0'}}/><AdminConfig /></>}
         {adminTab === 'barras' && <AdminBarras />}
+        {adminTab === 'contactos' && <AdminContactos />}
+        {adminTab === 'leads' && <AdminLeads />}
       </div>
     </div>
   );
@@ -1912,9 +1979,9 @@ function AdminProductos() {
                 <td><input type="number" defaultValue={p.stock} onBlur={e => inlineUpdate(p.id, 'stock', Number(e.target.value))} style={{ width: 60 }} /></td>
                 <td><input type="checkbox" defaultChecked={p.visible !== false} onChange={e => inlineUpdate(p.id, 'visible', e.target.checked)} /></td>
                 <td>
-                  <button className="btn btn-outline btn-sm" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} style={{ padding: '2px 6px' }} title="Variantes">🔀</button>
-                  <button className="btn btn-outline btn-sm" onClick={() => setEditProd(p)} style={{ padding: '2px 6px', marginLeft: 4 }}>✏️</button>
-                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteProducto(p.id); load(); }} style={{ padding: '2px 6px', marginLeft: 4 }}>🗑</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} style={{ padding: '2px 6px' }} title="Variantes"><Ico n="shuffle" s={15} /></button>
+                  <button className="btn btn-outline btn-sm" onClick={() => setEditProd(p)} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="edit" s={15} /></button>
+                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteProducto(p.id); load(); }} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="trash" s={15} /></button>
                 </td>
               </tr>
               {expandVars === p.id && (
@@ -2542,7 +2609,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
 // ─── ADMIN: Usuarios (full modal: edit, approve with lista, subadmin perms) ───
 function AdminUsuarios() {
-  const { toast, listas } = useContext(Ctx);
+  const { toast, listas, config } = useContext(Ctx);
   const [users, setUsers] = useState([]);
   const [busq, setBusq] = useState('');
   const [editUser, setEditUser] = useState(null);
@@ -2571,6 +2638,7 @@ function AdminUsuarios() {
               </span>
               <span style={{ fontSize: 12 }}>{u.rol}</span>
               {listas.find(l => l.id === u.lista_precio_id) && <span style={{ fontSize: 11, color: listas.find(l => l.id === u.lista_precio_id)?.color }}>{listas.find(l => l.id === u.lista_precio_id)?.nombre}</span>}
+              {u.telefono && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); const saludo = `Hola ${u.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}.`; window.open(`https://wa.me/54${u.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(saludo)}`, '_blank'); }} style={{ background: '#25D366', color: '#fff', padding: '4px 8px' }} title="Escribir por WhatsApp"><Ico n="message" s={14} /></button>}
             </div>
           </div>
         </div>
@@ -2703,8 +2771,8 @@ function AdminListas() {
               {l.compra_minima > 0 && <span style={{ fontSize: 12, marginLeft: 8 }}>Min: ${fmt(l.compra_minima)}</span>}
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setEditLista(l)}>✏️</button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteLista(l.id); refresh(); }}>🗑</button>
+              <button className="btn btn-outline btn-sm" onClick={() => setEditLista(l)}><Ico n="edit" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteLista(l.id); refresh(); }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
@@ -2808,8 +2876,8 @@ function AdminCupones() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div><strong>{c.codigo}</strong> — {c.tipo === 'porcentaje' ? `${c.valor}%` : c.tipo === 'monto_fijo' ? `$${fmt(c.valor)}` : 'Envío gratis'} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Usos: {c.usos_actuales}/{c.uso_maximo || '∞'}</span></div>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}>✏️</button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteCupon(c.id); api.getCupones().then(setCupones); }}>🗑</button>
+              <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}><Ico n="edit" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteCupon(c.id); api.getCupones().then(setCupones); }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
@@ -2905,8 +2973,8 @@ function AdminPromociones() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div><strong>{p.nombre}</strong> — {p.tipo === 'porcentaje' ? `${p.valor}%` : p.tipo === 'envio_gratis' ? 'Envío gratis' : `$${fmt(p.valor)}`} <span style={{ fontSize: 12, color: p.activo ? 'var(--success)' : 'var(--danger)' }}>{p.activo ? 'Activa' : 'Inactiva'}</span></div>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => openEdit(p)}>✏️</button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePromocion(p.id); api.getPromociones().then(setPromos); }}>🗑</button>
+              <button className="btn btn-outline btn-sm" onClick={() => openEdit(p)}><Ico n="edit" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePromocion(p.id); api.getPromociones().then(setPromos); }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
@@ -2951,7 +3019,7 @@ function AdminPopups() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Pop-ups promocionales</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', imagen: '', url_destino: '', secciones_ids: '', activo: true }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran al entrar a la tienda. Solo el primero activo aparece.</p>
-      {popups.map(p => (<div key={p.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><strong>{p.titulo}</strong> <span style={{ fontSize: 12, color: p.activo ? 'var(--success)' : 'var(--danger)' }}>{p.activo ? 'Activo' : 'Inactivo'}</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(p); setForm(p); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePopup(p.id); api.getPopupsAll().then(setPopups); }}>🗑</button></div></div></div>))}
+      {popups.map(p => (<div key={p.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><strong>{p.titulo}</strong> <span style={{ fontSize: 12, color: p.activo ? 'var(--success)' : 'var(--danger)' }}>{p.activo ? 'Activo' : 'Inactivo'}</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(p); setForm(p); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePopup(p.id); api.getPopupsAll().then(setPopups); }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} pop-up</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-group"><label className="form-label">Título</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">Imagen</label>
@@ -2978,7 +3046,7 @@ function AdminPaginas() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Páginas informativas</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', slug: '', contenido: '', seccion_id: null, visible: true, orden: 0 }); setShow(true); }}>+ Nueva</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Páginas de info como "Cómo comprar", "Envíos", "Preguntas frecuentes", etc.</p>
-      {paginas.map(p => (<div key={p.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>{p.titulo}</strong><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(p); setForm(p); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePagina(p.id); api.getPaginas().then(setPaginas); }}>🗑</button></div></div></div>))}
+      {paginas.map(p => (<div key={p.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>{p.titulo}</strong><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(p); setForm(p); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePagina(p.id); api.getPaginas().then(setPaginas); }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nueva'} página</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-group"><label className="form-label">Título</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">Slug (URL)</label><input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} /></div>
@@ -3021,7 +3089,7 @@ function AdminBadges() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: '⭐', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran debajo de los productos como indicadores de confianza. Arrastrá ⠿ para reordenar, tocá el ojo para activar/desactivar.</p>
-      {bgs.map((b, i) => (<div key={b.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', opacity: b.visible ? 1 : 0.5 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ opacity: 0.35 }}>⠿</span><RenderIcon value={b.icono} size={16} /><strong>{b.texto}</strong><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({secNames(b.secciones_ids)})</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => toggleVisible(b)} title={b.visible ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.visible ? '👁' : '🚫'}</button><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar badge?')) return; await api.deleteBadge(b.id); reload(); }}>🗑</button></div></div></div>))}
+      {bgs.map((b, i) => (<div key={b.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', opacity: b.visible ? 1 : 0.5 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ opacity: 0.35 }}>⠿</span><RenderIcon value={b.icono} size={16} /><strong>{b.texto}</strong><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({secNames(b.secciones_ids)})</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => toggleVisible(b)} title={b.visible ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.visible ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar badge?')) return; await api.deleteBadge(b.id); reload(); }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} badge</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-row"><div className="form-group"><IconPicker label="Icono" value={form.icono} onChange={v => setForm({ ...form, icono: v })} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Texto</label><input value={form.texto} onChange={e => setForm({ ...form, texto: e.target.value })} /></div></div>
         <div className="form-group"><label className="form-label">Secciones donde mostrar</label>
@@ -3061,7 +3129,7 @@ function AdminMetodosPago() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de pago</h3><button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Arrastrá para reordenar.</p>
-      {mps.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><RenderIcon value={m.icono} size={16} /> <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.descripcion}</span>} {config[descKey(m.nombre)] && parseFloat(config[descKey(m.nombre)]) > 0 && <span style={{ fontSize: 11, background: 'var(--success)', color: '#fff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, marginLeft: 4 }}>−{config[descKey(m.nombre)]}%</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => openEdit(m)}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); loadMps(); }}>🗑</button></div></div></div>))}
+      {mps.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><RenderIcon value={m.icono} size={16} /> <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.descripcion}</span>} {config[descKey(m.nombre)] && parseFloat(config[descKey(m.nombre)]) > 0 && <span style={{ fontSize: 11, background: 'var(--success)', color: '#fff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, marginLeft: 4 }}>−{config[descKey(m.nombre)]}%</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => openEdit(m)}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); loadMps(); }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} método de pago</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-row"><div className="form-group"><IconPicker label="Icono" value={form.icono} onChange={v => setForm({ ...form, icono: v })} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div></div>
         <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} /></div>
@@ -3090,7 +3158,7 @@ function AdminMenu() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Menú principal</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', url: '', tipo: 'link', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo item</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Arrastrá para reordenar.</p>
-      {items.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><strong>{m.titulo}</strong> <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.url || '(sin link)'}</span> {!m.visible && <span style={{ fontSize: 12, color: 'var(--danger)' }}>(oculto)</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMenuItem(m.id); loadMenu(); }}>🗑</button></div></div></div>))}
+      {items.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><strong>{m.titulo}</strong> <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.url || '(sin link)'}</span> {!m.visible && <span style={{ fontSize: 12, color: 'var(--danger)' }}>(oculto)</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMenuItem(m.id); loadMenu(); }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} item</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-group"><label className="form-label">Título</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">URL</label><input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://..." /></div>
@@ -3276,6 +3344,96 @@ function AdminDiseno() {
 }
 
 // ─── ADMIN: Slider Banners ───
+function AdminContactos() {
+  const { toast, secciones } = useContext(Ctx);
+  const [items, setItems] = useState([]); const [show, setShow] = useState(false);
+  const empty = { nombre: '', rol: '', telefono: '', avatar: '', seccion_id: null, online: true, mensaje_default: '', orden: 0, activo: true };
+  const [form, setForm] = useState(empty); const [edit, setEdit] = useState(null);
+  const load = () => api.getContactosAll().then(setItems).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const save = async () => { if (!form.nombre.trim() || !form.telefono.trim()) { toast('Nombre y teléfono son obligatorios', 'error'); return; } try { if (edit) await api.updateContacto(edit.id, form); else await api.createContacto(form); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const toggleActivo = async (c) => { const nv = !c.activo; setItems(items.map(x => x.id === c.id ? { ...x, activo: nv } : x)); await api.updateContacto(c.id, { ...c, activo: nv }).catch(() => {}); };
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Contactos de WhatsApp</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm(empty); setShow(true); }}>+ Nuevo contacto</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Contactos que aparecen en el botón flotante de WhatsApp. Podés poner varios (ej: tu número y el del local) y asignarlos a una sección o a todas.</p>
+      {items.map(c => (
+        <div key={c.id} className="card" style={{ padding: 12, marginBottom: 8, opacity: c.activo ? 1 : 0.5 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              <div className="wa-avatar" style={{ width: 38, height: 38, fontSize: 15, ...(c.avatar ? { backgroundImage: `url(${c.avatar})` } : {}) }}>{!c.avatar && (c.nombre || '?').charAt(0).toUpperCase()}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{c.nombre} <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{c.rol}</span></div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.telefono} · {c.seccion_id ? (secciones.find(s => s.id === c.seccion_id)?.nombre || 'Sección') : 'Todas las secciones'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(c)} style={{ padding: '2px 8px' }}>{c.activo ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button>
+              <button className="btn btn-outline btn-sm" onClick={() => { setEdit(c); setForm({ ...empty, ...c }); setShow(true); }}><Ico n="edit" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar contacto?')) return; await api.deleteContacto(c.id); load(); }}><Ico n="trash" s={15} /></button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <div className="empty-state"><p>No hay contactos. Creá uno para el botón de WhatsApp.</p></div>}
+      {show && (
+        <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} contacto</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div>
+          <div className="modal-body">
+            <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Leandro" /></div>
+            <div className="form-group"><label className="form-label">Rol / etiqueta</label><input value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })} placeholder="Ej: Ventas mayorista" /></div>
+            <div className="form-group"><label className="form-label">Número WhatsApp * (con código país, ej 5491122334455)</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} placeholder="549..." inputMode="tel" /></div>
+            <div className="form-group"><label className="form-label">Foto (URL, opcional)</label><input value={form.avatar} onChange={e => setForm({ ...form, avatar: e.target.value })} placeholder="https://..." /></div>
+            <div className="form-group"><label className="form-label">Sección (vacío = todas)</label>
+              <select value={form.seccion_id || ''} onChange={e => setForm({ ...form, seccion_id: e.target.value ? Number(e.target.value) : null })}><option value="">Todas</option>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select>
+            </div>
+            <div className="form-group"><label className="form-label">Mensaje pre-armado (opcional)</label><textarea value={form.mensaje_default} onChange={e => setForm({ ...form, mensaje_default: e.target.value })} rows={2} placeholder="Si lo dejás vacío se arma automático con el nombre del cliente" /></div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><input type="checkbox" checked={form.online} onChange={e => setForm({ ...form, online: e.target.checked })} /> Mostrar como "En línea"</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
+          </div>
+          <div className="modal-footer"><button className="btn btn-outline" onClick={() => setShow(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+function AdminLeads() {
+  const { toast, config } = useContext(Ctx);
+  const [leads, setLeads] = useState([]);
+  const load = () => api.getLeads().then(setLeads).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const escribir = (l) => {
+    const saludo = `Hola ${l.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}. Dejaste tu consulta en la web.`;
+    window.open(`https://wa.me/${l.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(saludo)}`, '_blank');
+    if (!l.contactado) { api.updateLead(l.id, { contactado: true }).then(load).catch(() => {}); }
+  };
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Leads de WhatsApp</h3><button className="btn btn-outline btn-sm" onClick={load}>↻ Actualizar</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Clientes que dejaron sus datos en el botón de contacto. Tocá "Escribir" para contactarlos directo por WhatsApp.</p>
+      {leads.length === 0 ? <div className="empty-state"><p>Todavía no hay leads.</p></div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {leads.map(l => (
+            <div key={l.id} className="card" style={{ padding: 12, opacity: l.contactado ? 0.6 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{l.nombre} {l.contactado && <span style={{ fontSize: 10, background: 'var(--success)', color: '#fff', padding: '1px 8px', borderRadius: 'var(--radius-pill)', fontWeight: 700 }}>Contactado</span>}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{l.telefono} · quería hablar con {l.contacto_nombre || 'la tienda'} · {new Date(l.created_at).toLocaleString('es-AR')}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-success btn-sm" onClick={() => escribir(l)} style={{ background: '#25D366', whiteSpace: 'nowrap' }}><Ico n="message" s={14} /> Escribir</button>
+                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar lead?')) return; await api.deleteLead(l.id); load(); }}><Ico n="trash" s={15} /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminBarras() {
   const { toast, setBarras } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);
@@ -3310,9 +3468,9 @@ function AdminBarras() {
               <div style={{ fontSize: 13, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-secondary)' }}>{(b.frases || '').split('|').map(s => s.trim()).filter(Boolean).join('  •  ')}</div>
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(b)} title={b.activo ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.activo ? '👁' : '🚫'}</button>
-              <button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm({ ...emptyForm, ...b }); setShow(true); }}>✏️</button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar barra?')) return; await api.deleteBarra(b.id); load(); refreshPublic(); }}>🗑</button>
+              <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(b)} title={b.activo ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.activo ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button>
+              <button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm({ ...emptyForm, ...b }); setShow(true); }}><Ico n="edit" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar barra?')) return; await api.deleteBarra(b.id); load(); refreshPublic(); }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
@@ -3380,8 +3538,8 @@ function AdminSlider() {
           {s.imagen && <img src={s.imagen} alt="" style={{ width: 100, height: 50, objectFit: 'cover', borderRadius: 6 }} />}
           <div style={{ flex: 1 }}><strong>{s.titulo || '(sin título)'}</strong> <span style={{ fontSize: 12, color: s.activo ? 'var(--success)' : 'var(--danger)' }}>{s.activo ? '✓ Activo' : '✗ Inactivo'}</span></div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button className="btn btn-outline btn-sm" onClick={() => { setEdit(s); setForm(s); setShow(true); }}>✏️</button>
-            <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteSlider(s.id); load(); }}>🗑</button>
+            <button className="btn btn-outline btn-sm" onClick={() => { setEdit(s); setForm(s); setShow(true); }}><Ico n="edit" s={15} /></button>
+            <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteSlider(s.id); load(); }}><Ico n="trash" s={15} /></button>
           </div>
         </div>
       ))}
@@ -3435,7 +3593,7 @@ function FavoritosPage() {
                 {f.precio_base > 0 && <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(getPrice ? getPrice(f) : f.precio_base)}</div>}
                 <div style={{ display: 'flex', gap: 6 }}>
                   {f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
-                  <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}>🗑</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}><Ico n="trash" s={15} /></button>
                 </div>
               </div>
             </div>
@@ -3466,8 +3624,8 @@ function AdminEnviosCustom() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{secciones.find(s => s.id === m.seccion_id)?.nombre || 'Todas'} · {m.precio > 0 ? fmtARS(m.precio) : 'Gratis'} {m.tiempo_estimado && `· ${m.tiempo_estimado}`}</div>
           </div>
           <span style={{ fontSize: 11, color: m.activo ? 'var(--success)' : 'var(--danger)' }}>{m.activo ? '✓' : '✗'}</span>
-          <button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}>✏️</button>
-          <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteEnvioCustom(m.id); load(); }}>🗑</button>
+          <button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}><Ico n="edit" s={15} /></button>
+          <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteEnvioCustom(m.id); load(); }}><Ico n="trash" s={15} /></button>
         </div>
       ))}
       {show && (
