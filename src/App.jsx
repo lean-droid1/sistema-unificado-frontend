@@ -11,7 +11,8 @@ gsap.registerPlugin(ScrollTrigger);
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
-const openWA = (num, msg) => window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
+const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${String(num).replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
+const openWA = (num, msg) => window.open(waLink(num, msg), '_blank');
 
 // ─── ICON MAP (Lucide icons) ───
 const ICON_MAP = {
@@ -706,8 +707,7 @@ function WhatsAppFloat() {
     api.createLead({ nombre: form.nombre, telefono: form.telefono, contacto_id: sel.id || null, contacto_nombre: sel.nombre, usuario_id: user?.id || null }).catch(() => {});
     // abrir WhatsApp con mensaje pre-armado
     const saludo = sel.mensaje_default || `Hola ${sel.nombre}, soy ${form.nombre}. Quiero hacer una consulta.`;
-    const msg = encodeURIComponent(saludo);
-    window.open(`https://wa.me/${sel.telefono}?text=${msg}`, '_blank');
+    window.open(waLink(sel.telefono, saludo), '_blank');
     setOpen(false); setSel(null);
   };
 
@@ -980,7 +980,7 @@ function Landing() {
             globalResults.resultados.map(r => (
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
                 <h3 style={{ marginBottom: 12, fontWeight: 800, fontSize: 18 }}>{r.seccion.nombre} <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                <div className="product-grid">
                   {r.productos.map(p => <ProductCard key={p.id} p={p} secId={r.seccion.id} />)}
                 </div>
               </div>
@@ -1006,7 +1006,7 @@ function Landing() {
                 <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>OFERTAS</span>
               </h2>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
+            <div className="product-grid">
               {ofertas.slice(0, 8).map(p => <ProductCard key={`of-${p.id}`} p={p} secId={p._secId} />)}
             </div>
           </div>
@@ -1026,7 +1026,7 @@ function Landing() {
                 Ver todos →
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
+            <div className="product-grid">
               {prods.slice(0, 8).map(p => <ProductCard key={p.id} p={p} secId={s.id} />)}
             </div>
           </div>
@@ -2638,7 +2638,7 @@ function AdminUsuarios() {
               </span>
               <span style={{ fontSize: 12 }}>{u.rol}</span>
               {listas.find(l => l.id === u.lista_precio_id) && <span style={{ fontSize: 11, color: listas.find(l => l.id === u.lista_precio_id)?.color }}>{listas.find(l => l.id === u.lista_precio_id)?.nombre}</span>}
-              {u.telefono && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); const saludo = `Hola ${u.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}.`; window.open(`https://wa.me/54${u.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(saludo)}`, '_blank'); }} style={{ background: '#25D366', color: '#fff', padding: '4px 8px' }} title="Escribir por WhatsApp"><Ico n="message" s={14} /></button>}
+              {u.telefono && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); const saludo = `Hola ${u.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}.`; window.open(waLink('54' + u.telefono.replace(/\D/g, ''), saludo), '_blank'); }} style={{ background: '#25D366', color: '#fff', padding: '4px 8px' }} title="Escribir por WhatsApp"><Ico n="message" s={14} /></button>}
             </div>
           </div>
         </div>
@@ -3405,7 +3405,7 @@ function AdminLeads() {
   useEffect(() => { load(); }, []);
   const escribir = (l) => {
     const saludo = `Hola ${l.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}. Dejaste tu consulta en la web.`;
-    window.open(`https://wa.me/${l.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(saludo)}`, '_blank');
+    window.open(waLink(l.telefono, saludo), '_blank');
     if (!l.contactado) { api.updateLead(l.id, { contactado: true }).then(load).catch(() => {}); }
   };
   return (
