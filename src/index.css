@@ -378,6 +378,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .textbar-primary { background: var(--primary); } .textbar-primary .textbar-item { color: #fff; } .textbar-primary .textbar-item::before { background: #fff; }
 .textbar-acento { background: var(--accent); } .textbar-acento .textbar-item { color: var(--primary-dark); } .textbar-acento .textbar-item::before { background: var(--primary-dark); }
 .textbar-custom { background: var(--bar-bg, #232321); } .textbar-custom .textbar-item { color: var(--bar-fg, #fff); }
+
+/* ─── NAV SECCIONES (header) ─── */
+.header-secnav { display: flex; align-items: center; gap: 4px; padding: 8px 14px; max-width: 1200px; margin: 0 auto; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; border-top: 1px solid var(--border-light); }
+.header-secnav::-webkit-scrollbar { display: none; }
+.secnav-item { background: none; border: none; padding: 7px 14px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; }
+.secnav-item:hover { color: var(--sec-color, var(--primary)); background: var(--border-light); }
+.secnav-item.active { color: var(--primary); }
+@media (max-width: 768px) { .header-secnav { padding: 6px 10px; } }
 @keyframes marquee-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-33.333%); } }
 
 /* ─── HERO SLIDER (estilo demo) ─── */
@@ -417,8 +425,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .card-fav { position: absolute; top: 10px; right: 10px; z-index: 2; background: rgba(255,255,255,0.92); border: none; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--primary-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.15); transition: transform 0.15s; }
 .card-fav:hover { transform: scale(1.08); }
 .card-fav:active { transform: scale(0.92); }
-.card-fav-on { position: absolute; inset: 0; border-radius: 50%; }
-.card-fav:has(.card-fav-on) svg { fill: var(--danger); stroke: var(--danger); }
+.card-fav.active { color: var(--danger); }
 
 /* ─── PRODUCT DETAIL PAGE (estilo demo) ─── */
 .pdp { padding: 24px 20px; max-width: 1000px; margin: 0 auto; }
