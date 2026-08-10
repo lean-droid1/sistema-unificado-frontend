@@ -202,6 +202,11 @@ export async function getSliderAll() { return f('/api/slider/all'); }
 export async function createSlider(data) { return f('/api/slider', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateSlider(id, data) { return f(`/api/slider/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteSlider(id) { return f(`/api/slider/${id}`, { method: 'DELETE' }); }
+export async function getBarras() { return f('/api/barras'); }
+export async function getBarrasAll() { return f('/api/barras/all'); }
+export async function createBarra(data) { return f('/api/barras', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateBarra(id, data) { return f(`/api/barras/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteBarra(id) { return f(`/api/barras/${id}`, { method: 'DELETE' }); }
 
 export async function getFavoritos() { return f('/api/favoritos'); }
 export async function addFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'POST' }); }

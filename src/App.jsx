@@ -215,6 +215,7 @@ export default function App() {
   const [menuItems, setMenuItems] = useState([]);
   const [redesSociales, setRedesSociales] = useState([]);
   const [badges, setBadges] = useState([]);
+  const [barras, setBarras] = useState([]);
   const [listas, setListas] = useState([]);
   const [preciosFijos, setPreciosFijos] = useState([]);
 
@@ -277,6 +278,8 @@ export default function App() {
         setSecciones(secs); setConfig(cfg); setDesign(des);
         setMenuItems(menu); setRedesSociales(redes);
         setListas(Array.isArray(lsts) ? lsts : []); setPreciosFijos(Array.isArray(pf) ? pf : []);
+        api.getBadges().then(setBadges).catch(() => {});
+        api.getBarras().then(b => setBarras(Array.isArray(b) ? b : [])).catch(() => {});
         if (api.getToken()) {
           try { const me = await api.getMe(); setUser(me); }
           catch { api.logout(); }
@@ -391,7 +394,7 @@ export default function App() {
     user, setUser, page, setPage: nav, loading, dark, setDark, toast,
     secciones, setSecciones, config, setConfig, design, setDesign,
     seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, cart, setCart, menuItems, setMenuItems,
-    redesSociales, setRedesSociales, badges, setBadges, listas, setListas,
+    redesSociales, setRedesSociales, badges, setBadges, barras, setBarras, listas, setListas,
     preciosFijos, setPreciosFijos, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
@@ -442,13 +445,33 @@ function Ico({ n, s = 18 }) {
   if (n === 'heart') return <svg {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l7.8-7.6a5.5 5.5 0 0 0 0-7.8z" /></svg>;
   if (n === 'cart') return <svg {...p}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>;
   if (n === 'menu') return <svg {...p}><path d="M3 12h18M3 6h18M3 18h18" /></svg>;
+  if (n === 'message') return <svg {...p}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>;
   return null;
 }
 
+function TextBar({ barra }) {
+  const frases = (barra.frases || '').split('|').map(s => s.trim()).filter(Boolean);
+  if (!frases.length) return null;
+  const styleVars = {};
+  if (barra.estilo === 'custom') { styleVars['--bar-bg'] = barra.color_fondo || '#232321'; styleVars['--bar-fg'] = barra.color_texto || '#fff'; }
+  const dur = `${barra.velocidad || 25}s`;
+  // repetir frases para loop continuo
+  const loop = [...frases, ...frases, ...frases];
+  return (
+    <div className={`textbar textbar-${barra.estilo || 'negro'}`} style={styleVars}>
+      <div className="textbar-track" style={{ animationDuration: dur }}>
+        {loop.map((f, i) => <span key={i} className="textbar-item">{f}</span>)}
+      </div>
+    </div>
+  );
+}
+
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, globalSearch, setGlobalSearch, doGlobalSearch } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, globalSearch, setGlobalSearch, doGlobalSearch } = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
   const showSearch = !['admin','login','register','forgot','maintenance'].includes(page);
+  const barrasTop = (barras || []).filter(b => b.activo && b.posicion === 'top');
+  const barrasSearch = (barras || []).filter(b => b.activo && b.posicion === 'search');
 
   // Debounced live search
   useEffect(() => {
@@ -459,6 +482,9 @@ function Header() {
 
   return (
     <header className="header">
+      {/* BARRA SUPERIOR (arriba de todo) */}
+      {showSearch && barrasTop.map(b => <TextBar key={b.id} barra={b} />)}
+
       {/* ROW 1: logo + nav + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
@@ -499,8 +525,11 @@ function Header() {
         </div>
       )}
 
-      {/* ROW 3: MARQUEE BANNER (trust badges scrolling) */}
-      {badges.length > 0 && showSearch && (
+      {/* BARRA BAJO EL BUSCADOR */}
+      {showSearch && barrasSearch.map(b => <TextBar key={b.id} barra={b} />)}
+
+      {/* MARQUEE de badges de confianza (si hay badges y no hay barra configurada) */}
+      {badges.length > 0 && showSearch && barrasSearch.length === 0 && barrasTop.length === 0 && (
         <div className="header-marquee">
           <div className="marquee-track">
             {[...badges, ...badges, ...badges].map((b, i) => (
@@ -1294,53 +1323,52 @@ function ProductDetailPage() {
   };
 
   return (
-    <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
-      <button onClick={() => { if (window._navHist && window._navHist.length) window.history.back(); else nav('section', sec?.id); }} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
+    <div className="pdp">
+      <button className="pdp-back" onClick={() => { if (window._navHist && window._navHist.length) window.history.back(); else nav('section', sec?.id); }}>← Volver</button>
 
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, fontWeight: 600 }}>
-        <span style={{ cursor: 'pointer' }} onClick={() => nav('landing')}>Inicio</span> / <span style={{ cursor: 'pointer' }} onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <> / {p.categoria}</>} / <span style={{ color: 'var(--text)', fontWeight: 700 }}>{p.nombre || p.modelo}</span>
+      <div className="pdp-crumbs">
+        <span onClick={() => nav('landing')}>Inicio</span> / <span onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <> / {p.categoria}</>} / <span className="pdp-crumb-current">{p.nombre || p.modelo}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+      <div className="pdp-grid">
         {/* Image gallery */}
-        <div style={{ flex: '1 1 350px', minWidth: 280 }}>
-          <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, position: 'relative' }}>
-            {p.envio_gratis && <span style={{ position: 'absolute', top: 12, left: 12, background: 'var(--primary)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ENVÍO GRATIS</span>}
-            <button onClick={toggleFav} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer' }}>{isFav ? '❤️' : '🤍'}</button>
-            {mainImg ? <img src={mainImg} alt="" style={{ maxWidth: '100%', maxHeight: 350, objectFit: 'contain' }} /> : <span style={{ fontSize: 72, opacity: 0.3 }}>📱</span>}
+        <div className="pdp-gallery">
+          <div className="pdp-main-img">
+            {p.envio_gratis && <span className="pdp-free-badge">ENVÍO GRATIS</span>}
+            <button className="card-fav pdp-fav" onClick={toggleFav}><Ico n="heart" s={18} />{isFav && <span className="card-fav-on" />}</button>
+            {mainImg ? <img src={mainImg} alt={p.nombre || ''} /> : <div className="pdp-noimg"><Ico n="cart" s={64} /></div>}
           </div>
           {allImages.length > 1 && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 12, overflowX: 'auto' }}>
+            <div className="pdp-thumbs">
               {allImages.map((img, i) => (
-                <img key={i} src={img} alt="" onClick={() => setMainImg(img)}
-                  style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 8, border: mainImg === img ? '2px solid var(--primary)' : '1px solid #e5e7eb', cursor: 'pointer', padding: 4, background: 'var(--bg-card)' }} />
+                <img key={i} src={img} alt="" onClick={() => setMainImg(img)} className={mainImg === img ? 'active' : ''} />
               ))}
             </div>
           )}
         </div>
 
         {/* Info */}
-        <div style={{ flex: '1 1 350px', minWidth: 280 }}>
-          <div style={{ fontSize: 11, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800, marginBottom: 6 }}>{p.categoria}</div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, marginBottom: 16, lineHeight: 1.15 }}>{p.nombre || p.modelo}</h1>
+        <div className="pdp-info">
+          <div className="pdp-cat">{p.categoria}</div>
+          <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
 
-          <div style={{ marginBottom: 20 }}>
+          <div className="pdp-price">
             {precioOriginal ? (
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 18 }}>{fmtARS(precioOriginal)}</span>
-                <span style={{ fontWeight: 900, fontSize: 30, color: 'var(--text)' }}>{fmtARS(precioFinal)}</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                <span className="pdp-price-old">{fmtARS(precioOriginal)}</span>
+                <span className="pdp-price-new">{fmtARS(precioFinal)}</span>
               </div>
             ) : (
-              <span style={{ fontWeight: 900, fontSize: 30, color: 'var(--text)' }}>{fmtARS(precioFinal)}</span>
+              <span className="pdp-price-new">{fmtARS(precioFinal)}</span>
             )}
           </div>
 
           {preciosMetodo.length > 0 && (
-            <div style={{ background: 'var(--border-light)', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <div className="pdp-payments">
               {preciosMetodo.map(pm => (
-                <div key={pm.nombre} style={{ fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>{pm.icono}</span><strong>{fmtARS(pm.precio)}</strong>
-                  <span style={{ color: 'var(--success)', fontSize: 12, fontWeight: 600 }}>con {pm.nombre} −{pm.descuento}%</span>
+                <div key={pm.nombre} className="pdp-payment-row">
+                  <RenderIcon value={pm.icono} size={16} /><strong>{fmtARS(pm.precio)}</strong>
+                  <span className="pdp-payment-desc">con {pm.nombre} −{pm.descuento}%</span>
                 </div>
               ))}
             </div>
@@ -1348,12 +1376,12 @@ function ProductDetailPage() {
 
           {/* Variantes */}
           {variantes.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Variantes:</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {variantes.map(v => (
                   <button key={v.id} onClick={() => setSelVariante(selVariante?.id === v.id ? null : v)}
-                    style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: selVariante?.id === v.id ? '2px solid var(--primary)' : '1px solid #e5e7eb', background: selVariante?.id === v.id ? 'var(--primary-light)' : '#fff', color: 'var(--text)' }}>
+                    className={`pdp-variant${selVariante?.id === v.id ? ' active' : ''}`}>
                     {v.nombre}: {v.valor} {v.precio_extra > 0 && `(+${fmtARS(v.precio_extra)})`}
                   </button>
                 ))}
@@ -1361,16 +1389,15 @@ function ProductDetailPage() {
             </div>
           )}
 
-          {p.envio_gratis && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--primary)' }}>🚚 ¡Envío gratis!</div>}
-          {p.descripcion && <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>{p.descripcion}</p>}
-          {p.compatibilidad && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Compatible: {p.compatibilidad}</p>}
+          {p.descripcion && <p className="pdp-desc">{p.descripcion}</p>}
+          {p.compatibilidad && <p className="pdp-compat">Compatible: {p.compatibilidad}</p>}
 
           {sinStock ? (
             <div>
-              <div style={{ padding: '14px 20px', background: '#fee2e2', borderRadius: 10, color: 'var(--danger)', fontWeight: 700, marginBottom: 12, fontSize: 13 }}>SIN STOCK</div>
+              <div className="pdp-nostock">SIN STOCK</div>
               {showNotify ? (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #ddd' }} />
+                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1 }} />
                   <button className="btn btn-primary" onClick={async () => { if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }}>Avisar</button>
                 </div>
               ) : (
@@ -1378,29 +1405,28 @@ function ProductDetailPage() {
               )}
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', border: '2px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
-                <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>−</button>
-                <span style={{ padding: '12px 16px', fontWeight: 800, fontSize: 16, minWidth: 40, textAlign: 'center', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb' }}>{qty}</span>
-                <button onClick={() => setQty(qty + 1)} style={{ background: 'none', border: 'none', padding: '12px 16px', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>+</button>
+            <div className="pdp-buy">
+              <div className="pdp-qty">
+                <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
+                <span>{qty}</span>
+                <button onClick={() => setQty(qty + 1)}>+</button>
               </div>
-              <button onClick={() => { addToCart(sec?.id || p.seccion_id, p, qty, precioFinal); toast('Agregado al carrito'); }} style={{ flex: 1, padding: '14px 24px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+              <button className="btn pdp-add" onClick={() => { addToCart(sec?.id || p.seccion_id, p, qty, precioFinal); toast('Agregado al carrito'); }}>
                 AGREGAR AL CARRITO
               </button>
             </div>
           )}
 
-          {/* WhatsApp share */}
-          {waNum && <button onClick={shareWA} style={{ width: '100%', padding: '10px 0', background: '#25d366', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 12 }}>💬 Consultar por WhatsApp</button>}
+          {waNum && <button className="pdp-wa" onClick={shareWA}><Ico n="message" s={16} /> Consultar por WhatsApp</button>}
 
-          {p.sku && <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>SKU: {p.sku}</p>}
-          {p.notas && <div style={{ background: '#fef3c7', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, color: 'var(--text)' }}>📝 {p.notas}</div>}
+          {p.sku && <p className="pdp-sku">SKU: {p.sku}</p>}
+          {p.notas && <div className="pdp-note">📝 {p.notas}</div>}
 
-          {/* Carteles de confianza (movidos desde la sección) */}
+          {/* Carteles de confianza */}
           {prodBadges.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0' }}>
+            <div className="pdp-badges">
               {prodBadges.map(b => (
-                <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>
+                <div key={b.id} className="pdp-badge"><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>
               ))}
             </div>
           )}
@@ -1600,6 +1626,7 @@ function AdminPanel() {
     ]},
     { label: 'Personalización', tabs: [
       { id: 'diseno', label: 'Diseño y Config', icon: '🎨' },
+      { id: 'barras', label: 'Barras de texto', icon: '📰' },
       { id: 'menu', label: 'Menú', icon: '📋' },
       { id: 'paginas', label: 'Páginas', icon: '📄' },
       { id: 'popups', label: 'Pop-ups', icon: '📢' },
@@ -1663,6 +1690,7 @@ function AdminPanel() {
         {adminTab === 'envios' && <AdminEnviosCustom />}
         {adminTab === 'redes' && <AdminRedes />}
         {adminTab === 'diseno' && <><AdminDiseno /><hr style={{margin:'24px 0'}}/><AdminSlider /><hr style={{margin:'24px 0'}}/><AdminConfig /></>}
+        {adminTab === 'barras' && <AdminBarras />}
       </div>
     </div>
   );
@@ -3166,6 +3194,90 @@ function AdminDiseno() {
 }
 
 // ─── ADMIN: Slider Banners ───
+function AdminBarras() {
+  const { toast, setBarras } = useContext(Ctx);
+  const [items, setItems] = useState([]); const [show, setShow] = useState(false);
+  const emptyForm = { posicion: 'top', frases: '', estilo: 'negro', color_fondo: '#232321', color_texto: '#ffffff', velocidad: 25, activo: true };
+  const [form, setForm] = useState(emptyForm);
+  const [edit, setEdit] = useState(null);
+  const load = () => api.getBarrasAll().then(setItems).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const refreshPublic = () => api.getBarras().then(b => setBarras(Array.isArray(b) ? b : [])).catch(() => {});
+  const save = async () => {
+    if (!form.frases.trim()) { toast('Escribí al menos una frase', 'error'); return; }
+    try { if (edit) await api.updateBarra(edit.id, form); else await api.createBarra(form); load(); refreshPublic(); setShow(false); toast('Guardado'); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  const toggleActivo = async (b) => { const nv = !b.activo; setItems(items.map(x => x.id === b.id ? { ...x, activo: nv } : x)); await api.updateBarra(b.id, { ...b, activo: nv }).catch(() => {}); refreshPublic(); };
+  const estilos = [
+    { id: 'negro', label: 'Negro (demo)' },
+    { id: 'primary', label: 'Azul' },
+    { id: 'acento', label: 'Naranja' },
+    { id: 'custom', label: 'Personalizado' },
+  ];
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Barras de texto deslizantes</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm(emptyForm); setShow(true); }}>+ Nueva barra</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Barras de texto que se deslizan. Podés tener una arriba de todo y otra debajo del buscador. Separá las frases con <strong>|</strong> (barra vertical). Activá/desactivá cada una con el ojo.</p>
+      {items.map(b => (
+        <div key={b.id} className="card" style={{ padding: 12, marginBottom: 8, opacity: b.activo ? 1 : 0.5 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 11, background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontWeight: 700, marginRight: 8 }}>{b.posicion === 'top' ? '↑ Arriba de todo' : '↓ Bajo el buscador'}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{estilos.find(e => e.id === b.estilo)?.label || b.estilo}</span>
+              <div style={{ fontSize: 13, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-secondary)' }}>{(b.frases || '').split('|').map(s => s.trim()).filter(Boolean).join('  •  ')}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(b)} title={b.activo ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.activo ? '👁' : '🚫'}</button>
+              <button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm({ ...emptyForm, ...b }); setShow(true); }}>✏️</button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar barra?')) return; await api.deleteBarra(b.id); load(); refreshPublic(); }}>🗑</button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <div className="empty-state"><p>No hay barras. Creá una para mostrar texto deslizante en el header.</p></div>}
+      {show && (
+        <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nueva'} barra</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div>
+          <div className="modal-body">
+            <div className="form-group"><label className="form-label">Posición</label>
+              <select value={form.posicion} onChange={e => setForm({ ...form, posicion: e.target.value })}>
+                <option value="top">↑ Arriba de todo (sobre el logo)</option>
+                <option value="search">↓ Debajo del buscador</option>
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Frases (separadas con | )</label>
+              <textarea value={form.frases} onChange={e => setForm({ ...form, frases: e.target.value })} rows={3} placeholder="Envío a todo el país | Atención 24/7 | +5000 clientes | Compra segura" />
+              <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Ejemplo: Envío gratis | Cuotas sin interés | Garantía</small>
+            </div>
+            <div className="form-group"><label className="form-label">Estilo</label>
+              <select value={form.estilo} onChange={e => setForm({ ...form, estilo: e.target.value })}>
+                {estilos.map(es => <option key={es.id} value={es.id}>{es.label}</option>)}
+              </select>
+            </div>
+            {form.estilo === 'custom' && (
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Color fondo</label><input type="color" value={form.color_fondo} onChange={e => setForm({ ...form, color_fondo: e.target.value })} style={{ height: 42, padding: 4 }} /></div>
+                <div className="form-group"><label className="form-label">Color texto</label><input type="color" value={form.color_texto} onChange={e => setForm({ ...form, color_texto: e.target.value })} style={{ height: 42, padding: 4 }} /></div>
+              </div>
+            )}
+            <div className="form-group"><label className="form-label">Velocidad (segundos por vuelta, más alto = más lento)</label><input type="number" value={form.velocidad} onChange={e => setForm({ ...form, velocidad: Number(e.target.value) })} min={8} max={80} /></div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activa</label>
+            {/* Preview en vivo */}
+            {form.frases.trim() && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Vista previa:</div>
+                <TextBar barra={form} />
+              </div>
+            )}
+          </div>
+          <div className="modal-footer"><button className="btn btn-outline" onClick={() => setShow(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
 function AdminSlider() {
   const { toast } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);

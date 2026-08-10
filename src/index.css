@@ -345,6 +345,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .marquee-track:hover { animation-play-state: paused; }
 .marquee-item { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; padding: 0 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #fff; }
 .marquee-item::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+/* ─── BARRAS DE TEXTO DESLIZANTES ─── */
+.textbar { overflow: hidden; padding: 9px 0; margin: 8px 20px 0; border-radius: var(--radius); }
+.textbar-track { display: flex; width: max-content; animation: marquee-scroll linear infinite; }
+.textbar:hover .textbar-track { animation-play-state: paused; }
+.textbar-item { display: inline-flex; align-items: center; white-space: nowrap; padding: 0 22px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.textbar-item::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-right: 22px; }
+/* estilos */
+.textbar-negro { background: var(--primary-dark); } .textbar-negro .textbar-item { color: #fff; }
+.textbar-primary { background: var(--primary); } .textbar-primary .textbar-item { color: #fff; } .textbar-primary .textbar-item::before { background: #fff; }
+.textbar-acento { background: var(--accent); } .textbar-acento .textbar-item { color: var(--primary-dark); } .textbar-acento .textbar-item::before { background: var(--primary-dark); }
+.textbar-custom { background: var(--bar-bg, #232321); } .textbar-custom .textbar-item { color: var(--bar-fg, #fff); }
 @keyframes marquee-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-33.333%); } }
 
 /* ─── HERO SLIDER (estilo demo) ─── */
@@ -386,6 +398,52 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .card-fav:active { transform: scale(0.92); }
 .card-fav-on { position: absolute; inset: 0; border-radius: 50%; }
 .card-fav:has(.card-fav-on) svg { fill: var(--danger); stroke: var(--danger); }
+
+/* ─── PRODUCT DETAIL PAGE (estilo demo) ─── */
+.pdp { padding: 24px 20px; max-width: 1000px; margin: 0 auto; }
+.pdp-back { background: none; border: none; font-size: 14px; font-weight: 700; color: var(--primary); cursor: pointer; margin-bottom: 12px; }
+.pdp-crumbs { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; font-weight: 600; }
+.pdp-crumbs span { cursor: pointer; }
+.pdp-crumb-current { color: var(--text) !important; font-weight: 700; cursor: default !important; }
+.pdp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+@media (max-width: 768px) { .pdp-grid { grid-template-columns: 1fr; gap: 20px; } }
+.pdp-gallery { position: sticky; top: 80px; align-self: start; }
+@media (max-width: 768px) { .pdp-gallery { position: static; } }
+.pdp-main-img { background: var(--bg-card); border-radius: var(--radius); padding: 24px; display: flex; align-items: center; justify-content: center; aspect-ratio: 1/1; position: relative; box-shadow: var(--shadow); overflow: hidden; }
+.pdp-main-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pdp-noimg { color: var(--text-muted); opacity: 0.4; }
+.pdp-free-badge { position: absolute; top: 14px; left: 14px; background: var(--primary); color: #fff; padding: 4px 12px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 800; letter-spacing: 0.04em; z-index: 2; }
+.pdp-fav { top: 14px; right: 14px; width: 40px; height: 40px; }
+.pdp-thumbs { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
+.pdp-thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid transparent; cursor: pointer; background: var(--bg-card); flex-shrink: 0; transition: border-color 0.15s; }
+.pdp-thumbs img.active { border-color: var(--primary); }
+.pdp-cat { font-size: 11px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800; margin-bottom: 6px; }
+.pdp-title { font-size: 28px; font-weight: 900; margin-bottom: 16px; line-height: 1.1; letter-spacing: -0.02em; }
+.pdp-price { margin-bottom: 20px; }
+.pdp-price-old { text-decoration: line-through; color: var(--text-muted); font-size: 18px; }
+.pdp-price-new { font-weight: 900; font-size: 32px; color: var(--text); }
+.pdp-payments { background: var(--border-light); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 18px; }
+.pdp-payment-row { font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.pdp-payment-row:last-child { margin-bottom: 0; }
+.pdp-payment-desc { color: var(--success); font-size: 12px; font-weight: 600; }
+.pdp-variant { padding: 8px 16px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; cursor: pointer; border: 2px solid var(--border); background: var(--bg-card); color: var(--text); transition: all 0.15s; }
+.pdp-variant.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+.pdp-desc { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; line-height: 1.7; }
+.pdp-compat { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.pdp-nostock { padding: 14px 20px; background: var(--danger-light); border-radius: var(--radius-sm); color: var(--danger); font-weight: 700; margin-bottom: 12px; font-size: 13px; text-align: center; }
+.pdp-buy { display: flex; gap: 12px; align-items: stretch; margin-bottom: 14px; }
+.pdp-qty { display: flex; align-items: center; border: 2px solid var(--border); border-radius: var(--radius-pill); overflow: hidden; }
+.pdp-qty button { background: none; border: none; padding: 0 16px; font-size: 18px; font-weight: 700; cursor: pointer; color: var(--text); height: 100%; }
+.pdp-qty span { padding: 12px 8px; font-weight: 800; font-size: 16px; min-width: 40px; text-align: center; }
+.pdp-add { flex: 1; background: var(--primary-dark); color: #fff; border-color: var(--primary-dark); font-weight: 800; font-size: 14px; }
+.pdp-add:hover { background: var(--primary); border-color: var(--primary); }
+.pdp-wa { width: 100%; padding: 12px 0; background: #25d366; color: #fff; border: none; border-radius: var(--radius-pill); font-weight: 700; font-size: 13px; cursor: pointer; margin-bottom: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: filter 0.2s; }
+.pdp-wa:hover { filter: brightness(1.05); }
+.pdp-wa:active { transform: scale(0.98); }
+.pdp-sku { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.pdp-note { background: var(--warning-light); border-radius: var(--radius-sm); padding: 14px; margin-top: 12px; font-size: 13px; color: var(--text); }
+.pdp-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.pdp-badge { display: flex; align-items: center; gap: 6px; background: var(--primary-light); padding: 7px 14px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; color: var(--primary); }
 
 /* Bloque 3: evitar scroll horizontal por el efecto de las cards */
 .kicks-card { will-change: transform; }
