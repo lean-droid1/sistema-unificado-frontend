@@ -550,17 +550,17 @@ function Header() {
       {/* ROW 1: logo + buscador + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
-          {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+          {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 46 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
         </button>
-        {/* Buscador inline (desktop) */}
+        {/* Buscador inline (siempre visible, al lado del logo) */}
         {showSearch && (
-          <div className="header-search-inline desktop-only">
+          <div className="header-search-inline">
             <HeaderSearch />
           </div>
         )}
         <div className="header-right">
-          <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
-          {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
+          <button className="icon-btn desktop-only" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
+          {user && <button className="icon-btn desktop-only" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
           <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
             <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
@@ -576,13 +576,6 @@ function Header() {
           <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}><Ico n="menu" s={20} /></button>
         </div>
       </div>
-
-      {/* Buscador full-width (solo mobile) */}
-      {showSearch && (
-        <div className="header-search-row mobile-only">
-          <HeaderSearch />
-        </div>
-      )}
 
       {/* BARRA BAJO EL BUSCADOR */}
       {showSearch && barrasSearch.map(b => <TextBar key={b.id} barra={b} />)}
@@ -603,6 +596,9 @@ function Header() {
       {/* MOBILE MENU */}
       {mobMenu && (
         <div className="mobile-menu" style={{ background: 'var(--bg-card)', padding: '16px 20px' }}>
+          <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? '☀️ Modo claro' : '🌙 Modo oscuro'}</button>
+          {user && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setMobMenu(false); nav('favoritos'); }}>❤️ Favoritos</button>}
+          <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
           {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
           <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
           {user ? (
