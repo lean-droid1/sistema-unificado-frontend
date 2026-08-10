@@ -103,6 +103,31 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .wa-float { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #25D366; color: white; font-size: 28px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(37,211,102,0.4); z-index: 1000; text-decoration: none; transition: transform 0.2s; }
 .wa-float:hover { transform: scale(1.1); }
 
+/* ─── WHATSAPP CONTACT WIDGET ─── */
+.wa-widget { position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.wa-widget .wa-float { position: static; border: none; cursor: pointer; }
+.wa-panel { width: 320px; max-width: calc(100vw - 32px); background: var(--bg-card); border-radius: 18px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden; animation: waPop 0.2s ease; }
+@keyframes waPop { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+.wa-panel-head { background: #075E54; color: #fff; padding: 16px 18px; display: flex; justify-content: space-between; align-items: flex-start; }
+.wa-panel-title { font-size: 15px; font-weight: 800; }
+.wa-panel-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.wa-panel-close { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+.wa-panel-body { padding: 10px; max-height: 380px; overflow-y: auto; background: var(--bg); }
+.wa-contact { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; background: var(--bg-card); border: none; border-radius: 12px; cursor: pointer; text-align: left; margin-bottom: 8px; transition: background 0.15s; }
+.wa-contact:hover { background: var(--border-light); }
+.wa-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); background-size: cover; background-position: center; color: #fff; font-weight: 800; font-size: 18px; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; }
+.wa-online { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; background: #25D366; border: 2px solid var(--bg-card); }
+.wa-contact-info { flex: 1; min-width: 0; }
+.wa-contact-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.wa-contact-role { font-size: 12px; color: var(--text-muted); }
+.wa-form { padding: 8px; }
+.wa-form-hint { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+.wa-form input { margin-bottom: 10px; }
+.wa-form-send { width: 100%; padding: 12px; background: #25D366; color: #fff; border: none; border-radius: var(--radius-pill); font-weight: 800; font-size: 14px; cursor: pointer; transition: filter 0.2s; }
+.wa-form-send:hover:not(:disabled) { filter: brightness(1.05); }
+.wa-form-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.wa-form-back { width: 100%; padding: 8px; background: none; border: none; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 6px; }
+
 /* ─── LANDING / HERO ─── */
 .hero { text-align: center; padding: 48px 20px 32px; }
 .hero h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 8px; }

@@ -207,6 +207,15 @@ export async function getBarrasAll() { return f('/api/barras/all'); }
 export async function createBarra(data) { return f('/api/barras', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateBarra(id, data) { return f(`/api/barras/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteBarra(id) { return f(`/api/barras/${id}`, { method: 'DELETE' }); }
+export async function getContactos(seccionId) { return f(`/api/contactos${seccionId ? `?seccion_id=${seccionId}` : ''}`); }
+export async function getContactosAll() { return f('/api/contactos/all'); }
+export async function createContacto(data) { return f('/api/contactos', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateContacto(id, data) { return f(`/api/contactos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteContacto(id) { return f(`/api/contactos/${id}`, { method: 'DELETE' }); }
+export async function createLead(data) { return f('/api/leads', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getLeads() { return f('/api/leads'); }
+export async function updateLead(id, data) { return f(`/api/leads/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteLead(id) { return f(`/api/leads/${id}`, { method: 'DELETE' }); }
 
 export async function getFavoritos() { return f('/api/favoritos'); }
 export async function addFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'POST' }); }

@@ -678,17 +678,83 @@ function Footer() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// WHATSAPP FLOAT
+// WHATSAPP CONTACT WIDGET (multi-agente + captura de leads)
 // ═══════════════════════════════════════════════════════════
 function WhatsAppFloat() {
-  const { config, design } = useContext(Ctx);
-  const num = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
-  if (!num) return null;
-  const msg = encodeURIComponent(design.whatsapp_mensaje || 'Hola, quiero consultar sobre un producto');
+  const { config, design, user, seccionActual } = useContext(Ctx);
+  const [contactos, setContactos] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState(null); // contacto elegido → muestra formulario
+  const [form, setForm] = useState({ nombre: '', telefono: '' });
+
+  useEffect(() => { api.getContactos(seccionActual || undefined).then(c => setContactos(Array.isArray(c) ? c : [])).catch(() => {}); }, [seccionActual]);
+
+  // precargar datos si el cliente está logueado
+  useEffect(() => {
+    if (user) setForm({ nombre: user.nombre_fantasia || user.nombre || '', telefono: user.telefono || '' });
+    else setForm({ nombre: '', telefono: '' });
+  }, [user, sel]);
+
+  // Fallback: si no hay contactos cargados, usar el número legacy de config
+  const legacyNum = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
+  const lista = contactos.length ? contactos : (legacyNum ? [{ id: 0, nombre: config.nombre_tienda || 'Atención', rol: 'WhatsApp', telefono: legacyNum, online: true, mensaje_default: design.whatsapp_mensaje || '' }] : []);
+  if (!lista.length) return null;
+
+  const enviar = async () => {
+    if (!form.nombre.trim() || !form.telefono.trim()) return;
+    // guardar lead
+    api.createLead({ nombre: form.nombre, telefono: form.telefono, contacto_id: sel.id || null, contacto_nombre: sel.nombre, usuario_id: user?.id || null }).catch(() => {});
+    // abrir WhatsApp con mensaje pre-armado
+    const saludo = sel.mensaje_default || `Hola ${sel.nombre}, soy ${form.nombre}. Quiero hacer una consulta.`;
+    const msg = encodeURIComponent(saludo);
+    window.open(`https://wa.me/${sel.telefono}?text=${msg}`, '_blank');
+    setOpen(false); setSel(null);
+  };
+
   return (
-    <a href={`https://wa.me/${num}?text=${msg}`} target="_blank" rel="noopener" className="wa-float" title="WhatsApp">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-    </a>
+    <div className="wa-widget">
+      {open && (
+        <div className="wa-panel">
+          <div className="wa-panel-head">
+            <div>
+              <div className="wa-panel-title">{sel ? sel.nombre : '¿Necesitás ayuda?'}</div>
+              <div className="wa-panel-sub">{sel ? sel.rol : 'Elegí con quién querés hablar'}</div>
+            </div>
+            <button className="wa-panel-close" onClick={() => { setOpen(false); setSel(null); }}>✕</button>
+          </div>
+          <div className="wa-panel-body">
+            {!sel ? (
+              lista.map(c => (
+                <button key={c.id} className="wa-contact" onClick={() => setSel(c)}>
+                  <div className="wa-avatar" style={c.avatar ? { backgroundImage: `url(${c.avatar})` } : {}}>
+                    {!c.avatar && (c.nombre || '?').charAt(0).toUpperCase()}
+                    {c.online && <span className="wa-online" />}
+                  </div>
+                  <div className="wa-contact-info">
+                    <div className="wa-contact-name">{c.nombre}</div>
+                    <div className="wa-contact-role">{c.rol}{c.online ? ' · En línea' : ''}</div>
+                  </div>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                </button>
+              ))
+            ) : (
+              <div className="wa-form">
+                <p className="wa-form-hint">{user ? 'Confirmá tus datos y te llevamos al chat:' : 'Dejanos tus datos para contactarte:'}</p>
+                <input placeholder="Tu nombre" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
+                <input placeholder="Tu número de WhatsApp" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} inputMode="tel" />
+                <button className="wa-form-send" onClick={enviar} disabled={!form.nombre.trim() || !form.telefono.trim()}>
+                  Abrir WhatsApp
+                </button>
+                <button className="wa-form-back" onClick={() => setSel(null)}>← Volver</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <button className="wa-float" onClick={() => setOpen(!open)} title="Contacto">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      </button>
+    </div>
   );
 }
 
@@ -1699,6 +1765,7 @@ function AdminPanel() {
       { id: 'pedidos', label: 'Ventas', icon: '🧾' },
       { id: 'productos', label: 'Productos', icon: '📦' },
       { id: 'usuarios', label: 'Clientes', icon: '👥' },
+      { id: 'leads', label: 'Leads WhatsApp', icon: '💬' },
       { id: 'listas', label: 'Listas precio', icon: '💰' },
       { id: 'cupones', label: 'Cupones', icon: '🎟️' },
       { id: 'promociones', label: 'Promociones', icon: '🏷️' },
@@ -1706,6 +1773,7 @@ function AdminPanel() {
     { label: 'Personalización', tabs: [
       { id: 'diseno', label: 'Diseño y Config', icon: '🎨' },
       { id: 'barras', label: 'Barras de texto', icon: '📰' },
+      { id: 'contactos', label: 'Contactos WhatsApp', icon: '💬' },
       { id: 'menu', label: 'Menú', icon: '📋' },
       { id: 'paginas', label: 'Páginas', icon: '📄' },
       { id: 'popups', label: 'Pop-ups', icon: '📢' },
@@ -1770,6 +1838,8 @@ function AdminPanel() {
         {adminTab === 'redes' && <AdminRedes />}
         {adminTab === 'diseno' && <><AdminDiseno /><hr style={{margin:'24px 0'}}/><AdminSlider /><hr style={{margin:'24px 0'}}/><AdminConfig /></>}
         {adminTab === 'barras' && <AdminBarras />}
+        {adminTab === 'contactos' && <AdminContactos />}
+        {adminTab === 'leads' && <AdminLeads />}
       </div>
     </div>
   );
@@ -2539,7 +2609,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
 // ─── ADMIN: Usuarios (full modal: edit, approve with lista, subadmin perms) ───
 function AdminUsuarios() {
-  const { toast, listas } = useContext(Ctx);
+  const { toast, listas, config } = useContext(Ctx);
   const [users, setUsers] = useState([]);
   const [busq, setBusq] = useState('');
   const [editUser, setEditUser] = useState(null);
@@ -2568,6 +2638,7 @@ function AdminUsuarios() {
               </span>
               <span style={{ fontSize: 12 }}>{u.rol}</span>
               {listas.find(l => l.id === u.lista_precio_id) && <span style={{ fontSize: 11, color: listas.find(l => l.id === u.lista_precio_id)?.color }}>{listas.find(l => l.id === u.lista_precio_id)?.nombre}</span>}
+              {u.telefono && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); const saludo = `Hola ${u.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}.`; window.open(`https://wa.me/54${u.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(saludo)}`, '_blank'); }} style={{ background: '#25D366', color: '#fff', padding: '4px 8px' }} title="Escribir por WhatsApp"><Ico n="message" s={14} /></button>}
             </div>
           </div>
         </div>
@@ -3273,6 +3344,96 @@ function AdminDiseno() {
 }
 
 // ─── ADMIN: Slider Banners ───
+function AdminContactos() {
+  const { toast, secciones } = useContext(Ctx);
+  const [items, setItems] = useState([]); const [show, setShow] = useState(false);
+  const empty = { nombre: '', rol: '', telefono: '', avatar: '', seccion_id: null, online: true, mensaje_default: '', orden: 0, activo: true };
+  const [form, setForm] = useState(empty); const [edit, setEdit] = useState(null);
+  const load = () => api.getContactosAll().then(setItems).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const save = async () => { if (!form.nombre.trim() || !form.telefono.trim()) { toast('Nombre y teléfono son obligatorios', 'error'); return; } try { if (edit) await api.updateContacto(edit.id, form); else await api.createContacto(form); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const toggleActivo = async (c) => { const nv = !c.activo; setItems(items.map(x => x.id === c.id ? { ...x, activo: nv } : x)); await api.updateContacto(c.id, { ...c, activo: nv }).catch(() => {}); };
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Contactos de WhatsApp</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm(empty); setShow(true); }}>+ Nuevo contacto</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Contactos que aparecen en el botón flotante de WhatsApp. Podés poner varios (ej: tu número y el del local) y asignarlos a una sección o a todas.</p>
+      {items.map(c => (
+        <div key={c.id} className="card" style={{ padding: 12, marginBottom: 8, opacity: c.activo ? 1 : 0.5 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              <div className="wa-avatar" style={{ width: 38, height: 38, fontSize: 15, ...(c.avatar ? { backgroundImage: `url(${c.avatar})` } : {}) }}>{!c.avatar && (c.nombre || '?').charAt(0).toUpperCase()}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{c.nombre} <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{c.rol}</span></div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.telefono} · {c.seccion_id ? (secciones.find(s => s.id === c.seccion_id)?.nombre || 'Sección') : 'Todas las secciones'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(c)} style={{ padding: '2px 8px' }}>{c.activo ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button>
+              <button className="btn btn-outline btn-sm" onClick={() => { setEdit(c); setForm({ ...empty, ...c }); setShow(true); }}><Ico n="edit" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar contacto?')) return; await api.deleteContacto(c.id); load(); }}><Ico n="trash" s={15} /></button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <div className="empty-state"><p>No hay contactos. Creá uno para el botón de WhatsApp.</p></div>}
+      {show && (
+        <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} contacto</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div>
+          <div className="modal-body">
+            <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Leandro" /></div>
+            <div className="form-group"><label className="form-label">Rol / etiqueta</label><input value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })} placeholder="Ej: Ventas mayorista" /></div>
+            <div className="form-group"><label className="form-label">Número WhatsApp * (con código país, ej 5491122334455)</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} placeholder="549..." inputMode="tel" /></div>
+            <div className="form-group"><label className="form-label">Foto (URL, opcional)</label><input value={form.avatar} onChange={e => setForm({ ...form, avatar: e.target.value })} placeholder="https://..." /></div>
+            <div className="form-group"><label className="form-label">Sección (vacío = todas)</label>
+              <select value={form.seccion_id || ''} onChange={e => setForm({ ...form, seccion_id: e.target.value ? Number(e.target.value) : null })}><option value="">Todas</option>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select>
+            </div>
+            <div className="form-group"><label className="form-label">Mensaje pre-armado (opcional)</label><textarea value={form.mensaje_default} onChange={e => setForm({ ...form, mensaje_default: e.target.value })} rows={2} placeholder="Si lo dejás vacío se arma automático con el nombre del cliente" /></div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><input type="checkbox" checked={form.online} onChange={e => setForm({ ...form, online: e.target.checked })} /> Mostrar como "En línea"</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
+          </div>
+          <div className="modal-footer"><button className="btn btn-outline" onClick={() => setShow(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+function AdminLeads() {
+  const { toast, config } = useContext(Ctx);
+  const [leads, setLeads] = useState([]);
+  const load = () => api.getLeads().then(setLeads).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const escribir = (l) => {
+    const saludo = `Hola ${l.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}. Dejaste tu consulta en la web.`;
+    window.open(`https://wa.me/${l.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(saludo)}`, '_blank');
+    if (!l.contactado) { api.updateLead(l.id, { contactado: true }).then(load).catch(() => {}); }
+  };
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Leads de WhatsApp</h3><button className="btn btn-outline btn-sm" onClick={load}>↻ Actualizar</button></div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Clientes que dejaron sus datos en el botón de contacto. Tocá "Escribir" para contactarlos directo por WhatsApp.</p>
+      {leads.length === 0 ? <div className="empty-state"><p>Todavía no hay leads.</p></div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {leads.map(l => (
+            <div key={l.id} className="card" style={{ padding: 12, opacity: l.contactado ? 0.6 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{l.nombre} {l.contactado && <span style={{ fontSize: 10, background: 'var(--success)', color: '#fff', padding: '1px 8px', borderRadius: 'var(--radius-pill)', fontWeight: 700 }}>Contactado</span>}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{l.telefono} · quería hablar con {l.contacto_nombre || 'la tienda'} · {new Date(l.created_at).toLocaleString('es-AR')}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-success btn-sm" onClick={() => escribir(l)} style={{ background: '#25D366', whiteSpace: 'nowrap' }}><Ico n="message" s={14} /> Escribir</button>
+                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar lead?')) return; await api.deleteLead(l.id); load(); }}><Ico n="trash" s={15} /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminBarras() {
   const { toast, setBarras } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);
