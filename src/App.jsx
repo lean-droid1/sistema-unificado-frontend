@@ -505,8 +505,7 @@ function Header() {
           <div className="marquee-track">
             {[...badges, ...badges, ...badges].map((b, i) => (
               <span key={i} className="marquee-item">
-                <RenderIcon value={b.icono} size={14} />{b.texto}
-                <span style={{ color: 'var(--border)', margin: '0 4px' }}>|</span>
+                <RenderIcon value={b.icono} size={14} color="#fff" />{b.texto}
               </span>
             ))}
           </div>
@@ -688,57 +687,50 @@ function Landing() {
     const sinStock = p.stock === 0;
     const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital;
     return (
-      <div className="kicks-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 0.2s', position: 'relative' }}
-        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)'}
-        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+      <div className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {/* Fav button */}
-        <button onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}
-          style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 30, height: 30, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {favIds.has(p.id) ? '❤️' : '🤍'}
+        <button className="card-fav" onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}>
+          <Ico n="heart" s={16} />
+          {favIds.has(p.id) && <span className="card-fav-on" />}
         </button>
-        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => nav('product', p)}>
+        <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', p)}>
           {p.imagen
-            ? <img src={p.imagen} alt="" style={{ width: '100%', height: 180, objectFit: 'contain', padding: 12, background: 'var(--bg)' }} loading="lazy" />
-            : <div style={{ width: '100%', height: 180, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 40 }}>📱</div>
+            ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
+            : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
-          {tieneOferta && <span style={{ position: 'absolute', top: 8, left: 8, background: 'var(--danger)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{descPct}%</span>}
-          {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 8, left: 8, background: '#6b7280', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
-          {p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: '#8b5cf6', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Digital</span>}
-          {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'var(--warning)', color: '#000', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
+          {tieneOferta && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{descPct}% OFF</span>}
+          {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10, left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+          {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
+          {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--warning)', color: '#000', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
         </div>
-        <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{p.categoria || ''}</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3, marginBottom: 8, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>{p.nombre || p.modelo}</div>
+        <div className="product-info" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div className="product-cat">{p.categoria || ''}</div>
+          <div className="product-name" style={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>{p.nombre || p.modelo}</div>
           <div style={{ marginBottom: 8 }}>
             {tieneOferta ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
+                <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
+                <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
               </div>
             ) : (
-              precio > 0 && <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{fmtARS(precio)}</span>
+              precio > 0 && <span className="price-new">{fmtARS(precio)}</span>
             )}
           </div>
           {sinStock && !puedeComprar ? (
             <div>
               {showNotify ? (
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 8px', borderRadius: 4, border: '1px solid #ddd' }} />
-                  <button onClick={async (e) => { e.stopPropagation(); if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }}
-                    style={{ background: 'var(--warning)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>OK</button>
+                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 12px' }} />
+                  <button className="btn btn-warning btn-sm" onClick={async (e) => { e.stopPropagation(); if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }} style={{ whiteSpace: 'nowrap' }}>OK</button>
                 </div>
               ) : (
-                <button onClick={(e) => { e.stopPropagation(); setShowNotify(true); }}
-                  style={{ width: '100%', padding: '8px 0', background: 'var(--border-light)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setShowNotify(true); }} style={{ width: '100%' }}>
                   🔔 Avisame cuando llegue
                 </button>
               )}
             </div>
           ) : addToCart && (
-            <button onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); }}
-              style={{ width: '100%', padding: '8px 0', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--primary)'}>
+            <button className="btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); }}>
               Agregar
             </button>
           )}
