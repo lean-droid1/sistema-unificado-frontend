@@ -449,6 +449,75 @@ function Ico({ n, s = 18 }) {
   return null;
 }
 
+function HeaderSearch() {
+  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones } = useContext(Ctx);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  // cerrar dropdown al click fuera
+  useEffect(() => {
+    const onClick = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  // debounce
+  useEffect(() => {
+    if (globalSearch.length < 2) { setGlobalResults(null); return; }
+    const t = setTimeout(() => { doGlobalSearch(globalSearch); setOpen(true); }, 350);
+    return () => clearTimeout(t);
+  }, [globalSearch]);
+
+  // aplanar resultados a lista corta para el dropdown
+  const flat = [];
+  if (globalResults?.resultados) {
+    for (const r of globalResults.resultados) {
+      for (const p of r.productos) flat.push({ ...p, secId: r.seccion.id, secNombre: r.seccion.nombre });
+      if (flat.length >= 8) break;
+    }
+  }
+
+  const goProduct = (p) => {
+    setOpen(false);
+    const sec = secciones.find(s => s.id === p.secId);
+    if (sec) window.__secId = sec.id;
+    nav('product', p);
+  };
+
+  return (
+    <div className="header-search-wrap" ref={wrapRef} style={{ position: 'relative' }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input className="header-search-input" placeholder="Buscar por marca, modelo o repuesto..." value={globalSearch}
+        onChange={e => setGlobalSearch(e.target.value)}
+        onFocus={() => { if (flat.length) setOpen(true); }}
+        onKeyDown={e => { if (e.key === 'Enter') { doGlobalSearch(); setOpen(false); } if (e.key === 'Escape') setOpen(false); }} />
+      {globalSearch && <button className="header-search-clear" onClick={() => { setGlobalSearch(''); setGlobalResults(null); setOpen(false); }}>✕</button>}
+
+      {open && globalSearch.length >= 2 && (
+        <div className="search-dropdown">
+          {flat.length === 0 ? (
+            <div className="search-dd-empty">Sin resultados para "{globalSearch}"</div>
+          ) : (
+            <>
+              {flat.map(p => (
+                <button key={`${p.secId}-${p.id}`} className="search-dd-item" onClick={() => goProduct(p)}>
+                  {p.imagen ? <img src={p.imagen} alt="" /> : <div className="search-dd-noimg"><Ico n="cart" s={18} /></div>}
+                  <div className="search-dd-info">
+                    <div className="search-dd-name">{p.nombre || p.modelo}</div>
+                    <div className="search-dd-sec">{p.secNombre}</div>
+                  </div>
+                  {p.precio_base > 0 && <div className="search-dd-price">{fmtARS(p.precio_oferta && p.precio_oferta < p.precio_base ? p.precio_oferta : p.precio_base)}</div>}
+                </button>
+              ))}
+              <button className="search-dd-all" onClick={() => { doGlobalSearch(); setOpen(false); }}>Ver todos los resultados →</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TextBar({ barra }) {
   const frases = (barra.frases || '').split('|').map(s => s.trim()).filter(Boolean);
   if (!frases.length) return null;
@@ -473,28 +542,22 @@ function Header() {
   const barrasTop = (barras || []).filter(b => b.activo && b.posicion === 'top');
   const barrasSearch = (barras || []).filter(b => b.activo && b.posicion === 'search');
 
-  // Debounced live search
-  useEffect(() => {
-    if (globalSearch.length < 2) return;
-    const t = setTimeout(() => doGlobalSearch(globalSearch), 400);
-    return () => clearTimeout(t);
-  }, [globalSearch]);
-
   return (
     <header className="header">
       {/* BARRA SUPERIOR (arriba de todo) */}
       {showSearch && barrasTop.map(b => <TextBar key={b.id} barra={b} />)}
 
-      {/* ROW 1: logo + nav + actions */}
+      {/* ROW 1: logo + buscador + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
           {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 36 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
         </button>
-        <nav className="header-nav desktop-only">
-          {menuItems.map(m => (
-            <a key={m.id} href={m.url || '#'} onClick={e => { if (!m.url || m.url === '#') { e.preventDefault(); } }}>{m.titulo}</a>
-          ))}
-        </nav>
+        {/* Buscador inline (desktop) */}
+        {showSearch && (
+          <div className="header-search-inline desktop-only">
+            <HeaderSearch />
+          </div>
+        )}
         <div className="header-right">
           <button className="icon-btn" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
           {user && <button className="icon-btn" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
@@ -514,14 +577,10 @@ function Header() {
         </div>
       </div>
 
-      {/* ROW 2: GLOBAL SEARCH BAR (all pages except admin/auth) */}
+      {/* Buscador full-width (solo mobile) */}
       {showSearch && (
-        <div className="header-search-row">
-          <div className="header-search-wrap">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input className="header-search-input" placeholder="Buscar por marca, modelo o repuesto..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && doGlobalSearch()} />
-            {globalSearch && <button className="header-search-clear" onClick={() => { setGlobalSearch(''); }}>✕</button>}
-          </div>
+        <div className="header-search-row mobile-only">
+          <HeaderSearch />
         </div>
       )}
 
@@ -867,6 +926,29 @@ function Landing() {
           </div>
         </div>
       )}
+
+      {/* ── OFERTAS DESTACADAS ── productos con precio_oferta */}
+      {!globalResults && (() => {
+        const ofertas = [];
+        for (const s of secciones) {
+          for (const p of (secProds[s.id] || [])) {
+            if (p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base) ofertas.push({ ...p, _secId: s.id });
+          }
+        }
+        if (ofertas.length === 0) return null;
+        return (
+          <div style={{ maxWidth: 1200, margin: '24px auto 0', padding: '0 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>OFERTAS</span>
+              </h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
+              {ofertas.slice(0, 8).map(p => <ProductCard key={`of-${p.id}`} p={p} secId={p._secId} />)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── PRODUCTS PER SECTION ── */}
       {!globalResults && secciones.map(s => {
