@@ -682,13 +682,13 @@ function Footer() {
 // WHATSAPP CONTACT WIDGET (multi-agente + captura de leads)
 // ═══════════════════════════════════════════════════════════
 function WhatsAppFloat() {
-  const { config, design, user, seccionActual } = useContext(Ctx);
+  const { config, design, user } = useContext(Ctx);
   const [contactos, setContactos] = useState([]);
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null); // contacto elegido → muestra formulario
   const [form, setForm] = useState({ nombre: '', telefono: '' });
 
-  useEffect(() => { api.getContactos(seccionActual || undefined).then(c => setContactos(Array.isArray(c) ? c : [])).catch(() => {}); }, [seccionActual]);
+  useEffect(() => { api.getContactos().then(c => setContactos(Array.isArray(c) ? c : [])).catch(() => {}); }, []);
 
   // precargar datos si el cliente está logueado
   useEffect(() => {
@@ -2249,16 +2249,14 @@ function ProductModal({ product, onClose }) {
 // ─── IMPORT MODAL ───
 function ImportModal({ onClose }) {
   const { secciones, adminSeccion, toast } = useContext(Ctx);
-  const [file, setFile] = useState(null);
   const [data, setData] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState('');
-  const [reemplazar, setReemplazar] = useState(false);
+  const [modo, setModo] = useState('crear_actualizar');
+  const [faltantes, setFaltantes] = useState('no_tocar');
   const [importSecId, setImportSecId] = useState(adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id);
-  const secId = importSecId;
 
   const parseFile = async (f) => {
-    setFile(f);
     const XLSX = await import('xlsx');
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -2267,19 +2265,29 @@ function ImportModal({ onClose }) {
       const json = XLSX.utils.sheet_to_json(ws);
       if (!json.length) { toast('Archivo vacío', 'warning'); return; }
       const keys = Object.keys(json[0]);
-      const cC = keys.find(k => /producto|categor|tipo/i.test(k)) || keys[0];
-      const cM = keys.find(k => /modelo|model|nombre/i.test(k)) || keys[1];
-      const cP = keys.find(k => /precio|price|costo/i.test(k)) || keys[2];
-      const pick = (r, re) => { const k = keys.find(k => re.test(k)); return k ? r[k] : undefined; };
-      const prods = json.map(r => ({
-        seccion_id: secId, categoria: r[cC] || '', modelo: r[cM] || '', nombre: r[cM] || '',
-        precio_base: Number(r[cP]) || 0, stock: Number(r.stock || r.Stock || 0),
-        sku: pick(r, /sku|codigo|c\u00f3digo/i) || '', descripcion: pick(r, /descrip/i) || '',
-        compatibilidad: pick(r, /compatib/i) || '', imagen: pick(r, /imagen|image|foto|url/i) || '',
-        peso: Number(pick(r, /peso|weight|kg/i)) || 0, alto: Number(pick(r, /alto|height/i)) || 0,
-        ancho: Number(pick(r, /ancho|width/i)) || 0, largo: Number(pick(r, /largo|length|profund/i)) || 0
-      }));
-      setData({ productos: prods, total: prods.length, columns: { categoria: cC, modelo: cM, precio: cP } });
+      const pick = (r, re) => { const k = keys.find(k => re.test(k)); return k !== undefined ? r[k] : undefined; };
+      // Detecta ambos formatos (Empretienda "Exportación" y Tienda Negocio "Listado")
+      const prods = json.map(r => {
+        const nombre = pick(r, /^nombre del producto$|^nombre$|modelo|model/i) || '';
+        const precio = Number(String(pick(r, /^precio$|price/i) ?? '').toString().replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        const oferta = Number(String(pick(r, /oferta|precio oferta/i) ?? '').toString().replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        const stock = Number(pick(r, /^stock$/i)) || 0;
+        return {
+          seccion_id: importSecId,
+          categoria: (pick(r, /categor|subcategor/i) || '').toString().split(/>|\//).pop().trim(),
+          modelo: nombre, nombre,
+          precio_base: precio, precio_oferta: oferta < precio ? oferta : 0,
+          stock,
+          sku: (pick(r, /^sku$|codigo|c\u00f3digo/i) || '').toString().trim(),
+          descripcion: pick(r, /descrip/i) || '',
+          peso: Number(String(pick(r, /peso|weight|kg/i) ?? '').toString().replace(',', '.')) || 0,
+          alto: Number(String(pick(r, /alto|height/i) ?? '').toString().replace(',', '.')) || 0,
+          ancho: Number(String(pick(r, /ancho|width/i) ?? '').toString().replace(',', '.')) || 0,
+          largo: Number(String(pick(r, /profund|largo|length/i) ?? '').toString().replace(',', '.')) || 0,
+        };
+      }).filter(p => p.nombre);
+      const conSku = prods.filter(p => p.sku).length;
+      setData({ productos: prods, total: prods.length, conSku });
     };
     reader.readAsArrayBuffer(f);
   };
@@ -2288,8 +2296,8 @@ function ImportModal({ onClose }) {
     if (!data?.productos?.length) return;
     setUploading(true); setResult('');
     try {
-      const r = await api.bulkProductos(data.productos, reemplazar);
-      setResult(`✅ ${r.insertados || data.total} productos cargados`);
+      const r = await api.bulkProductos(data.productos, { modo, faltantes, seccion_id: importSecId });
+      setResult(`✅ ${r.insertados || 0} nuevos · ${r.actualizados || 0} actualizados${r.saltados ? ` · ${r.saltados} saltados` : ''}${r.marcadosSinStock ? ` · ${r.marcadosSinStock} marcados sin stock` : ''}`);
       setData(null);
     } catch (e) { setResult(`❌ Error: ${e.message}`); }
     setUploading(false);
@@ -2300,19 +2308,32 @@ function ImportModal({ onClose }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header"><span className="modal-title">Importar productos (Excel/CSV)</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body">
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Subí un archivo Excel o CSV. Se detectan automáticamente las columnas de categoría, modelo/nombre y precio.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Detecta automáticamente el formato (Empretienda o Tienda Negocio). Importa nombre, precio, oferta, stock, peso, medidas, categoría y SKU.</p>
           <div className="form-group"><label className="form-label">Sección destino</label>
             <select value={importSecId} onChange={e => setImportSecId(Number(e.target.value))}>
               {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
+          <div className="form-group"><label className="form-label">¿Qué hacer con los productos?</label>
+            <select value={modo} onChange={e => setModo(e.target.value)}>
+              <option value="crear_actualizar">Crear nuevos y actualizar existentes (por SKU)</option>
+              <option value="solo_nuevos">Solo agregar los que faltan (no toca existentes)</option>
+              <option value="reemplazar">Borrar todo de la sección y cargar de cero</option>
+            </select>
+          </div>
+          <div className="form-group"><label className="form-label">Productos de esta sección que NO están en el Excel</label>
+            <select value={faltantes} onChange={e => setFaltantes(e.target.value)} disabled={modo === 'reemplazar'}>
+              <option value="no_tocar">No tocar (dejarlos como están)</option>
+              <option value="sin_stock">Poner en sin stock (el proveedor los sacó de la lista)</option>
+            </select>
+            <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Útil para el mayorista: si un producto ya no está en su Excel, lo marcás sin stock.</small>
+          </div>
           <input type="file" accept=".xlsx,.xls,.csv" onChange={e => { if (e.target.files[0]) parseFile(e.target.files[0]); }} />
           {data && (
             <div style={{ marginTop: 12 }}>
-              <p>{data.total} productos detectados</p>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Columnas: Categoría={data.columns.categoria}, Modelo={data.columns.modelo}, Precio={data.columns.precio}</p>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}><input type="checkbox" checked={reemplazar} onChange={e => setReemplazar(e.target.checked)} /> Reemplazar todos los productos de la sección</label>
-              <button className="btn btn-primary" onClick={doUpload} disabled={uploading} style={{ marginTop: 12 }}>{uploading ? 'Subiendo...' : `Importar ${data.total} productos`}</button>
+              <p style={{ fontWeight: 700 }}>{data.total} productos detectados <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>({data.conSku} con SKU)</span></p>
+              {data.conSku < data.total && <p style={{ fontSize: 12, color: 'var(--warning)' }}>⚠️ {data.total - data.conSku} sin SKU: se crearán siempre como nuevos (no se pueden actualizar ni marcar sin stock).</p>}
+              <button className="btn btn-primary" onClick={doUpload} disabled={uploading} style={{ marginTop: 12 }}>{uploading ? 'Importando...' : `Importar ${data.total} productos`}</button>
             </div>
           )}
           {result && <p style={{ marginTop: 12, fontWeight: 700 }}>{result}</p>}
