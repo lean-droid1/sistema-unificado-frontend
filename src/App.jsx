@@ -285,6 +285,15 @@ export default function App() {
           try { const me = await api.getMe(); setUser(me); }
           catch { api.logout(); }
         }
+        // QR del remito: ?pedido=X abre el pedido en el admin
+        const pedidoParam = new URLSearchParams(window.location.search).get('pedido');
+        if (pedidoParam) {
+          const me = api.getToken() ? await api.getMe().catch(() => null) : null;
+          if (me && ['admin','subadmin'].includes(me.rol)) {
+            setUser(me); setAdminTab('pedidos'); setPage('admin');
+            setTimeout(() => { window.__openPedido = Number(pedidoParam); window.dispatchEvent(new Event('open-pedido')); }, 800);
+          }
+        }
         const maint = await api.getMaintenanceStatus();
         if (maint.activo) {
           const me = api.getToken() ? await api.getMe().catch(() => null) : null;
@@ -454,6 +463,7 @@ function Ico({ n, s = 18, fill = false }) {
   if (n === 'shuffle') return <svg {...p} fill="none"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>;
   if (n === 'bell') return <svg {...p} fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>;
   if (n === 'plus') return <svg {...p} fill="none"><path d="M12 5v14M5 12h14" /></svg>;
+  if (n === 'printer') return <svg {...p} fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" /></svg>;
   return null;
 }
 
@@ -1258,6 +1268,7 @@ function CartPage() {
   const [metodos, setMetodos] = useState([]);
   const [notas, setNotas] = useState('');
   const [envio, setEnvio] = useState({});
+  const [showMixPopup, setShowMixPopup] = useState(false);
 
   // Group cart items by section
   const seccionesConItems = secciones.filter(s => (Array.isArray(cart[s.id]) ? cart[s.id] : []).some(i => i.qty > 0));
@@ -1266,8 +1277,16 @@ function CartPage() {
     _validSecIds.has(String(secId)) && Array.isArray(items) ? items.map(i => ({ ...i, seccion_id: Number(secId) })) : []
   ).filter(i => i.qty > 0);
 
+  // Pop-up de carrito mixto: una vez por pedido (mientras el carrito tenga 2+ tiendas)
   useEffect(() => {
-    if (seccionesConItems.length) api.getMetodosPago(seccionesConItems[0].id).then(setMetodos).catch(() => {});
+    if (seccionesConItems.length > 1 && !window.__mixPopupShown) {
+      setShowMixPopup(true);
+      window.__mixPopupShown = true;
+    }
+  }, [seccionesConItems.length]);
+
+  useEffect(() => {
+    if (seccionesConItems.length <= 1) window.__mixPopupShown = false; // reset para el próximo carrito mixto
   }, [seccionesConItems.length]);
 
   if (!allItems.length) {
@@ -1318,6 +1337,20 @@ function CartPage() {
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
       <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🛒 Carrito</h2>
       {testMode && <div style={{ background: 'var(--warning)', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
+      {showMixPopup && (
+        <div className="modal-overlay" onClick={() => setShowMixPopup(false)} style={{ zIndex: 3000 }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
+            <div style={{ padding: '28px 24px' }}>
+              <div style={{ fontSize: 44, marginBottom: 12 }}>🏪</div>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Tenés productos de {seccionesConItems.length} tiendas</h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
+                Cada tienda se despacha por <strong>separado</strong> desde su propio depósito y cotiza su <strong>propio envío</strong>. Vas a ver un solo total, pero vas a recibir <strong>un pedido por cada tienda</strong>. Los productos no se mezclan en un mismo envío.
+              </p>
+              <button className="btn btn-primary" onClick={() => setShowMixPopup(false)} style={{ width: '100%' }}>Entendido</button>
+            </div>
+          </div>
+        </div>
+      )}
       {seccionesConItems.length > 1 && <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>ℹ️ Tenés productos de {seccionesConItems.length} tiendas. Se genera un pedido separado por cada una (no se mezclan).</div>}
 
       {seccionesConItems.map(sec => {
@@ -1363,7 +1396,7 @@ function CartPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
-                  <span style={{ padding: '6px 8px', fontWeight: 800, fontSize: 13, borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>{i.qty}</span>
+                  <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v)); }} style={{ width: 48, padding: '6px 4px', fontWeight: 800, fontSize: 13, textAlign: 'center', border: 'none', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderRadius: 0, background: 'transparent' }} />
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                 </div>
                 <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
@@ -1553,7 +1586,7 @@ function ProductDetailPage() {
             <div className="pdp-buy">
               <div className="pdp-qty">
                 <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-                <span>{qty}</span>
+                <input type="number" min="1" value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))} style={{ width: 54, textAlign: 'center', border: 'none', background: 'transparent', fontWeight: 800, fontSize: 16, padding: '12px 4px' }} />
                 <button onClick={() => setQty(qty + 1)}>+</button>
               </div>
               <button className="btn pdp-add" onClick={() => { addToCart(sec?.id || p.seccion_id, p, qty, precioFinal); toast('Agregado al carrito'); }}>
@@ -2405,6 +2438,17 @@ function AdminPedidos() {
   const [ordTab, setOrdTab] = useState('pedidos');
   const [viewOrder, setViewOrder] = useState(null);
 
+  // Abrir pedido directo desde QR del remito (?pedido=X)
+  useEffect(() => {
+    const handler = async () => {
+      const id = window.__openPedido;
+      if (id) { try { const full = await api.getPedido(id); setViewOrder(full); } catch {} window.__openPedido = null; }
+    };
+    window.addEventListener('open-pedido', handler);
+    if (window.__openPedido) handler();
+    return () => window.removeEventListener('open-pedido', handler);
+  }, []);
+
   const load = (tab) => {
     const t = tab || ordTab;
     const params = { all: true, seccion_id: adminSeccion !== 'all' ? adminSeccion : null };
@@ -2465,7 +2509,7 @@ function AdminPedidos() {
 
 // ─── ORDER DETAIL MODAL (full: edit items, print, clone, WA, assign client) ───
 function OrderDetailModal({ order: initOrder, onClose }) {
-  const { toast, listas, getPrice, userLista, openWA } = useContext(Ctx);
+  const { toast, listas, getPrice, userLista, openWA, config } = useContext(Ctx);
   const [o, setO] = useState(initOrder);
   const [items, setItems] = useState([]);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -2522,7 +2566,22 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   };
 
   const changeEstado = async (estado) => {
-    try { await api.updatePedido(o.id, { estado }); setO({ ...o, estado }); toast('Estado actualizado'); } catch (e) { toast(e.message, 'error'); }
+    try {
+      await api.updatePedido(o.id, { estado });
+      setO({ ...o, estado });
+      toast('Estado actualizado');
+      // Notificación opcional al cliente
+      const mensajes = {
+        preparando: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} está siendo preparado 📦`,
+        listo: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} está listo ✅`,
+        entregado: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue entregado 🎉 ¡Gracias por tu compra!`,
+        cancelado: `Hola ${o.usuario_nombre || ''}, tu pedido #${o.id} fue cancelado. Cualquier duda escribinos.`,
+      };
+      const msg = mensajes[estado];
+      if (msg && o.usuario_telefono && confirm(`¿Notificar al cliente por WhatsApp que el pedido está "${estado}"?`)) {
+        window.open(waLink('54' + String(o.usuario_telefono).replace(/\D/g, ''), msg), '_blank');
+      }
+    } catch (e) { toast(e.message, 'error'); }
   };
 
   const cloneOrder = async () => {
@@ -2532,16 +2591,54 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  const printOrder = () => {
+  const printOrder = (format = 'A4') => {
+    const logo = config.logo_url || '';
+    const biz = config.nombre_tienda || 'Tienda';
+    const isSmall = format !== 'A4';
+    const widths = { A4: '210mm', '58mm': '58mm', '80mm': '80mm' };
+    const fontSize = isSmall ? '10px' : '13px';
+    const pagado = o.estado_pago === 'pagado' || o.pagado;
+    // URL del pedido para el QR (abre el pedido en el panel)
+    const pedidoUrl = `${window.location.origin}/?pedido=${o.id}`;
+    const qrSize = isSmall ? 90 : 120;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(pedidoUrl)}`;
+    const rows = items.map(i =>
+      `<tr><td style="padding:3px 4px;border-bottom:1px solid #eee">${itemName(i)}</td><td style="text-align:center;border-bottom:1px solid #eee">${i.qty}</td><td style="text-align:right;border-bottom:1px solid #eee">$${fmt((i.precio_unitario || 0) * i.qty)}</td></tr>`
+    ).join('');
     const w = window.open('', '_blank');
-    w.document.write(`<html><head><title>Pedido #${o.id}</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f5f5f5}</style></head><body>`);
-    w.document.write(`<h2>Pedido #${o.id}</h2><p>Cliente: ${o.usuario_nombre || ''} ${o.nombre_fantasia ? `(${o.nombre_fantasia})` : ''}<br>Fecha: ${new Date(o.created_at).toLocaleString('es-AR')}<br>Estado: ${o.estado}<br>Método: ${o.metodo_pago || '-'}</p>`);
-    w.document.write('<table><thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>');
-    items.forEach(i => w.document.write(`<tr><td>${itemName(i)}</td><td>${i.qty}</td><td>$${fmt(i.precio_unitario)}</td><td>$${fmt(i.precio_unitario * i.qty)}</td></tr>`));
-    w.document.write(`</tbody></table><p style="text-align:right;font-size:18px"><strong>Total: $${fmt(editTotal)}</strong></p>`);
-    if (o.notas) w.document.write(`<p>Notas: ${o.notas}</p>`);
-    w.document.write('</body></html>');
-    w.document.close(); w.print();
+    w.document.write(`<!DOCTYPE html><html><head><title>Remito #${o.id}</title><style>
+      @page{size:${widths[format]};margin:${isSmall ? '3mm' : '12mm'}}
+      body{font-family:Arial,sans-serif;font-size:${fontSize};margin:0;padding:${isSmall ? '4px' : '0'};color:#111}
+      table{width:100%;border-collapse:collapse;margin-top:6px}
+      th{text-align:left;border-bottom:2px solid #333;padding:4px;font-size:${isSmall ? '10px' : '12px'}}
+      .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+      .biz{font-size:${isSmall ? '15px' : '22px'};font-weight:800;margin:0}
+      .badge{display:inline-block;padding:3px 12px;border-radius:6px;font-weight:800;font-size:${isSmall ? '11px' : '13px'};color:#fff}
+    </style></head><body>
+      <div class="head">
+        <div>
+          ${logo ? `<img src="${logo}" style="max-height:${isSmall ? '34px' : '58px'};margin-bottom:4px">` : ''}
+          <h1 class="biz">${biz}</h1>
+          <p style="margin:2px 0;color:#555">Remito / Pedido #${o.id}</p>
+        </div>
+        <div style="text-align:center">
+          <img src="${qrUrl}" width="${qrSize}" height="${qrSize}" style="display:block">
+          <span style="font-size:9px;color:#888">Escaneá para abrir</span>
+        </div>
+      </div>
+      <p style="margin:6px 0 2px">${new Date(o.created_at).toLocaleString('es-AR')}</p>
+      <p style="margin:2px 0"><strong>${o.usuario_nombre || 'Cliente'}</strong> ${o.nombre_fantasia ? `(${o.nombre_fantasia})` : ''}${o.usuario_telefono ? ` · ${o.usuario_telefono}` : ''}</p>
+      <p style="margin:2px 0">${o.tipo_entrega === 'retiro' ? 'Retiro en local' : 'Envío'}${o.direccion ? ` — ${o.direccion}` : ''}</p>
+      <p style="margin:6px 0">
+        <span class="badge" style="background:${pagado ? '#16a34a' : '#dc2626'}">${pagado ? 'PAGADO' : 'IMPAGO'}</span>
+        <span style="margin-left:8px">Método: ${o.metodo_pago || '-'}</span>
+      </p>
+      <table><thead><tr><th>Producto</th><th style="text-align:center">Cant</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
+      <p style="text-align:right;font-weight:800;font-size:${isSmall ? '14px' : '19px'};margin-top:10px">TOTAL: $${fmt(editTotal)}</p>
+      ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px">Notas: ${o.notas}</p>` : ''}
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
   };
 
   const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
@@ -2616,7 +2713,8 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-            <button className="btn btn-outline btn-sm" onClick={printOrder}>🖨️ Imprimir</button>
+            <button className="btn btn-outline btn-sm" onClick={() => printOrder('A4')}><Ico n="printer" s={15} /> Remito A4</button>
+            <button className="btn btn-outline btn-sm" onClick={() => printOrder('80mm')}><Ico n="printer" s={15} /> Térmica</button>
             <button className="btn btn-outline btn-sm" onClick={cloneOrder}>📋 Duplicar</button>
             {(o.usuario_telefono) && <button className="btn btn-outline btn-sm" onClick={() => { const tel = (o.usuario_telefono || '').replace(/\D/g, ''); const num = tel.startsWith('54') ? tel : `54${tel}`; openWA(num, `Hola ${o.usuario_nombre || ''}, respecto a tu pedido #${o.id}:`); }}>📱 WhatsApp</button>}
             <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.archivarPedido(o.id); toast('Archivado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>📥 Archivar</button>
