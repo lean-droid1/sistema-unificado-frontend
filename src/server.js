@@ -524,51 +524,12 @@ app.put('/api/productos/:id', auth('admin'), async (req,res)=>{
 app.delete('/api/productos/:id', auth('admin'), async (req,res)=>{ try{ await pool.query('DELETE FROM productos WHERE id=$1', [req.params.id]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
 app.post('/api/productos/bulk', auth('admin'), async (req,res)=>{
   try{
-    const {productos, modo, faltantes, seccion_id} = req.body;
-    // modo: 'crear_actualizar' | 'solo_nuevos' | 'reemplazar'
-    // faltantes: 'sin_stock' | 'no_tocar'  (qué hacer con productos de la sección que NO vinieron en el excel)
-    const lista = productos || [];
-    let insertados = 0, actualizados = 0, saltados = 0, marcadosSinStock = 0;
-
-    if(modo === 'reemplazar'){
-      // borra solo los de la sección importada (o todos si no hay seccion_id)
-      if(seccion_id){ await pool.query('DELETE FROM productos WHERE seccion_id=$1', [seccion_id]); }
-      else { await pool.query('DELETE FROM producto_imagenes'); await pool.query('DELETE FROM productos'); }
+    const {productos, reemplazar} = req.body;
+    if(reemplazar){ await pool.query('DELETE FROM producto_imagenes'); await pool.query('DELETE FROM pedido_items'); await pool.query('DELETE FROM productos'); }
+    for(const p of (productos||[])){
+      await pool.query(`INSERT INTO productos (seccion_id,categoria,modelo,nombre,precio_base,stock,imagen,sku,descripcion,compatibilidad,peso,alto,ancho,largo,visible,permitir_sin_stock,es_digital) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) ON CONFLICT DO NOTHING`, [p.seccion_id||1, p.categoria||'', p.modelo||'', p.nombre||p.modelo||'', p.precio_base||0, p.stock||0, p.imagen||'', p.sku||'', p.descripcion||'', p.compatibilidad||'', p.peso||0, p.alto||0, p.ancho||0, p.largo||0, true, p.permitir_sin_stock||false, p.es_digital||false]);
     }
-
-    // SKUs presentes en el excel (para el manejo de faltantes)
-    const skusExcel = new Set(lista.map(p => (p.sku||'').trim()).filter(Boolean));
-
-    for(const p of lista){
-      const sku = (p.sku||'').trim();
-      // stock 0 → sin stock automático (visible false lo maneja el front; acá guardamos stock)
-      const stock = Number(p.stock)||0;
-      let existente = null;
-      if(sku){ const {rows} = await pool.query('SELECT id FROM productos WHERE sku=$1 AND seccion_id=$2 LIMIT 1', [sku, p.seccion_id||seccion_id||1]); existente = rows[0]; }
-
-      if(existente){
-        if(modo === 'solo_nuevos'){ saltados++; continue; }
-        // crear_actualizar: actualiza campos del excel
-        await pool.query(`UPDATE productos SET categoria=$1, modelo=$2, nombre=$3, precio_base=$4, precio_oferta=$5, stock=$6, descripcion=COALESCE(NULLIF($7,''),descripcion), peso=$8, alto=$9, ancho=$10, largo=$11 WHERE id=$12`,
-          [p.categoria||'', p.modelo||'', p.nombre||p.modelo||'', p.precio_base||0, p.precio_oferta||0, stock, p.descripcion||'', p.peso||0, p.alto||0, p.ancho||0, p.largo||0, existente.id]);
-        actualizados++;
-      } else {
-        await pool.query(`INSERT INTO productos (seccion_id,categoria,modelo,nombre,precio_base,precio_oferta,stock,imagen,sku,descripcion,compatibilidad,peso,alto,ancho,largo,visible,permitir_sin_stock,es_digital) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-          [p.seccion_id||seccion_id||1, p.categoria||'', p.modelo||'', p.nombre||p.modelo||'', p.precio_base||0, p.precio_oferta||0, stock, p.imagen||'', sku, p.descripcion||'', p.compatibilidad||'', p.peso||0, p.alto||0, p.ancho||0, p.largo||0, true, false, false]);
-        insertados++;
-      }
-    }
-
-    // Faltantes: productos de la sección que NO vinieron en el excel
-    if(faltantes === 'sin_stock' && (seccion_id) && skusExcel.size){
-      const {rows} = await pool.query('SELECT id,sku FROM productos WHERE seccion_id=$1', [seccion_id]);
-      for(const row of rows){
-        const s = (row.sku||'').trim();
-        if(s && !skusExcel.has(s)){ await pool.query('UPDATE productos SET stock=0 WHERE id=$1', [row.id]); marcadosSinStock++; }
-      }
-    }
-
-    res.json({ok:true, insertados, actualizados, saltados, marcadosSinStock});
+    res.json({ok:true, count: productos.length, insertados: productos.length});
   }catch(e){ res.status(500).json({error:e.message}); }
 });
 app.delete('/api/categorias/:categoria', auth('admin'), async (req,res)=>{ try{ await pool.query('DELETE FROM productos WHERE categoria=$1', [req.params.categoria]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
@@ -650,7 +611,10 @@ app.get('/api/pedidos/:id', auth(), async (req,res)=>{ try{ const {rows}=await p
 app.post('/api/pedidos', auth(), async (req,res)=>{
   const client=await pool.connect();
   try{
-    const {seccion_id,items,tipo,metodo_pago,notas,cupon_codigo,subtotal,descuento,total,datos_envio,notificar_wa,costo_envio,metodo_envio,cp_destino,is_test}=req.body;
+    const {seccion_id,items,tipo,metodo_pago,notas,cupon_codigo,subtotal,descuento,total,datos_envio,notificar_wa,costo_envio,metodo_envio,cp_destino,is_test,usuario_id}=req.body;
+    // Si es admin/subadmin y manda usuario_id (ej presupuesto para un cliente), usarlo; si no, el usuario logueado
+    const esAdmin = ['admin','subadmin'].includes(req.user.rol);
+    const pedidoUserId = (esAdmin && usuario_id !== undefined) ? usuario_id : req.user.id;
     await client.query('BEGIN');
     // Validar stock si corresponde
     for(const item of (items||[])){
@@ -664,7 +628,7 @@ app.post('/api/pedidos', auth(), async (req,res)=>{
       }
     }
     const {rows}=await client.query('INSERT INTO pedidos (usuario_id,seccion_id,tipo,metodo_pago,notas,cupon_codigo,subtotal,descuento,total,datos_envio,notificar_wa,costo_envio,metodo_envio,cp_destino,is_test) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
-      [req.user.id, seccion_id, tipo||'pedido', metodo_pago||'', notas||'', cupon_codigo||'', subtotal||0, descuento||0, total||0, datos_envio||'', notificar_wa!==false, costo_envio||0, metodo_envio||'', cp_destino||'', is_test||false]);
+      [pedidoUserId, seccion_id, tipo||'pedido', metodo_pago||'', notas||'', cupon_codigo||'', subtotal||0, descuento||0, total||0, datos_envio||'', notificar_wa!==false, costo_envio||0, metodo_envio||'', cp_destino||'', is_test||false]);
     for(const item of (items||[])){
       await client.query('INSERT INTO pedido_items (pedido_id,producto_id,categoria,modelo,nombre_producto,cantidad,precio_unitario,precio_base) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
         [rows[0].id, item.producto_id, item.categoria||'', item.modelo||'', item.nombre_producto||'', item.cantidad||1, item.precio_unitario||0, item.precio_base||0]);

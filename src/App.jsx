@@ -1992,6 +1992,15 @@ function AdminProductos() {
         <input placeholder="Buscar productos..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ flex: 1 }} />
       </div>
 
+      {/* Alerta de stock bajo */}
+      {(() => {
+        const bajos = productos.filter(p => p.stock_minimo > 0 && p.stock <= p.stock_minimo);
+        if (!bajos.length) return null;
+        return <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Ico n="bell" s={16} /> {bajos.length} producto{bajos.length > 1 ? 's' : ''} con stock bajo el mínimo: {bajos.slice(0, 5).map(p => p.nombre || p.modelo).join(', ')}{bajos.length > 5 ? '...' : ''}
+        </div>;
+      })()}
+
       {/* Product table */}
       <div style={{ overflowX: 'auto' }}>
         <table className="admin-table">
@@ -2009,7 +2018,7 @@ function AdminProductos() {
                 {secFiltro === 'all' && <td><span style={{ fontSize: 11, background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>{secNombre}</span></td>}
                 <td><input type="number" defaultValue={p.precio_base} onBlur={e => inlineUpdate(p.id, 'precio_base', Number(e.target.value))} style={{ width: 80 }} /></td>
                 <td><input type="number" defaultValue={p.precio_oferta || ''} onBlur={e => inlineUpdate(p.id, 'precio_oferta', Number(e.target.value))} style={{ width: 80 }} /></td>
-                <td><input type="number" defaultValue={p.stock} onBlur={e => inlineUpdate(p.id, 'stock', Number(e.target.value))} style={{ width: 60 }} /></td>
+                <td><input type="number" defaultValue={p.stock} onBlur={e => inlineUpdate(p.id, 'stock', Number(e.target.value))} style={{ width: 60, ...(p.stock_minimo > 0 && p.stock <= p.stock_minimo ? { borderColor: 'var(--danger)', color: 'var(--danger)', fontWeight: 700 } : {}) }} title={p.stock_minimo > 0 && p.stock <= p.stock_minimo ? `Stock bajo (mínimo: ${p.stock_minimo})` : ''} /></td>
                 <td><input type="checkbox" defaultChecked={p.visible !== false} onChange={e => inlineUpdate(p.id, 'visible', e.target.checked)} /></td>
                 <td>
                   <button className="btn btn-outline btn-sm" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} style={{ padding: '2px 6px' }} title="Variantes"><Ico n="shuffle" s={15} /></button>
@@ -2432,11 +2441,99 @@ function PriceHistoryModal({ onClose }) {
 }
 
 // ─── ADMIN: Pedidos (4 tabs + full OrderDetailModal) ───
+function PresupuestoModal({ onClose }) {
+  const { secciones, toast } = useContext(Ctx);
+  const [cliente, setCliente] = useState(null);
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [clientes, setClientes] = useState([]);
+  const [seccionId, setSeccionId] = useState(secciones[0]?.id);
+  const [items, setItems] = useState([]);
+  const [addSearch, setAddSearch] = useState('');
+  const [results, setResults] = useState([]);
+  const [notas, setNotas] = useState('');
+  const [saving, setSaving] = useState(false);
+  const timer = useRef(null);
+
+  useEffect(() => { if (clienteSearch.length >= 2) api.getUsuarios(clienteSearch).then(setClientes).catch(() => {}); else setClientes([]); }, [clienteSearch]);
+  useEffect(() => {
+    clearTimeout(timer.current);
+    if (addSearch.length < 2) { setResults([]); return; }
+    timer.current = setTimeout(() => api.buscarProductosAdmin(addSearch).then(setResults).catch(() => {}), 400);
+  }, [addSearch]);
+
+  const total = items.reduce((s, i) => s + (Number(i.precio_unitario) || 0) * i.qty, 0);
+  const addItem = (p) => {
+    setItems(prev => { const ex = prev.find(i => i.producto_id === p.id); if (ex) return prev.map(i => i.producto_id === p.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { producto_id: p.id, categoria: p.categoria, modelo: p.modelo, nombre_producto: p.nombre || p.modelo, qty: 1, precio_unitario: p.precio_base, precio_base: p.precio_base }]; });
+    setAddSearch(''); setResults([]);
+  };
+  const setQty = (id, qty) => setItems(items.map(i => i.producto_id === id ? { ...i, qty: Math.max(1, qty) } : i));
+  const setPrecio = (id, precio) => setItems(items.map(i => i.producto_id === id ? { ...i, precio_unitario: Number(precio) || 0 } : i));
+
+  const guardar = async () => {
+    if (!items.length) { toast('Agregá al menos un producto', 'error'); return; }
+    setSaving(true);
+    try {
+      await api.createPedido({
+        usuario_id: cliente?.id || null, seccion_id: seccionId, tipo: 'presupuesto', estado: 'pendiente',
+        notas: notas || (cliente ? '' : `Presupuesto para ${clienteSearch || 'consumidor final'}`),
+        items: items.map(i => ({ producto_id: i.producto_id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre_producto, cantidad: i.qty, precio_unitario: i.precio_unitario, precio_base: i.precio_base })),
+        subtotal: total, total,
+      });
+      toast('Presupuesto creado'); onClose();
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}><div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
+      <div className="modal-header"><span className="modal-title">Nuevo presupuesto</span><button className="modal-close" onClick={onClose}>✕</button></div>
+      <div className="modal-body">
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Sección</label><select value={seccionId} onChange={e => setSeccionId(Number(e.target.value))}>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></div>
+          <div className="form-group"><label className="form-label">Cliente (opcional)</label>
+            {cliente ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--border-light)', borderRadius: 'var(--radius-pill)' }}>
+                <span style={{ flex: 1, fontWeight: 600 }}>{cliente.nombre}</span>
+                <button className="btn btn-outline btn-sm" onClick={() => { setCliente(null); setClienteSearch(''); }}>Cambiar</button>
+              </div>
+            ) : (
+              <>
+                <input placeholder="Buscar cliente..." value={clienteSearch} onChange={e => setClienteSearch(e.target.value)} />
+                {clientes.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 120, overflowY: 'auto' }}>{clientes.slice(0, 6).map(c => <button key={c.id} onClick={() => { setCliente(c); setClientes([]); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-light)', cursor: 'pointer', color: 'var(--text)' }}>{c.nombre} {c.nombre_fantasia && `(${c.nombre_fantasia})`}</button>)}</div>}
+              </>
+            )}
+          </div>
+        </div>
+        <div className="form-group"><label className="form-label">Agregar productos</label>
+          <input placeholder="Buscar producto..." value={addSearch} onChange={e => setAddSearch(e.target.value)} />
+          {results.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: 'auto' }}>{results.slice(0, 8).map(p => <button key={p.id} onClick={() => addItem(p)} style={{ display: 'flex', justifyContent: 'space-between', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-light)', cursor: 'pointer', color: 'var(--text)' }}><span>{p.nombre || p.modelo}</span><span style={{ fontWeight: 700 }}>{fmtARS(p.precio_base)}</span></button>)}</div>}
+        </div>
+        {items.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            {items.map(i => (
+              <div key={i.producto_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-light)' }}>
+                <span style={{ flex: 1, fontSize: 13 }}>{i.nombre_producto}</span>
+                <input type="number" min="1" value={i.qty} onChange={e => setQty(i.producto_id, parseInt(e.target.value) || 1)} style={{ width: 56, textAlign: 'center' }} />
+                <input type="number" value={i.precio_unitario} onChange={e => setPrecio(i.producto_id, e.target.value)} style={{ width: 90, textAlign: 'right' }} />
+                <button className="btn btn-danger btn-sm" onClick={() => setItems(items.filter(x => x.producto_id !== i.producto_id))} style={{ padding: '2px 8px' }}>✕</button>
+              </div>
+            ))}
+            <p style={{ textAlign: 'right', fontWeight: 800, fontSize: 18, marginTop: 8 }}>Total: {fmtARS(total)}</p>
+          </div>
+        )}
+        <div className="form-group" style={{ marginTop: 8 }}><label className="form-label">Notas</label><textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} /></div>
+      </div>
+      <div className="modal-footer"><button className="btn btn-outline" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Crear presupuesto'}</button></div>
+    </div></div>
+  );
+}
+
 function AdminPedidos() {
   const { adminSeccion, toast, testMode } = useContext(Ctx);
   const [pedidos, setPedidos] = useState([]);
   const [ordTab, setOrdTab] = useState('pedidos');
   const [viewOrder, setViewOrder] = useState(null);
+  const [showPresupuesto, setShowPresupuesto] = useState(false);
 
   // Abrir pedido directo desde QR del remito (?pedido=X)
   useEffect(() => {
@@ -2480,7 +2577,10 @@ function AdminPedidos() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>Pedidos</h3>
-        <button className="btn btn-outline btn-sm" onClick={exportCSV}>📤 Exportar CSV</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {ordTab === 'presupuestos' && <button className="btn btn-primary btn-sm" onClick={() => setShowPresupuesto(true)}>+ Nuevo presupuesto</button>}
+          <button className="btn btn-outline btn-sm" onClick={exportCSV}>📤 Exportar CSV</button>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {tabs.map(t => <button key={t.id} className={`btn btn-sm ${ordTab === t.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => changeTab(t.id)}>{t.label}</button>)}
@@ -2503,6 +2603,7 @@ function AdminPedidos() {
       ))}
       {pedidos.length === 0 && <div className="empty-state"><h3>No hay {ordTab}</h3></div>}
       {viewOrder && <OrderDetailModal order={viewOrder} onClose={() => { setViewOrder(null); load(); }} />}
+      {showPresupuesto && <PresupuestoModal onClose={() => { setShowPresupuesto(false); changeTab('presupuestos'); }} />}
     </div>
   );
 }
@@ -2716,6 +2817,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             <button className="btn btn-outline btn-sm" onClick={() => printOrder('A4')}><Ico n="printer" s={15} /> Remito A4</button>
             <button className="btn btn-outline btn-sm" onClick={() => printOrder('80mm')}><Ico n="printer" s={15} /> Térmica</button>
             <button className="btn btn-outline btn-sm" onClick={cloneOrder}>📋 Duplicar</button>
+            {o.tipo === 'presupuesto' && <button className="btn btn-success btn-sm" onClick={async () => { try { await api.updatePedido(o.id, { tipo: 'pedido', estado: 'pendiente' }); toast('Convertido a pedido'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>✓ Convertir a pedido</button>}
             {(o.usuario_telefono) && <button className="btn btn-outline btn-sm" onClick={() => { const tel = (o.usuario_telefono || '').replace(/\D/g, ''); const num = tel.startsWith('54') ? tel : `54${tel}`; openWA(num, `Hola ${o.usuario_nombre || ''}, respecto a tu pedido #${o.id}:`); }}>📱 WhatsApp</button>}
             <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.archivarPedido(o.id); toast('Archivado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>📥 Archivar</button>
             <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar este pedido?')) return; try { await api.deletePedido(o.id); toast('Eliminado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>🗑 Eliminar</button>
