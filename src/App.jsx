@@ -1928,10 +1928,22 @@ function AccountPanel() {
 // ADMIN PANEL (with sidebar!)
 // ═══════════════════════════════════════════════════════════
 function AdminPanel() {
-  const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav } = useContext(Ctx);
+  const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const tabGroups = [
+  // Permisos: admin ve todo; subadmin solo lo que tenga. Cada tab mapea a un permiso.
+  const esAdmin = user?.rol === 'admin';
+  const misPermisos = esAdmin ? null : String(user?.permisos || '').split(',').filter(Boolean);
+  const puede = (perm) => esAdmin || (misPermisos || []).includes(perm);
+  // Mapa tab → permiso requerido
+  const tabPerm = {
+    dashboard: 'stats', pedidos: 'pedidos', productos: 'productos', usuarios: 'usuarios',
+    leads: 'stats', listas: 'listas', cupones: 'config', promociones: 'config',
+    diseno: 'config', barras: 'config', contactos: 'config', menu: 'config', paginas: 'config',
+    popups: 'config', badges: 'config', metodos_pago: 'config', redes: 'config', envios: 'config',
+  };
+
+  const tabGroupsAll = [
     { label: 'Inicio', tabs: [{ id: 'dashboard', label: 'Estadísticas', icon: '📊' }] },
     { label: 'Administración', tabs: [
       { id: 'pedidos', label: 'Ventas', icon: '🧾' },
@@ -1955,7 +1967,14 @@ function AdminPanel() {
       { id: 'envios', label: 'Envíos custom', icon: '🚚' },
     ]},
   ];
+  // Filtrar por permisos y quitar grupos vacíos
+  const tabGroups = tabGroupsAll.map(g => ({ ...g, tabs: g.tabs.filter(t => puede(tabPerm[t.id])) })).filter(g => g.tabs.length > 0);
   const tabs = tabGroups.flatMap(g => g.tabs);
+
+  // Si el tab activo no está permitido, saltar al primero disponible
+  useEffect(() => {
+    if (tabs.length && !tabs.find(t => t.id === adminTab)) setAdminTab(tabs[0].id);
+  }, [adminTab, tabs.length]);
 
   return (
     <div className="admin-layout">
@@ -2704,12 +2723,39 @@ function AdminPedidos() {
   const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
   const colores = { pendiente: 'var(--warning)', preparando: 'var(--primary)', listo: '#8b5cf6', entregado: 'var(--success)', cancelado: 'var(--danger)' };
 
-  // Export CSV
-  const exportCSV = () => {
-    const rows = [['ID', 'Fecha', 'Cliente', 'Estado', 'Total', 'Método pago'].join(',')];
-    pedidos.forEach(p => rows.push([p.id, new Date(p.created_at).toLocaleDateString('es-AR'), p.usuario_nombre || '', p.estado, p.total, p.metodo_pago || ''].join(',')));
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pedidos.csv'; a.click();
+  // Export Excel con detalle por ítem (2 hojas: Resumen + Detalle)
+  const exportExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      // Traer items de cada pedido
+      const detalle = [];
+      const resumen = [];
+      for (const p of pedidos) {
+        const fecha = new Date(p.created_at).toLocaleDateString('es-AR');
+        resumen.push({
+          ID: p.id, Fecha: fecha, Cliente: p.usuario_nombre || '', Fantasía: p.nombre_fantasia || '',
+          Teléfono: p.usuario_telefono || '', Sección: p.seccion_nombre || '', Estado: p.estado,
+          Subtotal: Number(p.subtotal) || 0, Descuento: Number(p.descuento) || 0,
+          Envío: Number(p.costo_envio) || 0, Total: Number(p.total) || 0,
+          'Método pago': p.metodo_pago || '', Notas: p.notas || ''
+        });
+        try {
+          const full = await api.getPedido(p.id);
+          (full.items || []).forEach(it => detalle.push({
+            'Pedido ID': p.id, Fecha: fecha, Cliente: p.usuario_nombre || '',
+            Producto: it.nombre_producto || '', Categoría: it.categoria || '', Modelo: it.modelo || '',
+            Cantidad: it.cantidad || 0, 'Precio unit.': Number(it.precio_unitario) || 0,
+            Subtotal: (Number(it.precio_unitario) || 0) * (it.cantidad || 0)
+          }));
+        } catch {}
+      }
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalle), 'Detalle por ítem');
+      const fname = `pedidos_${ordTab}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fname);
+      toast('Excel generado');
+    } catch (e) { toast('Error exportando: ' + e.message, 'error'); }
   };
 
   return (
@@ -2718,7 +2764,7 @@ function AdminPedidos() {
         <h3>Pedidos</h3>
         <div style={{ display: 'flex', gap: 6 }}>
           {ordTab === 'presupuestos' && <button className="btn btn-primary btn-sm" onClick={() => setShowPresupuesto(true)}>+ Nuevo presupuesto</button>}
-          <button className="btn btn-outline btn-sm" onClick={exportCSV}>📤 Exportar CSV</button>
+          <button className="btn btn-outline btn-sm" onClick={exportExcel}>📊 Exportar Excel</button>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
