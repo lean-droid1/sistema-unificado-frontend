@@ -74,7 +74,7 @@ function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [customShipping, setCustomShipping] = useState([]);
-  const { toast } = useContext(Ctx);
+  const { toast, config } = useContext(Ctx);
 
   useEffect(() => {
     api.getEnvioCustom(seccionId).then(setCustomShipping).catch(() => {});
@@ -98,6 +98,7 @@ function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
         <Truck size={18} /> Calculá el costo de envío
       </div>
+      {config?.aclaracion_envios && <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--border-light)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>ℹ️ {config.aclaracion_envios}</div>}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input value={cp} onChange={e => setCp(e.target.value)} placeholder="Tu código postal" maxLength={8}
           style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14 }}
@@ -2184,7 +2185,45 @@ function AdminOrdenesCompra() {
   return <div className="card" style={{ padding: 24 }}><h3>Órdenes de compra</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Compras a proveedores (stock entrante). Se implementa en la próxima etapa.</p></div>;
 }
 function AdminReglasCompra() {
-  return <div className="card" style={{ padding: 24 }}><h3>Reglas de compra</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Compra mínima por sección. Se mueve acá en la próxima etapa.</p></div>;
+  const { secciones, toast, config, setConfig } = useContext(Ctx);
+  const [minimos, setMinimos] = useState({});
+  const [saving, setSaving] = useState(null);
+  useEffect(() => {
+    const d = {}; secciones.forEach(s => { d[s.id] = config[`compra_minima_${s.id}`] || ''; }); setMinimos(d);
+  }, [secciones, config]);
+
+  const save = async (sec) => {
+    setSaving(sec.id);
+    try {
+      const upd = { [`compra_minima_${sec.id}`]: String(minimos[sec.id] || 0) };
+      await api.updateConfig(upd);
+      setConfig({ ...config, ...upd });
+      toast(`Compra mínima de ${sec.nombre} guardada`);
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(null);
+  };
+
+  return (
+    <div>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Reglas de compra</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Definí un monto mínimo de compra por sección. El cliente no podrá cerrar el pedido si no lo alcanza (se le muestra una barra de progreso en el carrito). Dejá 0 para no exigir mínimo.</p>
+      {secciones.map(s => (
+        <div key={s.id} className="card" style={{ padding: 16, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
+            {Number(minimos[s.id]) > 0
+              ? <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 2 }}>Mínimo activo: {fmtARS(Number(minimos[s.id]))}</div>
+              : <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Sin mínimo (se puede comprar cualquier monto)</div>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>$</span>
+            <input type="number" value={minimos[s.id] ?? ''} onChange={e => setMinimos({ ...minimos, [s.id]: e.target.value })} placeholder="0" style={{ width: 130 }} />
+            <button className="btn btn-primary btn-sm" onClick={() => save(s)} disabled={saving === s.id}>{saving === s.id ? '...' : 'Guardar'}</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ─── ADMIN: Dashboard ───
@@ -4191,16 +4230,40 @@ function FavoritosPage() {
 
 // ─── ADMIN: Envíos Custom ───
 function AdminEnviosCustom() {
-  const { secciones, toast } = useContext(Ctx);
+  const { secciones, toast, config, setConfig } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);
   const [form, setForm] = useState({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 });
   const [edit, setEdit] = useState(null);
+  const [sub, setSub] = useState('metodos');
+  const [aclaracion, setAclaracion] = useState('');
   const load = () => api.getEnvioCustomAll().then(setItems).catch(() => {});
   useEffect(() => { load(); }, []);
+  useEffect(() => { setAclaracion(config.aclaracion_envios || ''); }, [config]);
   const save = async () => { if (!form.nombre?.trim()) { toast('Nombre obligatorio', 'error'); return; } try { if (edit) await api.updateEnvioCustom(edit.id, form); else await api.createEnvioCustom(form); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const saveAclaracion = async () => { try { await api.updateConfig({ aclaracion_envios: aclaracion }); setConfig({ ...config, aclaracion_envios: aclaracion }); toast('Aclaración guardada'); } catch (e) { toast(e.message, 'error'); } };
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de envío custom</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 16 }}>Envíos</h3>
+      <div className="admin-subtabs">
+        <button className={`admin-subtab ${sub === 'metodos' ? 'active' : ''}`} onClick={() => setSub('metodos')}>Métodos de envío</button>
+        <button className={`admin-subtab ${sub === 'gratis' ? 'active' : ''}`} onClick={() => setSub('gratis')}>Envío gratis y stock</button>
+        <button className={`admin-subtab ${sub === 'aclaracion' ? 'active' : ''}`} onClick={() => setSub('aclaracion')}>Aclaraciones</button>
+      </div>
+
+      {sub === 'gratis' && <SectionStockConfig />}
+
+      {sub === 'aclaracion' && (
+        <div className="card" style={{ padding: 16 }}>
+          <h4 style={{ marginBottom: 4 }}>Aclaraciones sobre envíos</h4>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Este texto aparece en el checkout, arriba de los métodos de envío. Ej: horarios de despacho, avisar antes de retirar, etc.</p>
+          <textarea value={aclaracion} onChange={e => setAclaracion(e.target.value)} rows={3} style={{ width: '100%', marginBottom: 10 }} placeholder="Armado y despacho de pedidos 24/48hs. Avisar antes de retirar por el local." />
+          <button className="btn btn-primary btn-sm" onClick={saveAclaracion}>Guardar aclaración</button>
+        </div>
+      )}
+
+      {sub === 'metodos' && <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h4>Métodos de envío custom</h4><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aparecen junto a Andreani en el checkout. Ej: Uber Moto CABA, Retiro Local, Didi.</p>
       {items.map(m => (
         <div key={m.id} className="card" style={{ padding: 12, marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -4231,6 +4294,7 @@ function AdminEnviosCustom() {
           <button className="btn btn-primary" onClick={save} style={{ width: '100%' }}>Guardar</button>
         </div></div>
       )}
+      </>}
     </div>
   );
 }
@@ -4240,13 +4304,12 @@ function AdminEnviosCustom() {
 function SectionStockConfig() {
   const { secciones, setSecciones, toast, config, setConfig } = useContext(Ctx);
   const [secData, setSecData] = useState({});
-  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888', gratis_desde: config[`envio_gratis_desde_${s.id}`] || '', compra_minima: config[`compra_minima_${s.id}`] || '' }; }); setSecData(d); }, [secciones, config]);
+  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888', gratis_desde: config[`envio_gratis_desde_${s.id}`] || '' }; }); setSecData(d); }, [secciones, config]);
   const saveSec = async (sec) => {
     try {
       const d = secData[sec.id];
       await api.updateSeccion(sec.id, { ...sec, ignorar_stock: d.ignorar_stock, permitir_sin_stock: d.permitir_sin_stock, cp_origen: d.cp_origen });
-      // FIX #10: envio gratis desde $X se guarda en config
-      const upd = { [`envio_gratis_desde_${sec.id}`]: String(d.gratis_desde || 0), [`compra_minima_${sec.id}`]: String(d.compra_minima || 0) };
+      const upd = { [`envio_gratis_desde_${sec.id}`]: String(d.gratis_desde || 0) };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
       toast(`${sec.nombre} actualizada`);
@@ -4255,7 +4318,8 @@ function SectionStockConfig() {
   };
   return (
     <div className="card" style={{ padding: 16, marginTop: 16 }}>
-      <h4 style={{ marginBottom: 12 }}>📦 Config por sección (stock y envío)</h4>
+      <h4 style={{ marginBottom: 4 }}>Envío gratis y stock por sección</h4>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>El "envío gratis desde" muestra una barra en el carrito. La compra mínima ahora se configura en Ventas → Reglas de compra.</p>
       {secciones.map(s => (
         <div key={s.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
           <strong>{s.nombre}</strong>
@@ -4269,10 +4333,6 @@ function SectionStockConfig() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <label style={{ fontSize: 12 }}>🚚 Envío gratis desde $:</label>
               <input type="number" value={secData[s.id]?.gratis_desde || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], gratis_desde: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <label style={{ fontSize: 12 }}>🛒 Compra mínima $:</label>
-              <input type="number" value={secData[s.id]?.compra_minima || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], compra_minima: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
             </div>
           </div>
           <button className="btn btn-outline btn-sm" onClick={() => saveSec(s)} style={{ marginTop: 6 }}>Guardar {s.nombre}</button>
