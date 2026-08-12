@@ -972,7 +972,7 @@ function Landing() {
 
       {/* ── SLIDER BANNERS ── estilo demo con overlay de texto */}
       {sliders.length > 0 && (
-        <div style={{ maxWidth: 1200, margin: '16px auto 0', padding: '0 20px' }}>
+        <div style={{ maxWidth: 1600, margin: '16px auto 0', padding: '0 20px' }}>
           <div className="hero-slider">
             {sliders.map((s, i) => (
               <div key={s.id} className="hero-slide" style={{ display: i === sliderIdx ? 'block' : 'none', cursor: s.url_destino ? 'pointer' : 'default' }}
@@ -1000,13 +1000,13 @@ function Landing() {
 
       {/* ── HERO ── título/subtítulo (editable desde Diseño) */}
       {(design.hero_titulo || design.hero_subtitulo) && (
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 20px 4px', textAlign: 'center' }}>
+        <div style={{ maxWidth: 1600, margin: '0 auto', padding: '28px 20px 4px', textAlign: 'center' }}>
           {design.hero_titulo && <h1 style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>{design.hero_titulo}</h1>}
           {design.hero_subtitulo && <p style={{ fontSize: 15, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 0 }}>{design.hero_subtitulo}</p>}
         </div>
       )}
       {/* Search bar is now in Header */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px 0' }}>
+      <div style={{ maxWidth: 1600, margin: '0 auto', padding: '16px 20px 0' }}>
         {/* Confianza cards — editable from Diseño, estilo demo */}
         <div className="confianza-row">
           {[1, 2, 3].map(n => {
@@ -1024,7 +1024,7 @@ function Landing() {
 
       {/* Search results (from global header search) */}
       {globalResults && (
-        <div style={{ maxWidth: 1200, margin: '20px auto', padding: '0 20px' }}>
+        <div style={{ maxWidth: 1600, margin: '20px auto', padding: '0 20px' }}>
           {globalResults.total === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No se encontraron resultados para "{globalSearch}"</p> : (
             globalResults.resultados.map(r => (
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
@@ -1049,7 +1049,7 @@ function Landing() {
         }
         if (ofertas.length === 0) return null;
         return (
-          <div style={{ maxWidth: 1200, margin: '24px auto 0', padding: '0 20px' }}>
+          <div style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>OFERTAS</span>
@@ -1067,7 +1067,7 @@ function Landing() {
         const prods = secProds[s.id] || [];
         if (!prods.length) return null;
         return (
-          <div key={s.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 20px 0' }}>
+          <div key={s.id} style={{ maxWidth: 1600, margin: '0 auto', padding: '28px 20px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{s.nombre}</h2>
               <button onClick={() => nav('section', s.id)}
@@ -1084,7 +1084,7 @@ function Landing() {
 
       {/* ── BANNER PUBLICITARIO ── al pie del catálogo (config.banner_texto) */}
       {config.banner_texto && (
-        <div style={{ maxWidth: 1200, margin: '32px auto 0', padding: '0 20px' }}>
+        <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
           <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: 14, padding: '18px 24px', textAlign: 'center', fontWeight: 700, fontSize: 15, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
             <span>{config.banner_texto}</span>
             {config.banner_whatsapp && <a href={`https://wa.me/${config.banner_whatsapp}`} target="_blank" rel="noopener" style={{ background: '#fff', color: 'var(--primary)', padding: '8px 16px', borderRadius: 8, fontWeight: 800, textDecoration: 'none', fontSize: 13 }}>WhatsApp</a>}
@@ -1128,6 +1128,10 @@ function SectionPage() {
   const [categorias, setCategorias] = useState([]);
   const [catFiltro, setCatFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [stockFiltro, setStockFiltro] = useState('todos'); // todos | con | sin
+  const [precioMin, setPrecioMin] = useState('');
+  const [precioMax, setPrecioMax] = useState('');
+  const [orden, setOrden] = useState('relevancia'); // relevancia | precio_asc | precio_desc | nombre
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(50);
   const [total, setTotal] = useState(0);
@@ -1186,6 +1190,21 @@ function SectionPage() {
     return { original: null, final: precio };
   };
 
+  // Aplicar filtros de stock, rango de precio y orden (sobre lo que ya vino filtrado por cat/búsqueda)
+  const productosFiltrados = (() => {
+    let lista = [...productos];
+    if (stockFiltro === 'con') lista = lista.filter(p => (p.stock > 0) || p.permitir_sin_stock || p.es_digital);
+    else if (stockFiltro === 'sin') lista = lista.filter(p => !(p.stock > 0) && !p.permitir_sin_stock && !p.es_digital);
+    const min = Number(precioMin) || 0;
+    const max = Number(precioMax) || Infinity;
+    if (min > 0 || max < Infinity) lista = lista.filter(p => { const pr = getPrecio(p).final; return pr >= min && pr <= max; });
+    if (orden === 'precio_asc') lista.sort((a, b) => getPrecio(a).final - getPrecio(b).final);
+    else if (orden === 'precio_desc') lista.sort((a, b) => getPrecio(b).final - getPrecio(a).final);
+    else if (orden === 'nombre') lista.sort((a, b) => (a.nombre || a.modelo || '').localeCompare(b.nombre || b.modelo || ''));
+    return lista;
+  })();
+  const hayFiltrosActivos = stockFiltro !== 'todos' || precioMin || precioMax || orden !== 'relevancia' || catFiltro;
+
   // Vitrina mode for mayorista
   if (esMayorista && sec.requiere_aprobacion && !user) {
     return (
@@ -1227,12 +1246,35 @@ function SectionPage() {
       </div>
 
       {/* KICKS filters row */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <input placeholder="¿Qué buscás?" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 200, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontSize: 14, fontWeight: 500 }} />
         <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ borderRadius: 12, padding: '12px 16px', border: '2px solid var(--border)', fontWeight: 600, fontSize: 13, minWidth: 180, background: 'var(--bg-card)' }}>
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+      </div>
+
+      {/* Filtros avanzados: stock, precio, orden */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        <select value={stockFiltro} onChange={e => setStockFiltro(e.target.value)} style={{ borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border)', fontWeight: 600, fontSize: 12.5, background: 'var(--bg-card)', width: 'auto' }}>
+          <option value="todos">Todo el stock</option>
+          <option value="con">Solo con stock</option>
+          <option value="sin">Solo sin stock</option>
+        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1.5px solid var(--border)', borderRadius: 10, padding: '2px 8px', background: 'var(--bg-card)' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>$</span>
+          <input type="number" placeholder="mín" value={precioMin} onChange={e => setPrecioMin(e.target.value)} style={{ width: 70, border: 'none', padding: '7px 2px', fontSize: 12.5, background: 'transparent' }} />
+          <span style={{ color: 'var(--text-muted)' }}>–</span>
+          <input type="number" placeholder="máx" value={precioMax} onChange={e => setPrecioMax(e.target.value)} style={{ width: 70, border: 'none', padding: '7px 2px', fontSize: 12.5, background: 'transparent' }} />
+        </div>
+        <select value={orden} onChange={e => setOrden(e.target.value)} style={{ borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border)', fontWeight: 600, fontSize: 12.5, background: 'var(--bg-card)', width: 'auto' }}>
+          <option value="relevancia">Ordenar por</option>
+          <option value="precio_asc">Precio: menor a mayor</option>
+          <option value="precio_desc">Precio: mayor a menor</option>
+          <option value="nombre">Nombre A-Z</option>
+        </select>
+        {hayFiltrosActivos && <button onClick={() => { setStockFiltro('todos'); setPrecioMin(''); setPrecioMax(''); setOrden('relevancia'); setCatFiltro(''); setPagina(1); }} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Limpiar filtros</button>}
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>{productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}</span>
       </div>
 
 
@@ -1246,7 +1288,7 @@ function SectionPage() {
 
       {/* Products grid */}
       <div className="product-grid">
-        {productos.map(p => {
+        {productosFiltrados.map(p => {
           const precio = getPrecio(p);
           const sinStock = !p.stock || p.stock <= 0;
           return (
