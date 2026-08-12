@@ -556,6 +556,7 @@ app.post('/api/productos/bulk', authPerm('productos'), async (req,res)=>{
 app.delete('/api/categorias/:categoria', authPerm('productos'), async (req,res)=>{ try{ await pool.query('DELETE FROM productos WHERE categoria=$1', [req.params.categoria]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
 app.delete('/api/productos/all', authPerm('productos'), async (req,res)=>{ try{ await pool.query('DELETE FROM productos'); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
 app.get('/api/productos/buscar', async (req,res)=>{ try{ const {q}=req.query; if(!q) return res.json([]); const {rows}=await pool.query("SELECT id,nombre,modelo,categoria,precio_base,stock,imagen FROM productos WHERE nombre ILIKE $1 OR modelo ILIKE $1 OR categoria ILIKE $1 OR sku ILIKE $1 ORDER BY nombre LIMIT 20", [`%${q}%`]); res.json(rows); }catch(e){ res.status(500).json({error:e.message}); } });
+app.get('/api/productos/id/:id', async (req,res)=>{ try{ const {rows}=await pool.query('SELECT * FROM productos WHERE id=$1', [req.params.id]); if(!rows[0]) return res.status(404).json({error:'No encontrado'}); res.json(rows[0]); }catch(e){ res.status(500).json({error:e.message}); } });
 
 // Validar presupuesto antes de convertir: chequear stock y precios actuales
 app.post('/api/pedidos/:id/validar-conversion', authPerm('pedidos'), async (req,res)=>{
@@ -643,7 +644,14 @@ app.get('/api/pedidos', auth(), async (req,res)=>{
   try{
     const {all,archivado,seccion_id,tipo,is_test}=req.query;
     let where=[]; const params=[];
-    if(req.user.rol==='admin'){ if(archivado==='true') where.push('p.archivado=true'); else where.push('p.archivado=false'); if(is_test==='false') where.push('p.is_test=false'); }
+    // admin ve todo; subadmin con permiso 'pedidos' también; el resto solo lo suyo
+    let esStaff = req.user.rol==='admin';
+    if(!esStaff && req.user.rol==='subadmin'){
+      const {rows:ur}=await pool.query('SELECT permisos FROM usuarios WHERE id=$1',[req.user.id]).catch(()=>({rows:[]}));
+      const perms=String((ur[0]||{}).permisos||'').split(',').filter(Boolean);
+      esStaff = perms.includes('pedidos');
+    }
+    if(esStaff){ if(archivado==='true') where.push('p.archivado=true'); else where.push('p.archivado=false'); if(is_test==='false') where.push('p.is_test=false'); }
     else{ where.push('p.usuario_id=$1'); params.push(req.user.id); }
     if(seccion_id){ where.push(`p.seccion_id=$${params.length+1}`); params.push(seccion_id); }
     if(tipo){ where.push(`p.tipo=$${params.length+1}`); params.push(tipo); }
@@ -739,11 +747,12 @@ app.post('/api/pedidos/multi', auth(), async (req,res)=>{
 app.put('/api/pedidos/:id', authPerm('pedidos'), async (req,res)=>{
   try{
     const p=req.body; const sets=[]; const params=[]; let pi=1;
-    // Capturar estado + items ANTES de cambios (para devolver stock)
+    // Capturar estado + tipo + items ANTES de cambios
     const {rows:oldItemsRows}=await pool.query('SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id=$1', [req.params.id]);
     const oldMap={}; for(const it of oldItemsRows){ if(it.producto_id) oldMap[it.producto_id]=(oldMap[it.producto_id]||0)+(it.cantidad||0); }
-    const {rows:oldPedRows}=await pool.query('SELECT estado FROM pedidos WHERE id=$1', [req.params.id]);
+    const {rows:oldPedRows}=await pool.query('SELECT estado, tipo FROM pedidos WHERE id=$1', [req.params.id]);
     const oldEstado=String((oldPedRows[0]||{}).estado||'').toLowerCase();
+    const oldTipo=String((oldPedRows[0]||{}).tipo||'');
     const fields=['estado','tipo','metodo_pago','notas','total','subtotal','descuento','datos_envio','usuario_id','notificar_wa','is_test','costo_envio','metodo_envio','cp_destino'];
     for(const f of fields){ if(p[f]!==undefined){ sets.push(`${f}=$${pi++}`); params.push(p[f]); } }
     sets.push(`updated_at=NOW()`);
@@ -751,29 +760,38 @@ app.put('/api/pedidos/:id', authPerm('pedidos'), async (req,res)=>{
     params.push(req.params.id);
     await pool.query(`UPDATE pedidos SET ${sets.join(',')} WHERE id=$${pi}`, params);
     if(p.items){ await pool.query('DELETE FROM pedido_items WHERE pedido_id=$1', [req.params.id]); for(const item of p.items){ await pool.query('INSERT INTO pedido_items (pedido_id,producto_id,categoria,modelo,nombre_producto,cantidad,precio_unitario,precio_base) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [req.params.id, item.producto_id||item.id, item.categoria||'', item.modelo||'', item.nombre_producto||`${item.categoria} - ${item.modelo}`, item.cantidad||item.qty||1, item.precio_unitario||0, item.precio_base||0]); } }
-    // Reconciliar stock: devolver al cancelar, ajustar delta al editar items
+
+    // ── RECONCILIACIÓN DE STOCK ──
+    // Regla: el stock SOLO lo afectan PEDIDOS reales activos (no presupuestos, no cancelados).
+    // "afectaStock" = es pedido Y no está cancelado. Comparamos estado ANTES vs DESPUÉS.
     const nuevoEstado=(p.estado!==undefined)?String(p.estado).toLowerCase():oldEstado;
+    const nuevoTipo=(p.tipo!==undefined)?String(p.tipo):oldTipo;
     const cancelSt=['cancelado','anulado','rechazado'];
-    const seCancela=cancelSt.includes(nuevoEstado)&&!cancelSt.includes(oldEstado);
-    const seReactiva=!cancelSt.includes(nuevoEstado)&&cancelSt.includes(oldEstado);
-    // Detectar conversión presupuesto → pedido (descontar stock)
-    const {rows:tipoPrev}=await pool.query('SELECT tipo FROM pedidos WHERE id=$1', [req.params.id]);
-    const oldTipo=String((tipoPrev[0]||{}).tipo||'');
-    const nuevoTipo=p.tipo||oldTipo;
-    const seConvierte=oldTipo==='presupuesto'&&nuevoTipo==='pedido';
+    const afectabaStock = oldTipo==='pedido' && !cancelSt.includes(oldEstado);   // antes descontaba
+    const afectaStock   = nuevoTipo==='pedido' && !cancelSt.includes(nuevoEstado); // ahora descuenta
+    // items nuevos (si se editaron) o los viejos
+    const itemsNuevos = p.items ? p.items.map(it=>({pid:it.producto_id||it.id, qty:it.cantidad||it.qty||0})) : oldItemsRows.map(it=>({pid:it.producto_id, qty:it.cantidad||0}));
+    const newMap={}; for(const it of itemsNuevos){ if(it.pid) newMap[it.pid]=(newMap[it.pid]||0)+it.qty; }
     const stockAdd={};
-    if(seCancela){ for(const pid in oldMap) stockAdd[pid]=(stockAdd[pid]||0)+oldMap[pid]; }
-    else if(seReactiva){ const base=p.items||oldItemsRows.map(it=>({producto_id:it.producto_id,cantidad:it.cantidad})); for(const it of base){ const pid=it.producto_id||it.id; if(pid) stockAdd[pid]=(stockAdd[pid]||0)-(it.cantidad||it.qty||0); } }
-    else if(p.items){ const newMap={}; for(const it of p.items){ const pid=it.producto_id||it.id; if(pid) newMap[pid]=(newMap[pid]||0)+(it.cantidad||it.qty||0); } const pids=new Set([...Object.keys(oldMap),...Object.keys(newMap)]); for(const pid of pids){ const d=(oldMap[pid]||0)-(newMap[pid]||0); if(d!==0) stockAdd[pid]=(stockAdd[pid]||0)+d; } }
-    // Conversión presupuesto→pedido: descontar stock de todos los items
-    if(seConvierte){ const itemsActuales=p.items||oldItemsRows; for(const it of itemsActuales){ const pid=it.producto_id||it.id; if(pid) stockAdd[pid]=(stockAdd[pid]||0)-(it.cantidad||it.qty||0); } }
+    if(!afectabaStock && afectaStock){
+      // Pasó a descontar (presupuesto→pedido, o reactivación de cancelado): restar todo el nuevo
+      for(const pid in newMap) stockAdd[pid]=(stockAdd[pid]||0)-newMap[pid];
+    } else if(afectabaStock && !afectaStock){
+      // Dejó de descontar (pedido→presupuesto, o se canceló): devolver todo lo viejo
+      for(const pid in oldMap) stockAdd[pid]=(stockAdd[pid]||0)+oldMap[pid];
+    } else if(afectabaStock && afectaStock && p.items){
+      // Sigue siendo pedido activo pero cambiaron items: ajustar delta (viejo - nuevo)
+      const pids=new Set([...Object.keys(oldMap),...Object.keys(newMap)]);
+      for(const pid of pids){ const d=(oldMap[pid]||0)-(newMap[pid]||0); if(d!==0) stockAdd[pid]=(stockAdd[pid]||0)+d; }
+    }
+    // Si no afectaba ni afecta (presupuesto→presupuesto), no se toca nada.
     for(const pid in stockAdd){ const q=stockAdd[pid]; if(q) await pool.query('UPDATE productos SET stock=GREATEST(0, stock + $1) WHERE id=$2 AND permitir_sin_stock=false AND es_digital=false', [q, pid]); }
     res.json({ok:true});
   }catch(e){ res.status(500).json({error:e.message}); }
 });
 app.post('/api/pedidos/:id/archivar', authPerm('pedidos'), async (req,res)=>{ try{ await pool.query('UPDATE pedidos SET archivado=true WHERE id=$1', [req.params.id]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
 app.post('/api/pedidos/:id/desarchivar', authPerm('pedidos'), async (req,res)=>{ try{ await pool.query('UPDATE pedidos SET archivado=false WHERE id=$1', [req.params.id]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
-app.delete('/api/pedidos/:id', authPerm('pedidos'), async (req,res)=>{ try{ const {rows:oep}=await pool.query('SELECT estado FROM pedidos WHERE id=$1',[req.params.id]); const oe=String((oep[0]||{}).estado||'').toLowerCase(); if(!['cancelado','anulado','rechazado'].includes(oe)){ const {rows:its}=await pool.query('SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id=$1',[req.params.id]); for(const it of its){ if(it.producto_id) await pool.query('UPDATE productos SET stock=GREATEST(0, stock + $1) WHERE id=$2 AND permitir_sin_stock=false AND es_digital=false',[it.cantidad||0, it.producto_id]); } } await pool.query('DELETE FROM pedido_items WHERE pedido_id=$1', [req.params.id]); await pool.query('DELETE FROM pedidos WHERE id=$1', [req.params.id]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
+app.delete('/api/pedidos/:id', authPerm('pedidos'), async (req,res)=>{ try{ const {rows:oep}=await pool.query('SELECT estado, tipo FROM pedidos WHERE id=$1',[req.params.id]); const oe=String((oep[0]||{}).estado||'').toLowerCase(); const ot=String((oep[0]||{}).tipo||''); const afectabaStock = ot==='pedido' && !['cancelado','anulado','rechazado'].includes(oe); if(afectabaStock){ const {rows:its}=await pool.query('SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id=$1',[req.params.id]); for(const it of its){ if(it.producto_id) await pool.query('UPDATE productos SET stock=GREATEST(0, stock + $1) WHERE id=$2 AND permitir_sin_stock=false AND es_digital=false',[it.cantidad||0, it.producto_id]); } } await pool.query('DELETE FROM pedido_items WHERE pedido_id=$1', [req.params.id]); await pool.query('DELETE FROM pedidos WHERE id=$1', [req.params.id]); res.json({ok:true}); }catch(e){ res.status(500).json({error:e.message}); } });
 
 // STATS
 app.get('/api/stats', authPerm('stats'), async (req,res)=>{

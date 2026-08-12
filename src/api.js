@@ -124,6 +124,7 @@ export async function createPedido(data) { return f('/api/pedidos', { method: 'P
 export async function createPedidosMulti(pedidos, is_test=false) { return f('/api/pedidos/multi', { method: 'POST', body: JSON.stringify({ pedidos, is_test }) }); }
 export async function updatePedido(id, data) { return f(`/api/pedidos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function validarConversion(id) { return f(`/api/pedidos/${id}/validar-conversion`, { method: 'POST' }); }
+export async function getProducto(id) { return f(`/api/productos/id/${id}`); }
 export async function archivarPedido(id) { return f(`/api/pedidos/${id}/archivar`, { method: 'POST' }); }
 export async function desarchivarPedido(id) { return f(`/api/pedidos/${id}/desarchivar`, { method: 'POST' }); }
 export async function deletePedido(id) { return f(`/api/pedidos/${id}`, { method: 'DELETE' }); }

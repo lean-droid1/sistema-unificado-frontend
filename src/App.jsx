@@ -294,6 +294,23 @@ export default function App() {
             setTimeout(() => { window.__openPedido = Number(pedidoParam); window.dispatchEvent(new Event('open-pedido')); }, 800);
           }
         }
+        // Carrito compartido: ?carrito=BASE64 precarga el carrito y lleva al cart
+        const carritoParam = new URLSearchParams(window.location.search).get('carrito');
+        if (carritoParam) {
+          try {
+            const payload = JSON.parse(decodeURIComponent(atob(carritoParam))); // [{s,p,q}]
+            const nuevoCart = {};
+            for (const it of payload) {
+              const prod = await api.getProducto(it.p).catch(() => null);
+              if (!prod) continue;
+              const secId = String(it.s || prod.seccion_id);
+              if (!nuevoCart[secId]) nuevoCart[secId] = [];
+              nuevoCart[secId].push({ ...prod, seccion_id: secId, qty: it.q || 1, precio_unitario: prod.precio_base });
+            }
+            if (Object.keys(nuevoCart).length) { setCart(nuevoCart); setPage('cart'); toast('Carrito cargado — revisá y continuá la compra'); }
+            window.history.replaceState({}, '', window.location.pathname);
+          } catch {}
+        }
         const maint = await api.getMaintenanceStatus();
         if (maint.activo) {
           const me = api.getToken() ? await api.getMe().catch(() => null) : null;
@@ -355,12 +372,14 @@ export default function App() {
     return s + items.reduce((sum, i) => sum + (i.qty > 0 ? i.qty : 0), 0);
   }, 0);
   const addToCart = (secId, product, qty = 1, precio) => {
+    // Priorizar la sección REAL del producto para que mínimos/envío/badges apliquen bien
+    const realSec = product?.seccion_id ? String(product.seccion_id) : secId;
     setCart(prev => {
-      const items = [...(prev[secId] || [])];
+      const items = [...(prev[realSec] || [])];
       const existing = items.find(i => i.id === product.id);
       if (existing) existing.qty += qty;
-      else items.push({ ...product, qty, precio_unitario: precio || product.precio_base });
-      return { ...prev, [secId]: items };
+      else items.push({ ...product, seccion_id: realSec, qty, precio_unitario: precio || product.precio_base });
+      return { ...prev, [realSec]: items };
     });
     toast('Agregado al carrito');
   };
@@ -464,6 +483,25 @@ function Ico({ n, s = 18, fill = false }) {
   if (n === 'bell') return <svg {...p} fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>;
   if (n === 'plus') return <svg {...p} fill="none"><path d="M12 5v14M5 12h14" /></svg>;
   if (n === 'printer') return <svg {...p} fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" /></svg>;
+  if (n === 'chart') return <svg {...p} fill="none"><path d="M3 3v18h18M7 16l4-4 3 3 5-6" /></svg>;
+  if (n === 'receipt') return <svg {...p} fill="none"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1zM8 7h8M8 11h8M8 15h5" /></svg>;
+  if (n === 'box') return <svg {...p} fill="none"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.3 7 12 12l8.7-5M12 22V12" /></svg>;
+  if (n === 'users') return <svg {...p} fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></svg>;
+  if (n === 'truck') return <svg {...p} fill="none"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM18.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" /></svg>;
+  if (n === 'card') return <svg {...p} fill="none"><rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" /></svg>;
+  if (n === 'palette') return <svg {...p} fill="none"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1.1.9-2 2-2h2.3A4.2 4.2 0 0 0 22 11c0-5-4.5-9-10-9z"/></svg>;
+  if (n === 'file') return <svg {...p} fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8M8 9h2" /></svg>;
+  if (n === 'settings') return <svg {...p} fill="none"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.65 1.65 0 0 0-1.8-.3 1.65 1.65 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.65 1.65 0 0 0-1-1.5 1.65 1.65 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.65 1.65 0 0 0 .3-1.8 1.65 1.65 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.65 1.65 0 0 0 1.5-1 1.65 1.65 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.65 1.65 0 0 0 1.8.3H9a1.65 1.65 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.65 1.65 0 0 0 1 1.5 1.65 1.65 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.65 1.65 0 0 0-.3 1.8V9a1.65 1.65 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.65 1.65 0 0 0-1.5 1z" /></svg>;
+  if (n === 'tag') return <svg {...p} fill="none"><path d="M20.6 13.4 12 22l-8.6-8.6a2 2 0 0 1 0-2.8L11 3h9v9a2 2 0 0 1-.4 1.4zM16 8h.01" /></svg>;
+  if (n === 'ticket') return <svg {...p} fill="none"><path d="M3 7v3a2 2 0 0 1 0 4v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 1 0-4V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1zM13 6v2M13 12v2M13 18v-2" /></svg>;
+  if (n === 'megaphone') return <svg {...p} fill="none"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1zM14 8a4 4 0 0 1 0 8M18 5a8 8 0 0 1 0 14" /></svg>;
+  if (n === 'star') return <svg {...p} fill="none"><path d="M12 2l3 6.5 7 .9-5 4.8 1.3 7L12 18l-6.3 3.2L7 14.2l-5-4.8 7-.9z" /></svg>;
+  if (n === 'globe') return <svg {...p} fill="none"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z" /></svg>;
+  if (n === 'list') return <svg {...p} fill="none"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>;
+  if (n === 'wallet') return <svg {...p} fill="none"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5M18 12a2 2 0 0 0 0 4h4v-4z" /></svg>;
+  if (n === 'clipboard') return <svg {...p} fill="none"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" /></svg>;
+  if (n === 'chevron-down') return <svg {...p} fill="none"><path d="m6 9 6 6 6-6" /></svg>;
+  if (n === 'store') return <svg {...p} fill="none"><path d="M3 9l1.5-5h15L21 9M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9M4 9h16M9 21v-6h6v6" /></svg>;
   return null;
 }
 
@@ -1310,6 +1348,13 @@ function CartPage() {
   const costoEnvioTotal = Object.values(envio).reduce((s, e) => s + (e?.costo || 0), 0);
   const total = Math.max(0, subtotal - descuento + costoEnvioTotal);
 
+  // ¿Alguna sección no llega a su compra mínima? (bloquea el checkout)
+  const algunaBajoMin = seccionesConItems.some(sec => {
+    const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
+    const min = Number(config[`compra_minima_${sec.id}`]) || 0;
+    return min > 0 && ss < min;
+  });
+
   // Guardar como presupuesto (cliente → admin lo ve en tab presupuestos)
   const guardarPresupuesto = async () => {
     if (!user) { toast('Necesitás iniciar sesión para guardar un presupuesto', 'warning'); nav('login'); return; }
@@ -1324,29 +1369,33 @@ function CartPage() {
         };
       }).filter(pp => pp.items.length);
       for (const p of pedidos) await api.createPedido(p);
+      // Vaciar carrito tras guardar el presupuesto
+      seccionesConItems.forEach(sec => clearCart(sec.id));
       toast('¡Presupuesto guardado! Te avisaremos cuando lo revisemos.');
       nav('account');
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  // Compartir carrito por WhatsApp / copiar
+  // Compartir carrito: genera un LINK que precarga el carrito + texto con el detalle
   const compartirCarrito = () => {
-    let txt = `🛒 *Mi carrito*\n\n`;
+    // Codificar items mínimos en la URL: [{s:secId, p:prodId, q:qty}]
+    const payload = allItems.map(i => ({ s: i.seccion_id, p: i.id, q: i.qty }));
+    const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+    const link = `${window.location.origin}${window.location.pathname}?carrito=${encoded}`;
+    let txt = `🛒 *Carrito armado para vos*\n\n`;
     seccionesConItems.forEach(sec => {
       const secItems = allItems.filter(i => i.seccion_id === sec.id);
       txt += `📦 *${sec.nombre}*\n`;
-      secItems.forEach(i => {
-        txt += `• ${i.nombre || i.modelo} x${i.qty} — ${fmtARS((i.precio_unitario || i.precio_base) * i.qty)}\n`;
-      });
+      secItems.forEach(i => { txt += `• ${i.nombre || i.modelo} x${i.qty} — ${fmtARS((i.precio_unitario || i.precio_base) * i.qty)}\n`; });
       txt += '\n';
     });
-    txt += `*Total: ${fmtARS(total)}*`;
+    txt += `*Total: ${fmtARS(total)}*\n\n👉 Abrí este link para continuar la compra:\n${link}`;
     if (navigator.share) {
-      navigator.share({ title: 'Mi carrito', text: txt }).catch(() => {});
+      navigator.share({ title: 'Carrito', text: txt }).catch(() => {});
     } else {
       const waNum2 = config.whatsapp_flotante || config.whatsapp || '';
       if (waNum2) window.open(`https://api.whatsapp.com/send?phone=${waNum2}&text=${encodeURIComponent(txt)}`, '_blank');
-      else { navigator.clipboard.writeText(txt).then(() => toast('Carrito copiado al portapapeles')).catch(() => toast('No se pudo copiar', 'error')); }
+      else { navigator.clipboard.writeText(txt).then(() => toast('Link del carrito copiado')).catch(() => toast('No se pudo copiar', 'error')); }
     }
   };
 
@@ -1412,25 +1461,28 @@ function CartPage() {
         return (
           <div key={sec.id} style={{ marginBottom: 24 }}>
             <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
-            {/* Barra COMPRA MÍNIMA (rojo si no llega) */}
-            {compraMinima > 0 && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pctMin}%`, background: faltaMin === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--danger), var(--accent))', borderRadius: 3, transition: 'width 0.3s' }} />
+            {/* Barra COMPRA MÍNIMA — bloquea el checkout hasta llegar */}
+            {compraMinima > 0 && faltaMin > 0 && (
+              <div style={{ marginBottom: 8, background: 'var(--danger-light, rgba(231,64,64,0.08))', border: '1px solid var(--danger)', borderRadius: 10, padding: '8px 12px' }}>
+                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
+                  <div style={{ height: '100%', width: `${pctMin}%`, background: 'linear-gradient(90deg, var(--danger), var(--accent))', borderRadius: 3, transition: 'width 0.3s' }} />
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: faltaMin === 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {faltaMin === 0 ? '✓ Llegaste al mínimo de compra' : `Mínimo ${fmtARS(compraMinima)} — te faltan ${fmtARS(faltaMin)} para poder comprar`}
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)' }}>
+                  🔒 Compra mínima {fmtARS(compraMinima)} — te faltan {fmtARS(faltaMin)} para poder comprar
                 </div>
               </div>
             )}
-            {/* Barra ENVÍO GRATIS (gradient primary→accent, verde al llegar) */}
-            {gratisDesde > 0 && (
+            {compraMinima > 0 && faltaMin === 0 && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 8 }}>✓ Llegaste al mínimo de compra</div>
+            )}
+            {/* Barra ENVÍO GRATIS — se muestra una vez alcanzado el mínimo (o si no hay mínimo) */}
+            {gratisDesde > 0 && faltaMin === 0 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--primary), var(--accent))', borderRadius: 4, transition: 'width 0.4s' }} />
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: faltaGratis === 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
-                  {faltaGratis === 0 ? '🎉 ¡Envío gratis conseguido!' : `Te faltan ${fmtARS(faltaGratis)} para envío gratis`}
+                  {faltaGratis === 0 ? '🎉 ¡Envío gratis conseguido!' : `🚚 Te faltan ${fmtARS(faltaGratis)} para envío gratis`}
                 </div>
               </div>
             )}
@@ -1487,8 +1539,8 @@ function CartPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
       </div>
 
-      <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
-        {testMode ? '🧪 CONFIRMAR PEDIDO (PRUEBA)' : 'CONFIRMAR PEDIDO'}
+      <button onClick={checkout} disabled={algunaBajoMin} style={{ width: '100%', marginTop: 16, padding: 14, background: algunaBajoMin ? 'var(--border)' : 'var(--primary)', color: algunaBajoMin ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: algunaBajoMin ? 'not-allowed' : 'pointer' }}>
+        {algunaBajoMin ? '🔒 No llegás a la compra mínima' : (testMode ? '🧪 CONFIRMAR PEDIDO (PRUEBA)' : 'CONFIRMAR PEDIDO')}
       </button>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -1507,7 +1559,9 @@ function CartPage() {
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
-  const { selectedProduct: p, seccionActual: sec, nav, toast, addToCart, config, user, design } = useContext(Ctx);
+  const { selectedProduct: p, seccionActual: navSec, secciones, nav, toast, addToCart, config, user, design } = useContext(Ctx);
+  // Sección REAL del producto (no la de navegación) — evita mostrar Local cuando el producto es de Deposito
+  const sec = (p?.seccion_id && secciones.find(s => String(s.id) === String(p.seccion_id))) || navSec;
   const [prodBadges, setProdBadges] = useState([]);
   useEffect(() => { if (sec?.id) api.getBadges(sec.id).then(setProdBadges).catch(() => {}); }, [sec?.id]);
   const [qty, setQty] = useState(1);
@@ -1930,51 +1984,89 @@ function AccountPanel() {
 function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState({}); // acordeón: qué grupos están expandidos
 
-  // Permisos: admin ve todo; subadmin solo lo que tenga. Cada tab mapea a un permiso.
+  // Permisos: admin ve todo; subadmin solo lo que tenga.
   const esAdmin = user?.rol === 'admin';
   const misPermisos = esAdmin ? null : String(user?.permisos || '').split(',').filter(Boolean);
   const puede = (perm) => esAdmin || (misPermisos || []).includes(perm);
+
   // Mapa tab → permiso requerido
   const tabPerm = {
-    dashboard: 'stats', pedidos: 'pedidos', productos: 'productos', usuarios: 'usuarios',
-    leads: 'stats', listas: 'listas', cupones: 'config', promociones: 'config',
-    diseno: 'config', barras: 'config', contactos: 'config', menu: 'config', paginas: 'config',
-    popups: 'config', badges: 'config', metodos_pago: 'config', redes: 'config', envios: 'config',
+    dashboard: 'stats',
+    pedidos: 'pedidos', presupuestos: 'pedidos', leads: 'stats', reglas_compra: 'pedidos',
+    cupones: 'config', promociones: 'config', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
+    productos: 'productos', listas: 'listas',
+    usuarios: 'usuarios',
+    envios: 'config', metodos_pago: 'config',
+    diseno: 'config', barras: 'config', menu: 'config', paginas: 'config', contactos: 'config',
+    general: 'config',
   };
 
-  const tabGroupsAll = [
-    { label: 'Inicio', tabs: [{ id: 'dashboard', label: 'Estadísticas', icon: '📊' }] },
-    { label: 'Administración', tabs: [
-      { id: 'pedidos', label: 'Ventas', icon: '🧾' },
-      { id: 'productos', label: 'Productos', icon: '📦' },
-      { id: 'usuarios', label: 'Clientes', icon: '👥' },
-      { id: 'leads', label: 'Leads WhatsApp', icon: '💬' },
-      { id: 'listas', label: 'Listas precio', icon: '💰' },
-      { id: 'cupones', label: 'Cupones', icon: '🎟️' },
-      { id: 'promociones', label: 'Promociones', icon: '🏷️' },
+  // ── ESTRUCTURA JERÁRQUICA (acordeón) ──
+  // Cada grupo: { id, label, icon, items: [{ id (tab), label }] }
+  // Grupos de 1 solo item van directo (sin acordeón).
+  const nav_tree = [
+    { id: 'inicio', label: 'Inicio', icon: 'chart', single: 'dashboard' },
+    { id: 'ventas', label: 'Ventas', icon: 'receipt', items: [
+      { id: 'pedidos', label: 'Pedidos' },
+      { id: 'presupuestos', label: 'Presupuestos' },
+      { id: 'venta_manual', label: 'Agregar venta' },
+      { id: 'ordenes_compra', label: 'Órdenes de compra' },
+      { id: 'reglas_compra', label: 'Reglas de compra' },
+      { id: 'cupones', label: 'Cupones' },
+      { id: 'promociones', label: 'Promociones' },
+      { id: 'leads', label: 'Leads WhatsApp' },
     ]},
-    { label: 'Personalización', tabs: [
-      { id: 'diseno', label: 'Diseño y Config', icon: '🎨' },
-      { id: 'barras', label: 'Barras de texto', icon: '📰' },
-      { id: 'contactos', label: 'Contactos WhatsApp', icon: '💬' },
-      { id: 'menu', label: 'Menú', icon: '📋' },
-      { id: 'paginas', label: 'Páginas', icon: '📄' },
-      { id: 'popups', label: 'Pop-ups', icon: '📢' },
-      { id: 'badges', label: 'Badges', icon: '⭐' },
-      { id: 'metodos_pago', label: 'Métodos pago', icon: '💳' },
-      { id: 'redes', label: 'Redes sociales', icon: '🌐' },
-      { id: 'envios', label: 'Envíos custom', icon: '🚚' },
+    { id: 'catalogo', label: 'Catálogo', icon: 'box', items: [
+      { id: 'productos', label: 'Productos' },
+      { id: 'listas', label: 'Listas de precio' },
     ]},
+    { id: 'clientes', label: 'Clientes', icon: 'users', single: 'usuarios' },
+    { id: 'envios_grp', label: 'Envíos', icon: 'truck', single: 'envios' },
+    { id: 'pagos', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
+    { id: 'diseno_grp', label: 'Diseño', icon: 'palette', single: 'diseno' },
+    { id: 'contenido', label: 'Contenido', icon: 'file', items: [
+      { id: 'barras', label: 'Barras de texto' },
+      { id: 'menu', label: 'Menú' },
+      { id: 'paginas', label: 'Páginas' },
+      { id: 'contactos', label: 'Contactos WhatsApp' },
+    ]},
+    { id: 'general_grp', label: 'General', icon: 'settings', single: 'general' },
   ];
-  // Filtrar por permisos y quitar grupos vacíos
-  const tabGroups = tabGroupsAll.map(g => ({ ...g, tabs: g.tabs.filter(t => puede(tabPerm[t.id])) })).filter(g => g.tabs.length > 0);
-  const tabs = tabGroups.flatMap(g => g.tabs);
 
-  // Si el tab activo no está permitido, saltar al primero disponible
+  // Filtrar por permisos
+  const treeFiltered = nav_tree.map(g => {
+    if (g.single) return puede(tabPerm[g.single]) ? g : null;
+    const items = g.items.filter(it => puede(tabPerm[it.id]));
+    return items.length ? { ...g, items } : null;
+  }).filter(Boolean);
+
+  // Todos los tabs disponibles (para validar el activo)
+  const allTabs = treeFiltered.flatMap(g => g.single ? [g.single] : g.items.map(it => it.id));
+
+  // Si el tab activo no está permitido, saltar al primero
   useEffect(() => {
-    if (tabs.length && !tabs.find(t => t.id === adminTab)) setAdminTab(tabs[0].id);
-  }, [adminTab, tabs.length]);
+    if (allTabs.length && !allTabs.includes(adminTab)) setAdminTab(allTabs[0]);
+  }, [adminTab, allTabs.length]);
+
+  // Auto-abrir el grupo que contiene el tab activo
+  useEffect(() => {
+    const grp = treeFiltered.find(g => !g.single && g.items.some(it => it.id === adminTab));
+    if (grp) setOpenGroups(prev => ({ ...prev, [grp.id]: true }));
+  }, [adminTab]);
+
+  const toggleGroup = (gid) => setOpenGroups(prev => ({ ...prev, [gid]: !prev[gid] }));
+  const goTab = (tid) => { setAdminTab(tid); setSidebarOpen(false); };
+
+  // Label del tab activo (para la barra mobile)
+  const activeLabel = (() => {
+    for (const g of treeFiltered) {
+      if (g.single === adminTab) return g.label;
+      if (g.items) { const it = g.items.find(x => x.id === adminTab); if (it) return `${g.label} · ${it.label}`; }
+    }
+    return 'Panel';
+  })();
 
   return (
     <div className="admin-layout">
@@ -1983,10 +2075,10 @@ function AdminPanel() {
         <button className="admin-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? '✕' : '☰'} <span style={{ fontSize: 14, fontWeight: 700 }}>Panel Admin</span>
         </button>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{tabs.find(t => t.id === adminTab)?.label}</span>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{activeLabel}</span>
       </div>
 
-      {/* Sidebar — desktop always visible, mobile toggle */}
+      {/* Sidebar */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 12, width: '100%' }}>← Volver a tienda</button>
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>Panel Admin</h3>
@@ -1995,45 +2087,104 @@ function AdminPanel() {
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
         <nav className="admin-nav">
-          {tabGroups.map(g => (
-            <div key={g.label}>
-              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.35)', padding: '16px 16px 6px', marginTop: 4 }}>{g.label}</div>
-              {g.tabs.map(t => (
-                <button key={t.id} className={`admin-nav-item ${adminTab === t.id ? 'active' : ''}`} onClick={() => { setAdminTab(t.id); setSidebarOpen(false); }}>
-                  <span style={{ marginRight: 8 }}>{t.icon}</span>{t.label}
+          {treeFiltered.map(g => {
+            // Grupo de 1 item (directo)
+            if (g.single) {
+              return (
+                <button key={g.id} className={`admin-nav-item ${adminTab === g.single ? 'active' : ''}`} onClick={() => goTab(g.single)}>
+                  <span style={{ marginRight: 10, display: 'inline-flex' }}><Ico n={g.icon} s={17} /></span>{g.label}
                 </button>
-              ))}
-            </div>
-          ))}
+              );
+            }
+            // Grupo acordeón
+            const isOpen = openGroups[g.id];
+            const hasActive = g.items.some(it => it.id === adminTab);
+            return (
+              <div key={g.id}>
+                <button className={`admin-nav-group ${hasActive ? 'has-active' : ''}`} onClick={() => toggleGroup(g.id)}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}><Ico n={g.icon} s={17} />{g.label}</span>
+                  <span style={{ display: 'inline-flex', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><Ico n="chevron-down" s={15} /></span>
+                </button>
+                {isOpen && (
+                  <div className="admin-nav-sub">
+                    {g.items.map(it => (
+                      <button key={it.id} className={`admin-nav-item sub ${adminTab === it.id ? 'active' : ''}`} onClick={() => goTab(it.id)}>{it.label}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
       </aside>
 
-      {/* Overlay mobile */}
       {sidebarOpen && <div className="admin-overlay" onClick={() => setSidebarOpen(false)} />}
 
       {/* Content */}
       <div className="admin-content">
         {adminTab === 'dashboard' && <AdminDashboard />}
         {adminTab === 'productos' && <AdminProductos />}
-        {adminTab === 'pedidos' && <AdminPedidos />}
+        {adminTab === 'pedidos' && <AdminPedidos filtroTipo="pedidos" />}
+        {adminTab === 'presupuestos' && <AdminPedidos filtroTipo="presupuestos" />}
+        {adminTab === 'venta_manual' && <AdminVentaManual />}
+        {adminTab === 'ordenes_compra' && <AdminOrdenesCompra />}
+        {adminTab === 'reglas_compra' && <AdminReglasCompra />}
         {adminTab === 'usuarios' && <AdminUsuarios />}
         {adminTab === 'listas' && <AdminListas />}
         {adminTab === 'cupones' && <AdminCupones />}
         {adminTab === 'promociones' && <AdminPromociones />}
-        {adminTab === 'popups' && <AdminPopups />}
-        {adminTab === 'paginas' && <AdminPaginas />}
-        {adminTab === 'badges' && <AdminBadges />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
         {adminTab === 'menu' && <AdminMenu />}
         {adminTab === 'envios' && <AdminEnviosCustom />}
-        {adminTab === 'redes' && <AdminRedes />}
-        {adminTab === 'diseno' && <><AdminDiseno /><hr style={{margin:'24px 0'}}/><AdminSlider /><hr style={{margin:'24px 0'}}/><AdminConfig /></>}
+        {adminTab === 'diseno' && <AdminDisenoHub />}
+        {adminTab === 'general' && <AdminGeneralHub />}
         {adminTab === 'barras' && <AdminBarras />}
         {adminTab === 'contactos' && <AdminContactos />}
+        {adminTab === 'paginas' && <AdminPaginas />}
         {adminTab === 'leads' && <AdminLeads />}
       </div>
     </div>
   );
+}
+
+// ── Hub de Diseño: sub-pestañas internas (Colores/Logo, Slider, Banners, Badges, Pop-ups, Redes, Novedades) ──
+function AdminDisenoHub() {
+  const [sub, setSub] = useState('tema');
+  const subs = [
+    { id: 'tema', label: 'Colores y logo' },
+    { id: 'slider', label: 'Slider' },
+    { id: 'badges', label: 'Badges' },
+    { id: 'popups', label: 'Pop-ups' },
+    { id: 'redes', label: 'Redes sociales' },
+  ];
+  return (
+    <div>
+      <div className="admin-subtabs">
+        {subs.map(s => <button key={s.id} className={`admin-subtab ${sub === s.id ? 'active' : ''}`} onClick={() => setSub(s.id)}>{s.label}</button>)}
+      </div>
+      {sub === 'tema' && <AdminDiseno />}
+      {sub === 'slider' && <AdminSlider />}
+      {sub === 'badges' && <AdminBadges />}
+      {sub === 'popups' && <AdminPopups />}
+      {sub === 'redes' && <AdminRedes />}
+    </div>
+  );
+}
+
+// ── Hub General: config del negocio + mantenimiento ──
+function AdminGeneralHub() {
+  return <AdminConfig />;
+}
+
+// ── Placeholders Fase 2 (se completan después) ──
+function AdminVentaManual() {
+  return <div className="card" style={{ padding: 24 }}><h3>Agregar venta</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Venta interna de mostrador. Se implementa en la próxima etapa (con escáner QR a futuro).</p></div>;
+}
+function AdminOrdenesCompra() {
+  return <div className="card" style={{ padding: 24 }}><h3>Órdenes de compra</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Compras a proveedores (stock entrante). Se implementa en la próxima etapa.</p></div>;
+}
+function AdminReglasCompra() {
+  return <div className="card" style={{ padding: 24 }}><h3>Reglas de compra</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Compra mínima por sección. Se mueve acá en la próxima etapa.</p></div>;
 }
 
 // ─── ADMIN: Dashboard ───
@@ -2686,12 +2837,14 @@ function PresupuestoModal({ onClose }) {
   );
 }
 
-function AdminPedidos() {
+function AdminPedidos({ filtroTipo }) {
   const { adminSeccion, toast, testMode } = useContext(Ctx);
   const [pedidos, setPedidos] = useState([]);
-  const [ordTab, setOrdTab] = useState('pedidos');
+  const [ordTab, setOrdTab] = useState(filtroTipo === 'presupuestos' ? 'presupuestos' : 'pedidos');
   const [viewOrder, setViewOrder] = useState(null);
   const [showPresupuesto, setShowPresupuesto] = useState(false);
+  // Cambiar de tab si cambia el filtro desde el sidebar
+  useEffect(() => { if (filtroTipo === 'presupuestos') setOrdTab('presupuestos'); else if (filtroTipo === 'pedidos') setOrdTab('pedidos'); }, [filtroTipo]);
 
   // Abrir pedido directo desde QR del remito (?pedido=X)
   useEffect(() => {
@@ -2719,7 +2872,7 @@ function AdminPedidos() {
   useEffect(() => { load(); }, [adminSeccion, ordTab, testMode]);
 
   const changeTab = (t) => { setOrdTab(t); load(t); };
-  const tabs = [{ id: 'pedidos', label: '📦 Pedidos' }, { id: 'presupuestos', label: '📋 Presupuestos' }, { id: 'cancelados', label: '❌ Cancelados' }, { id: 'archivados', label: '🗃 Archivados' }];
+  const tabs = [{ id: 'pedidos', label: 'Pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }, { id: 'cancelados', label: 'Cancelados' }, { id: 'archivados', label: 'Archivados' }];
   const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
   const colores = { pendiente: 'var(--warning)', preparando: 'var(--primary)', listo: '#8b5cf6', entregado: 'var(--success)', cancelado: 'var(--danger)' };
 
@@ -3028,6 +3181,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
                 toast('Convertido a pedido'); onClose();
               } catch (e) { toast(e.message, 'error'); }
             }}>✓ Convertir a pedido</button>}
+            {o.tipo === 'pedido' && <button className="btn btn-outline btn-sm" onClick={async () => { if (!confirm('¿Volver este pedido a presupuesto? Se devolverá el stock descontado.')) return; try { await api.updatePedido(o.id, { tipo: 'presupuesto', estado: 'pendiente' }); toast('Volvió a presupuesto'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>↩ Volver a presupuesto</button>}
             {(o.usuario_telefono) && <button className="btn btn-outline btn-sm" onClick={() => { const tel = (o.usuario_telefono || '').replace(/\D/g, ''); const num = tel.startsWith('54') ? tel : `54${tel}`; openWA(num, `Hola ${o.usuario_nombre || ''}, respecto a tu pedido #${o.id}:`); }}>📱 WhatsApp</button>}
             <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.archivarPedido(o.id); toast('Archivado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>📥 Archivar</button>
             <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar este pedido?')) return; try { await api.deletePedido(o.id); toast('Eliminado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>🗑 Eliminar</button>
@@ -4063,11 +4217,12 @@ function AdminEnviosCustom() {
         <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
           <button className="modal-close" onClick={() => setShow(false)}>✕</button>
           <h3>{edit ? 'Editar' : 'Nuevo'} envío custom</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Este es un <b>método de envío</b> (ej: Andreani, Moto, Retiro). No es la compra mínima — eso se configura en "Diseño y Config → Config por sección".</p>
           <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Uber Moto CABA" /></div>
           <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="A coordinar por WhatsApp" /></div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Precio</label><input type="number" value={form.precio} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} /></div>
-            <div className="form-group"><label className="form-label">Gratis desde $</label><input type="number" value={form.gratis_desde} onChange={e => setForm({ ...form, gratis_desde: Number(e.target.value) })} /></div>
+            <div className="form-group"><label className="form-label">Costo del envío $</label><input type="number" value={form.precio} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} placeholder="0 = gratis" /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lo que paga el cliente por este envío</span></div>
+            <div className="form-group"><label className="form-label">Envío gratis desde $</label><input type="number" value={form.gratis_desde} onChange={e => setForm({ ...form, gratis_desde: Number(e.target.value) })} placeholder="0 = nunca" /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Si el pedido supera este monto, el envío es gratis</span></div>
           </div>
           <div className="form-group"><label className="form-label">Tiempo estimado</label><input value={form.tiempo_estimado} onChange={e => setForm({ ...form, tiempo_estimado: e.target.value })} placeholder="2-3 horas" /></div>
           <div className="form-group"><label className="form-label">Sección</label><select value={form.seccion_id || ''} onChange={e => setForm({ ...form, seccion_id: e.target.value ? Number(e.target.value) : null })}><option value="">Todas</option>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></div>
