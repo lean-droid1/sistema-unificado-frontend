@@ -1211,7 +1211,7 @@ function SectionPage() {
   }
 
   return (
-    <div style={{ padding: '24px 20px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '24px 32px', maxWidth: 1600, margin: '0 auto' }}>
       {/* KICKS back + title */}
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>← VOLVER AL INICIO</button>
       <ScrollTriggerInit deps={productos.length} />
@@ -1273,8 +1273,8 @@ function SectionPage() {
                   {esMayorista && dolarBlue && precio.final > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>USD {fmt(Math.round(precio.final / dolarBlue * 100) / 100)}</div>}
                 </div>
                 {!sinStock && (
-                  <button onClick={(e) => { e.stopPropagation(); addToCart(sec.id, p, 1, precio.final); }} style={{ width: '100%', padding: '10px', marginTop: 8, background: 'var(--bg-card)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', transition: 'background 0.2s' }}>
-                    AGREGAR 🛒
+                  <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(sec.id, p, 1, precio.final); }}>
+                    AGREGAR <Ico n="cart" s={14} />
                   </button>
                 )}
               </div>

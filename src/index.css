@@ -152,7 +152,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .badge-icon { font-size: 22px; }
 
 /* ─── PRODUCT GRID ─── */
-.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 16px; }
 .product-grid-small { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
 .product-card { background: var(--bg-card); border: none; border-radius: var(--radius); overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; box-shadow: var(--shadow); }
 .product-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
@@ -163,7 +163,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .pbadge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; color: white; letter-spacing: 0.02em; }
 .pbadge-shipping { background: var(--primary); }
 .pbadge-discount { background: var(--accent); color: var(--primary-dark); }
-.sin-stock-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; }
+.sin-stock-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.62); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
 .product-info { padding: 16px; }
 .product-cat { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
 .product-name { font-size: 14px; font-weight: 700; margin: 6px 0 10px; line-height: 1.3; }
@@ -306,6 +306,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .product-info .btn { width: 100%; border-radius: var(--radius-pill); padding: 11px; margin-top: 8px; font-weight: 700; font-size: 12px; letter-spacing: 0.04em; background: var(--primary-dark); color: white; border-color: var(--primary-dark); transition: transform 0.15s, background 0.2s, filter 0.2s; }
 .product-info .btn:hover { background: var(--primary); border-color: var(--primary); filter: brightness(1.05); }
 .product-info .btn:active { transform: scale(0.97); }
+/* Botón Agregar en listado de sección (mismo comportamiento que landing) */
+.product-add-btn { width: 100%; margin-top: 8px; padding: 11px; border-radius: var(--radius-pill); font-weight: 800; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; background: var(--primary-dark); color: #fff; border: 2px solid var(--primary-dark); cursor: pointer; transition: background 0.2s, border-color 0.2s, filter 0.2s, transform 0.15s; }
+.product-add-btn:hover { background: var(--primary); border-color: var(--primary); filter: brightness(1.08); }
+.product-add-btn:active { transform: scale(0.97); }
+/* Al pasar por la card, el botón se resalta en azul */
+.product-card:hover .product-add-btn { background: var(--primary); border-color: var(--primary); }
+.product-card:hover .product-info .btn, .kicks-card:hover .product-info .btn { background: var(--primary); border-color: var(--primary); }
 
 /* SIN STOCK overlay */
 .sin-stock-overlay { border-radius: 12px; font-size: 13px; letter-spacing: 0.1em; font-weight: 800; }
