@@ -1289,6 +1289,13 @@ function CartPage() {
     if (seccionesConItems.length <= 1) window.__mixPopupShown = false; // reset para el próximo carrito mixto
   }, [seccionesConItems.length]);
 
+  // Load payment methods for the first section with items
+  useEffect(() => {
+    if (seccionesConItems.length > 0) {
+      api.getMetodosPago(seccionesConItems[0].id).then(setMetodos).catch(() => {});
+    }
+  }, [seccionesConItems.length]);
+
   if (!allItems.length) {
     return (
       <div style={{ padding: '48px 20px', textAlign: 'center', maxWidth: 500, margin: '0 auto' }}>
@@ -1302,6 +1309,46 @@ function CartPage() {
   const subtotal = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
   const costoEnvioTotal = Object.values(envio).reduce((s, e) => s + (e?.costo || 0), 0);
   const total = Math.max(0, subtotal - descuento + costoEnvioTotal);
+
+  // Guardar como presupuesto (cliente → admin lo ve en tab presupuestos)
+  const guardarPresupuesto = async () => {
+    if (!user) { toast('Necesitás iniciar sesión para guardar un presupuesto', 'warning'); nav('login'); return; }
+    try {
+      const pedidos = seccionesConItems.map(sec => {
+        const secItems = allItems.filter(i => i.seccion_id === sec.id);
+        const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        return {
+          seccion_id: sec.id, tipo: 'presupuesto', estado: 'pendiente', metodo_pago: metodoPago, notas,
+          subtotal: secSubtotal, descuento: 0, total: secSubtotal,
+          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
+        };
+      }).filter(pp => pp.items.length);
+      for (const p of pedidos) await api.createPedido(p);
+      toast('¡Presupuesto guardado! Te avisaremos cuando lo revisemos.');
+      nav('account');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Compartir carrito por WhatsApp / copiar
+  const compartirCarrito = () => {
+    let txt = `🛒 *Mi carrito*\n\n`;
+    seccionesConItems.forEach(sec => {
+      const secItems = allItems.filter(i => i.seccion_id === sec.id);
+      txt += `📦 *${sec.nombre}*\n`;
+      secItems.forEach(i => {
+        txt += `• ${i.nombre || i.modelo} x${i.qty} — ${fmtARS((i.precio_unitario || i.precio_base) * i.qty)}\n`;
+      });
+      txt += '\n';
+    });
+    txt += `*Total: ${fmtARS(total)}*`;
+    if (navigator.share) {
+      navigator.share({ title: 'Mi carrito', text: txt }).catch(() => {});
+    } else {
+      const waNum2 = config.whatsapp_flotante || config.whatsapp || '';
+      if (waNum2) window.open(`https://api.whatsapp.com/send?phone=${waNum2}&text=${encodeURIComponent(txt)}`, '_blank');
+      else { navigator.clipboard.writeText(txt).then(() => toast('Carrito copiado al portapapeles')).catch(() => toast('No se pudo copiar', 'error')); }
+    }
+  };
 
   const checkout = async () => {
     if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
@@ -1443,6 +1490,15 @@ function CartPage() {
       <button onClick={checkout} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
         {testMode ? '🧪 CONFIRMAR PEDIDO (PRUEBA)' : 'CONFIRMAR PEDIDO'}
       </button>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button onClick={guardarPresupuesto} style={{ flex: 1, padding: 12, background: 'var(--bg-card)', border: '1.5px solid var(--primary)', color: 'var(--primary)', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          📋 GUARDAR COMO PRESUPUESTO
+        </button>
+        <button onClick={compartirCarrito} style={{ flex: 1, padding: 12, background: 'var(--bg-card)', border: '1.5px solid var(--success)', color: 'var(--success)', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          📤 COMPARTIR CARRITO
+        </button>
+      </div>
     </div>
   );
 }
@@ -1748,6 +1804,19 @@ function AccountPanel() {
   const { user, setUser, toast, nav, handleLogout, userLista, config } = useContext(Ctx);
   const [f, setF] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '', direccion: user?.direccion || '', nombre_fantasia: user?.nombre_fantasia || '', password: '' });
   const [saving, setSaving] = useState(false);
+  const [accTab, setAccTab] = useState('datos');
+  const [misPedidos, setMisPedidos] = useState([]);
+  const [misPresup, setMisPresup] = useState([]);
+  const [viewDetail, setViewDetail] = useState(null);
+
+  useEffect(() => {
+    if (accTab === 'pedidos') api.getPedidos({ tipo: 'pedido' }).then(setMisPedidos).catch(() => {});
+    if (accTab === 'presupuestos') api.getPedidos({ tipo: 'presupuesto' }).then(setMisPresup).catch(() => {});
+  }, [accTab]);
+
+  const loadDetail = async (id) => {
+    try { const d = await api.getPedido(id); setViewDetail(d); } catch (e) { toast(e.message, 'error'); }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -1759,8 +1828,10 @@ function AccountPanel() {
     setSaving(false);
   };
 
+  const estadoColor = { pendiente: 'var(--accent)', preparando: 'var(--primary)', listo: 'var(--success)', entregado: '#666', cancelado: 'var(--danger)' };
+
   return (
-    <div style={{ maxWidth: 500, margin: '48px auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: 600, margin: '48px auto', padding: '0 16px' }}>
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
       <h2 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em', marginBottom: 20 }}>Mi cuenta</h2>
 
@@ -1770,17 +1841,85 @@ function AccountPanel() {
         {userLista && <div style={{ marginTop: 8 }}><span style={{ background: userLista.color || 'var(--primary)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{userLista.nombre}</span></div>}
       </div>
 
-      <div className="card" style={{ padding: 24, borderRadius: 20 }}>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>TELÉFONO</label><input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>EMAIL</label><input value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>DIRECCIÓN</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
-        <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
-
-        <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
-        <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
+      {/* Tabs: Datos / Pedidos / Presupuestos */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+        {[{ id: 'datos', label: '👤 Datos' }, { id: 'pedidos', label: '📦 Mis pedidos' }, { id: 'presupuestos', label: '📋 Presupuestos' }].map(t => (
+          <button key={t.id} onClick={() => setAccTab(t.id)} style={{ flex: 1, padding: '10px 8px', borderRadius: 10, border: accTab === t.id ? '2px solid var(--primary)' : '1.5px solid var(--border)', background: accTab === t.id ? 'var(--primary-light)' : 'var(--bg-card)', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}>{t.label}</button>
+        ))}
       </div>
+
+      {accTab === 'datos' && (
+        <div className="card" style={{ padding: 24, borderRadius: 20 }}>
+          <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
+          <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>TELÉFONO</label><input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} /></div>
+          <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>EMAIL</label><input value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div>
+          <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>DIRECCIÓN</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
+          <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
+          <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
+          <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
+          <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
+        </div>
+      )}
+
+      {accTab === 'pedidos' && (
+        <div>
+          {misPedidos.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>No tenés pedidos todavía</p> : misPedidos.map(o => (
+            <div key={o.id} className="card" onClick={() => loadDetail(o.id)} style={{ padding: 14, marginBottom: 8, borderRadius: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Pedido #{o.id}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(o.created_at).toLocaleDateString('es-AR')} • {o.seccion_nombre}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(o.total)}</div>
+                <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: estadoColor[o.estado] || '#999', color: '#fff', padding: '2px 8px', borderRadius: 6 }}>{o.estado}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {accTab === 'presupuestos' && (
+        <div>
+          {misPresup.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>No tenés presupuestos</p> : misPresup.map(o => (
+            <div key={o.id} className="card" onClick={() => loadDetail(o.id)} style={{ padding: 14, marginBottom: 8, borderRadius: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Presupuesto #{o.id}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(o.created_at).toLocaleDateString('es-AR')} • {o.seccion_nombre}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(o.total)}</div>
+                <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: o.estado === 'pendiente' ? 'var(--accent)' : 'var(--success)', color: '#fff', padding: '2px 8px', borderRadius: 6 }}>{o.tipo === 'presupuesto' ? 'presupuesto' : o.estado}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal detalle del pedido/presupuesto del cliente */}
+      {viewDetail && (
+        <div className="modal-overlay" onClick={() => setViewDetail(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <div className="modal-header"><span className="modal-title">{viewDetail.tipo === 'presupuesto' ? 'Presupuesto' : 'Pedido'} #{viewDetail.id}</span><button className="modal-close" onClick={() => setViewDetail(null)}>✕</button></div>
+            <div className="modal-body">
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{new Date(viewDetail.created_at).toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+                Estado: <span style={{ background: estadoColor[viewDetail.estado] || '#999', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11 }}>{viewDetail.estado}</span>
+                {viewDetail.seccion_nombre && <span style={{ background: viewDetail.seccion_color || 'var(--border)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11 }}>{viewDetail.seccion_nombre}</span>}
+              </div>
+              {(viewDetail.items || []).map((it, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                  <span>{it.nombre_producto} <span style={{ color: 'var(--text-muted)' }}>x{it.cantidad}</span></span>
+                  <span style={{ fontWeight: 700 }}>{fmtARS(it.precio_unitario * it.cantidad)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontWeight: 900, fontSize: 18 }}>
+                <span>Total</span><span>{fmtARS(viewDetail.total)}</span>
+              </div>
+              {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}>📝 {viewDetail.notas}</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2619,6 +2758,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [addSearch, setAddSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [ajuste, setAjuste] = useState(0); // + recargo, - descuento
   const searchTimer = useRef(null);
 
   useEffect(() => {
@@ -2627,6 +2767,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       const full = await api.getPedido(o.id);
       setItems((full.items || []).map(i => ({ ...i, qty: i.cantidad || 1 })));
       setO(full);
+      if (full.descuento) setAjuste(-Math.abs(Number(full.descuento)));
       const users = await api.getUsuarios('').catch(() => []);
       setAllUsers(users);
       setLoadingItems(false);
@@ -2642,14 +2783,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     }, 400);
   }, [addSearch]);
 
-  const editTotal = items.reduce((s, i) => s + (Number(i.precio_unitario) || 0) * (i.qty || 0), 0);
+  const editSubtotal = items.reduce((s, i) => s + (Number(i.precio_unitario) || 0) * (i.qty || 0), 0);
+  const editTotal = Math.max(0, editSubtotal + (Number(ajuste) || 0));
   const itemName = i => i.nombre_producto || (i.categoria && i.modelo ? `${i.categoria} - ${i.modelo}` : i.modelo || 'Producto');
 
   const saveEdit = async () => {
     setSaving(true);
     try {
       const newItems = items.map(i => ({ producto_id: i.producto_id || i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: itemName(i), cantidad: i.qty, precio_unitario: Number(i.precio_unitario) || 0, precio_base: Number(i.precio_base) || 0 }));
-      await api.updatePedido(o.id, { items: newItems, total: editTotal });
+      await api.updatePedido(o.id, { items: newItems, subtotal: editSubtotal, descuento: ajuste < 0 ? Math.abs(ajuste) : 0, total: editTotal });
       toast('Pedido actualizado'); setEditing(false);
       const full = await api.getPedido(o.id); setO(full); setItems((full.items || []).map(i => ({ ...i, qty: i.cantidad || 1 })));
     } catch (e) { toast(e.message, 'error'); }
@@ -2800,14 +2942,21 @@ function OrderDetailModal({ order: initOrder, onClose }) {
                   {searchResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)' }} onClick={() => addItem(p)}>{p.nombre || p.modelo} — {p.categoria} — ${fmt(p.precio_base)}</div>)}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <label style={{ fontWeight: 700 }}>Ajuste $:</label>
+                  <input type="number" value={ajuste} onChange={e => setAjuste(Number(e.target.value) || 0)} style={{ width: 100, fontSize: 12 }} placeholder="- desc / + recargo" />
+                </div>
                 <button className="btn btn-primary btn-sm" onClick={saveEdit} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
                 <button className="btn btn-outline btn-sm" onClick={() => setEditing(false)}>Cancelar</button>
               </div>
             </div>
           )}
 
-          <div style={{ textAlign: 'right', fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Total: {fmtARS(editTotal)}</div>
+          <div style={{ textAlign: 'right', marginBottom: 12 }}>
+            {editing && ajuste !== 0 && <div style={{ fontSize: 12, color: ajuste < 0 ? 'var(--success)' : 'var(--accent)' }}>{ajuste < 0 ? `Descuento: -${fmtARS(Math.abs(ajuste))}` : `Recargo: +${fmtARS(ajuste)}`}</div>}
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtARS(editTotal)}</div>
+          </div>
           {o.metodo_pago && <p style={{ fontSize: 13 }}>💳 {o.metodo_pago}</p>}
           {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
           {o.cupon_codigo && <p style={{ fontSize: 13 }}>🎟️ Cupón: {o.cupon_codigo}</p>}
@@ -2817,7 +2966,22 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             <button className="btn btn-outline btn-sm" onClick={() => printOrder('A4')}><Ico n="printer" s={15} /> Remito A4</button>
             <button className="btn btn-outline btn-sm" onClick={() => printOrder('80mm')}><Ico n="printer" s={15} /> Térmica</button>
             <button className="btn btn-outline btn-sm" onClick={cloneOrder}>📋 Duplicar</button>
-            {o.tipo === 'presupuesto' && <button className="btn btn-success btn-sm" onClick={async () => { try { await api.updatePedido(o.id, { tipo: 'pedido', estado: 'pendiente' }); toast('Convertido a pedido'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>✓ Convertir a pedido</button>}
+            {o.tipo === 'presupuesto' && <button className="btn btn-success btn-sm" onClick={async () => {
+              try {
+                const val = await api.validarConversion(o.id);
+                if (val.tiene_cambios) {
+                  const msgs = val.cambios.map(c => {
+                    if (c.tipo === 'eliminado') return `❌ ${c.item}: ${c.detalle}`;
+                    if (c.tipo === 'stock') return `⚠️ ${c.item}: ${c.detalle}`;
+                    if (c.tipo === 'precio') return `💰 ${c.item}: ${c.detalle}`;
+                    return c.detalle;
+                  }).join('\n');
+                  if (!window.confirm(`Hay cambios desde que se creó el presupuesto:\n\n${msgs}\n\n¿Convertir a pedido de todas formas?`)) return;
+                }
+                await api.updatePedido(o.id, { tipo: 'pedido', estado: 'pendiente' });
+                toast('Convertido a pedido'); onClose();
+              } catch (e) { toast(e.message, 'error'); }
+            }}>✓ Convertir a pedido</button>}
             {(o.usuario_telefono) && <button className="btn btn-outline btn-sm" onClick={() => { const tel = (o.usuario_telefono || '').replace(/\D/g, ''); const num = tel.startsWith('54') ? tel : `54${tel}`; openWA(num, `Hola ${o.usuario_nombre || ''}, respecto a tu pedido #${o.id}:`); }}>📱 WhatsApp</button>}
             <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.archivarPedido(o.id); toast('Archivado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>📥 Archivar</button>
             <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar este pedido?')) return; try { await api.deletePedido(o.id); toast('Eliminado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>🗑 Eliminar</button>
