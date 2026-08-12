@@ -897,7 +897,7 @@ function Landing() {
 
   // Product card component
   const ProductCard = ({ p, secId }) => {
-    const precio = getPrice ? getPrice(p) : p.precio_base;
+    const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
     const tieneOferta = p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
     const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
     const [notifyEmail, setNotifyEmail] = useState('');
@@ -1300,7 +1300,7 @@ function SectionPage() {
 // CART PAGE
 // ═══════════════════════════════════════════════════════════
 function CartPage() {
-  const { secciones, user, nav, toast, cart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
+  const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
   const [cupon, setCupon] = useState('');
   const [descuento, setDescuento] = useState(0);
   const [metodoPago, setMetodoPago] = useState('');
@@ -1308,6 +1308,43 @@ function CartPage() {
   const [notas, setNotas] = useState('');
   const [envio, setEnvio] = useState({});
   const [showMixPopup, setShowMixPopup] = useState(false);
+  const [avisos, setAvisos] = useState([]); // cambios detectados al abrir el carrito
+  const refreshDone = useRef(false);
+
+  // Al ABRIR el carrito: refrescar precio y stock de cada producto contra la base
+  useEffect(() => {
+    if (refreshDone.current) return;
+    refreshDone.current = true;
+    (async () => {
+      const cambios = [];
+      const nuevoCart = {};
+      for (const [secId, items] of Object.entries(cart)) {
+        if (!Array.isArray(items)) continue;
+        nuevoCart[secId] = [];
+        for (const it of items) {
+          if (it.qty <= 0) continue;
+          try {
+            const prod = await api.getProducto(it.id);
+            if (!prod) { cambios.push(`"${it.nombre || it.modelo}" ya no está disponible y se quitó del carrito`); continue; }
+            const sinStock = !prod.permitir_sin_stock && !prod.es_digital && Number(prod.stock) < it.qty;
+            const precioViejo = Number(it.precio_unitario || it.precio_base);
+            const precioNuevo = Number(prod.precio_base);
+            if (sinStock) {
+              if (Number(prod.stock) <= 0) { cambios.push(`"${prod.nombre || prod.modelo}" se quedó sin stock y se quitó`); continue; }
+              cambios.push(`"${prod.nombre || prod.modelo}": solo quedan ${prod.stock}, se ajustó la cantidad`);
+              nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: Number(prod.stock), precio_unitario: precioNuevo });
+              continue;
+            }
+            if (precioViejo !== precioNuevo) cambios.push(`"${prod.nombre || prod.modelo}": el precio cambió de ${fmtARS(precioViejo)} a ${fmtARS(precioNuevo)}`);
+            nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: it.qty, precio_unitario: precioNuevo });
+          } catch {
+            nuevoCart[secId].push(it); // si falla la consulta, dejamos el item como está
+          }
+        }
+      }
+      if (cambios.length) { setCart(nuevoCart); setAvisos(cambios); }
+    })();
+  }, []);
 
   // Group cart items by section
   const seccionesConItems = secciones.filter(s => (Array.isArray(cart[s.id]) ? cart[s.id] : []).some(i => i.qty > 0));
@@ -1450,6 +1487,14 @@ function CartPage() {
       )}
       {seccionesConItems.length > 1 && <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>ℹ️ Tenés productos de {seccionesConItems.length} tiendas. Se genera un pedido separado por cada una (no se mezclan).</div>}
 
+      {avisos.length > 0 && (
+        <div style={{ background: 'var(--warning-light, rgba(245,180,60,0.12))', border: '1px solid var(--warning, #e8a13a)', borderRadius: 12, padding: '12px 14px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>⚠️ El carrito se actualizó</div>
+          {avisos.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 3 }}>• {a}</div>)}
+          <button onClick={() => setAvisos([])} style={{ marginTop: 6, background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12, cursor: 'pointer', padding: 0 }}>Entendido</button>
+        </div>
+      )}
+
       {seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
         const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
@@ -1506,6 +1551,11 @@ function CartPage() {
             {/* Shipping for this section */}
             <AndreaniCalculator seccionId={sec.id} peso={0.5} volumen={0.001} onSelect={e => setEnvio(prev => ({ ...prev, [sec.id]: e }))} />
             {envio[sec.id] && <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', marginTop: 4 }}>✓ {envio[sec.id].nombre}: {fmtARS(envio[sec.id].costo)}</div>}
+            {/* Subtotal de esta tienda */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal {sec.nombre}</span>
+              <span style={{ fontSize: 15, fontWeight: 800 }}>{fmtARS(secSubtotal + (envio[sec.id]?.costo || 0))}</span>
+            </div>
           </div>
         );
       })}
@@ -1533,6 +1583,14 @@ function CartPage() {
       <textarea placeholder="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)} rows={2} style={{ width: '100%', borderRadius: 10, padding: '10px 14px', border: '1.5px solid var(--border)', marginTop: 16 }} />
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginTop: 16 }}>
+        {seccionesConItems.length > 1 && (
+          <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+            {seccionesConItems.map(sec => {
+              const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
+              return <div key={sec.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}><span style={{ color: 'var(--text-secondary)' }}>Subtotal {sec.nombre}</span><span style={{ fontWeight: 700 }}>{fmtARS(ss + (envio[sec.id]?.costo || 0))}</span></div>;
+            })}
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
         {costoEnvioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Envío</span><span style={{ fontWeight: 700 }}>{fmtARS(costoEnvioTotal)}</span></div>}
         {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuento</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(descuento)}</span></div>}
