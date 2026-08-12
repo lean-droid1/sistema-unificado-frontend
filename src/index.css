@@ -200,13 +200,25 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .admin-nav-item { display: block; width: 100%; text-align: left; padding: 10px 14px; border: none; background: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.15s; }
 .admin-nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .admin-nav-item.active { background: #fff; color: var(--primary-dark); font-weight: 700; }
+/* Acordeón: grupo cabecera */
+.admin-nav-group { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 10px 14px; border: none; background: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.75); cursor: pointer; transition: all 0.15s; }
+.admin-nav-group:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.admin-nav-group.has-active { color: #fff; }
+/* Acordeón: sub-items */
+.admin-nav-sub { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 0; padding-left: 10px; border-left: 2px solid rgba(255,255,255,0.12); margin-left: 16px; }
+.admin-nav-item.sub { padding: 8px 12px; font-size: 12.5px; font-weight: 500; }
+.admin-nav-item.sub.active { background: rgba(255,255,255,0.95); }
+/* Sub-pestañas horizontales dentro de un hub (ej: Diseño) */
+.admin-subtabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.admin-subtab { padding: 8px 16px; border: none; background: var(--bg-card); border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+.admin-subtab:hover { background: var(--border-light); }
+.admin-subtab.active { background: var(--primary); color: #fff; font-weight: 700; }
 .admin-content { flex: 1; padding: 24px; max-width: 960px; }
 @media (max-width: 768px) {
   .admin-layout { flex-direction: column; }
   .admin-sidebar { display: none; position: fixed; top: 0; left: 0; width: 280px; height: 100vh; z-index: 150; border-right: none; padding: 20px 16px; }
   .admin-sidebar.open { display: block; }
-  .admin-nav { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-  .admin-nav-item { padding: 6px 10px; font-size: 12px; }
+  .admin-nav { flex-direction: column; flex-wrap: nowrap; gap: 2px; }
   .admin-content { padding: 16px; }
 }
 
