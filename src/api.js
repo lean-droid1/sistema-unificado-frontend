@@ -89,6 +89,7 @@ export async function reasignarCategoria(producto_ids, categoria) { return f('/a
 export async function guardarCategoriasMeta(categorias) { return f('/api/categorias/meta', { method: 'POST', body: JSON.stringify({ categorias }) }); }
 export async function crearCategoria(nombre) { return f('/api/categorias/crear', { method: 'POST', body: JSON.stringify({ nombre }) }); }
 export async function duplicarProducto(id) { return f(`/api/productos/${id}/duplicar`, { method: 'POST' }); }
+export async function getHistorialCliente(id) { return f(`/api/usuarios/${id}/historial`); }
 export async function createProducto(producto) { return f('/api/productos', { method: 'POST', body: JSON.stringify(producto) }); }
 export async function updateProducto(id, producto) { return f(`/api/productos/${id}`, { method: 'PUT', body: JSON.stringify(producto) }); }
 export async function deleteProducto(id) { return f(`/api/productos/${id}`, { method: 'DELETE' }); }

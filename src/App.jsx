@@ -3279,6 +3279,8 @@ function AdminPedidos({ filtroTipo }) {
   const [ordTab, setOrdTab] = useState(filtroTipo === 'presupuestos' ? 'presupuestos' : 'pedidos');
   const [viewOrder, setViewOrder] = useState(null);
   const [showPresupuesto, setShowPresupuesto] = useState(false);
+  const [busqPed, setBusqPed] = useState('');
+  const [pagoFiltro, setPagoFiltro] = useState('todos');
   // Cambiar de tab si cambia el filtro desde el sidebar
   useEffect(() => { if (filtroTipo === 'presupuestos') setOrdTab('presupuestos'); else if (filtroTipo === 'pedidos') setOrdTab('pedidos'); }, [filtroTipo]);
 
@@ -3308,6 +3310,13 @@ function AdminPedidos({ filtroTipo }) {
   useEffect(() => { load(); }, [adminSeccion, ordTab, testMode]);
 
   const changeTab = (t) => { setOrdTab(t); load(t); };
+  const pedidosFiltrados = (() => {
+    let lista = pedidos;
+    if (busqPed) { const q = busqPed.toLowerCase(); lista = lista.filter(p => String(p.id).includes(q) || (p.usuario_nombre || '').toLowerCase().includes(q) || (p.nombre_fantasia || '').toLowerCase().includes(q) || (p.usuario_telefono || '').includes(q)); }
+    if (pagoFiltro !== 'todos' && ordTab !== 'presupuestos') lista = lista.filter(p => (p.estado_pago || 'impago') === pagoFiltro);
+    return lista;
+  })();
+
   const tabs = [{ id: 'pedidos', label: 'Pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }, { id: 'cancelados', label: 'Cancelados' }, { id: 'archivados', label: 'Archivados' }];
   const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
   const colores = { pendiente: 'var(--warning)', preparando: 'var(--primary)', listo: '#8b5cf6', entregado: 'var(--success)', cancelado: 'var(--danger)' };
@@ -3359,7 +3368,20 @@ function AdminPedidos({ filtroTipo }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {tabs.map(t => <button key={t.id} className={`btn btn-sm ${ordTab === t.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => changeTab(t.id)}>{t.label}</button>)}
       </div>
-      {pedidos.map(p => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <input placeholder="Buscar por nº, cliente o teléfono..." value={busqPed} onChange={e => setBusqPed(e.target.value)} style={{ flex: 1, minWidth: 180 }} />
+        {ordTab !== 'presupuestos' && (
+          <select value={pagoFiltro} onChange={e => setPagoFiltro(e.target.value)} style={{ width: 150 }}>
+            <option value="todos">Todos los pagos</option>
+            <option value="pagado">Pagados</option>
+            <option value="impago">Impagos</option>
+            <option value="senado">Señados</option>
+            <option value="debe">Deben</option>
+          </select>
+        )}
+      </div>
+      {pedidosFiltrados.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay resultados</p>}
+      {pedidosFiltrados.map(p => (
         <div key={p.id} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
@@ -3369,6 +3391,7 @@ function AdminPedidos({ filtroTipo }) {
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {p.tipo !== 'presupuesto' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: p.estado_pago === 'pagado' ? 'var(--success)' : p.estado_pago === 'senado' ? 'var(--accent)' : p.estado_pago === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{p.estado_pago || 'impago'}</span>}
               <span style={{ background: colores[p.estado], color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{p.estado}</span>
               <strong>{fmtARS(p.total)}</strong>
             </div>
@@ -3536,9 +3559,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             </div>
           </div>
 
-          {/* Estado */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <label style={{ fontSize: 13, fontWeight: 600 }}>Estado:</label>
+          {/* Estado de ENTREGA */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>Entrega:</label>
             <select value={o.estado} onChange={e => changeEstado(e.target.value)} style={{ width: 140 }}>
               {estados.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
@@ -3547,6 +3570,24 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <option value="">Asignar cliente...</option>
               {allUsers.filter(u => u.rol !== 'admin').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.nombre_fantasia ? `(${u.nombre_fantasia})` : ''}</option>)}
             </select>
+          </div>
+          {/* Estado de PAGO */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>Pago:</label>
+            <select value={o.estado_pago || 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
+              <option value="impago">Impago</option>
+              <option value="senado">Señado</option>
+              <option value="pagado">Pagado</option>
+              <option value="debe">Debe</option>
+            </select>
+            {(o.estado_pago === 'senado' || o.estado_pago === 'debe') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Seña $</span>
+                <input type="number" defaultValue={o.sena || 0} onBlur={async e => { try { await api.updatePedido(o.id, { sena: Number(e.target.value) || 0 }); const full = await api.getPedido(o.id); setO(full); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 100 }} />
+                {o.total > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>resta {fmtARS(Math.max(0, Number(o.total) - Number(o.sena || 0)))}</span>}
+              </div>
+            )}
+            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', padding: '3px 10px', borderRadius: 6, background: o.estado_pago === 'pagado' ? 'var(--success)' : o.estado_pago === 'senado' ? 'var(--accent)' : o.estado_pago === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{o.estado_pago || 'impago'}</span>
           </div>
 
           {/* Items */}
@@ -3679,6 +3720,11 @@ function UserModal({ u, onClose }) {
     : { nombre: u.nombre || '', usuario: u.usuario || '', password: '', telefono: u.telefono || '', email: u.email || '', direccion: u.direccion || '', rol: u.rol || 'cliente', lista_precio_id: u.lista_precio_id || '', nombre_fantasia: u.nombre_fantasia || '', notas_admin: u.notas_admin || '', permisos: u.permisos || '', activo: u.activo ?? true, es_revendedor: u.es_revendedor || false, descuento_revendedor: u.descuento_revendedor || 0 }
   );
   const [sv, setSv] = useState(false);
+  const [hist, setHist] = useState(null);
+  const [showHist, setShowHist] = useState(false);
+  useEffect(() => {
+    if (!isNew && u.id && showHist && !hist) api.getHistorialCliente(u.id).then(setHist).catch(() => {});
+  }, [showHist]);
 
   const save = async () => {
     if (!f.nombre || !f.usuario) { toast('Nombre y usuario obligatorios'); return; }
@@ -3759,7 +3805,32 @@ function UserModal({ u, onClose }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}><input type="checkbox" checked={f.activo !== false} onChange={e => setF({ ...f, activo: e.target.checked })} /> {f.activo !== false ? '✅ Cuenta activa' : '🔴 Cuenta suspendida'}</label>
           )}
         </div>
+        {!isNew && showHist && (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, margin: '12px 0' }}>
+            {!hist ? <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Cargando historial...</p> : (
+              <>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+                  <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total comprado</div><div style={{ fontWeight: 900, fontSize: 18, color: 'var(--success)' }}>{fmtARS(hist.resumen.totalGastado)}</div></div>
+                  <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Pedidos</div><div style={{ fontWeight: 900, fontSize: 18 }}>{hist.resumen.cantPedidos}</div></div>
+                  <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Presupuestos</div><div style={{ fontWeight: 900, fontSize: 18 }}>{hist.resumen.cantPresup}</div></div>
+                  <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Última compra</div><div style={{ fontWeight: 700, fontSize: 14 }}>{hist.resumen.ultimaCompra ? new Date(hist.resumen.ultimaCompra).toLocaleDateString('es-AR') : '—'}</div></div>
+                </div>
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {hist.pedidos.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Sin movimientos</p> : hist.pedidos.map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                      <span>{numOrden(p)} <span style={{ color: 'var(--text-muted)' }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span> {p.seccion_nombre && <span style={{ fontSize: 10, background: p.seccion_color || 'var(--border)', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>{p.seccion_nombre}</span>}</span>
+                      <span style={{ fontWeight: 700 }}>{fmtARS(p.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className="modal-footer">
+          {!isNew && (
+            <button className="btn btn-outline btn-sm" onClick={() => setShowHist(!showHist)} style={{ marginRight: 8 }}>{showHist ? 'Ocultar historial' : '📊 Ver historial'}</button>
+          )}
           {!isNew && (
             <button className="btn btn-outline btn-sm" onClick={async () => { const r = await api.resetPassword(u.id); toast('Contraseña reseteada a 1234'); if (r.telefono) { openWA(`54${r.telefono.replace(/\D/g, '')}`, `Hola ${r.nombre}, tu contraseña fue reseteada. Tu nueva contraseña es: 1234`); } }} style={{ marginRight: 'auto' }}>🔑 Reset pass</button>
           )}
