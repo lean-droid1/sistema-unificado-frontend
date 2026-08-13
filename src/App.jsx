@@ -11,6 +11,8 @@ gsap.registerPlugin(ScrollTrigger);
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
+// Nº de orden con prefijo según tipo: presupuesto → P-0001, pedido → #0001. El id interno no cambia.
+const numOrden = (o) => { const id = String(o?.id ?? '').padStart(4, '0'); return (o?.tipo === 'presupuesto') ? `P-${id}` : `#${id}`; };
 const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${String(num).replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
 const openWA = (num, msg) => window.open(waLink(num, msg), '_blank');
 
@@ -503,6 +505,7 @@ function Ico({ n, s = 18, fill = false }) {
   if (n === 'clipboard') return <svg {...p} fill="none"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" /></svg>;
   if (n === 'chevron-down') return <svg {...p} fill="none"><path d="m6 9 6 6 6-6" /></svg>;
   if (n === 'store') return <svg {...p} fill="none"><path d="M3 9l1.5-5h15L21 9M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9M4 9h16M9 21v-6h6v6" /></svg>;
+  if (n === 'copy') return <svg {...p} fill="none"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
   return null;
 }
 
@@ -2021,7 +2024,7 @@ function AccountPanel() {
           {misPedidos.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>No tenés pedidos todavía</p> : misPedidos.map(o => (
             <div key={o.id} className="card" onClick={() => loadDetail(o.id)} style={{ padding: 14, marginBottom: 8, borderRadius: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>Pedido #{o.id}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{numOrden(o)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(o.created_at).toLocaleDateString('es-AR')} • {o.seccion_nombre}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -2038,7 +2041,7 @@ function AccountPanel() {
           {misPresup.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>No tenés presupuestos</p> : misPresup.map(o => (
             <div key={o.id} className="card" onClick={() => loadDetail(o.id)} style={{ padding: 14, marginBottom: 8, borderRadius: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>Presupuesto #{o.id}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{numOrden(o)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(o.created_at).toLocaleDateString('es-AR')} • {o.seccion_nombre}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -2054,7 +2057,7 @@ function AccountPanel() {
       {viewDetail && (
         <div className="modal-overlay" onClick={() => setViewDetail(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div className="modal-header"><span className="modal-title">{viewDetail.tipo === 'presupuesto' ? 'Presupuesto' : 'Pedido'} #{viewDetail.id}</span><button className="modal-close" onClick={() => setViewDetail(null)}>✕</button></div>
+            <div className="modal-header"><span className="modal-title">{numOrden(viewDetail)}</span><button className="modal-close" onClick={() => setViewDetail(null)}>✕</button></div>
             <div className="modal-body">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{new Date(viewDetail.created_at).toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
               <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2404,6 +2407,14 @@ function AdminCategorias() {
   const [busq, setBusq] = useState('');
   const [showMasa, setShowMasa] = useState(false);
   const [masaDestino, setMasaDestino] = useState('');
+  const [showCrear, setShowCrear] = useState(false);
+  const [nuevaCat, setNuevaCat] = useState('');
+
+  const crearCat = async () => {
+    if (!nuevaCat.trim()) { toast('Poné un nombre', 'error'); return; }
+    try { await api.crearCategoria(nuevaCat.trim()); toast('Categoría creada'); setShowCrear(false); setNuevaCat(''); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -2475,7 +2486,10 @@ function AdminCategorias() {
     <div style={{ maxWidth: 800 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
         <h3 style={{ fontWeight: 900, fontSize: 22 }}>Categorías ({cats.length})</h3>
-        {dirty && <button className="btn btn-primary btn-sm" onClick={saveOrden}>Guardar orden</button>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCrear(true)}>+ Nueva categoría</button>
+          {dirty && <button className="btn btn-outline btn-sm" onClick={saveOrden}>Guardar orden</button>}
+        </div>
       </div>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Arrastrá ⠿ para reordenar cómo se ven en la tienda. Tocá el ojo para mostrar/ocultar. Para arreglar las del import: buscá, seleccioná varias y fusionalas en la correcta.</p>
 
@@ -2512,6 +2526,20 @@ function AdminCategorias() {
           <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}>🗑</button>
         </div>
       ))}
+
+      {/* Modal crear categoría */}
+      {showCrear && (
+        <div className="modal-overlay" onClick={() => setShowCrear(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header"><span className="modal-title">Nueva categoría</span><button className="modal-close" onClick={() => setShowCrear(false)}>✕</button></div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Creá una categoría vacía. Después le asignás productos desde Productos → acciones en masa, o al editar un producto.</p>
+              <input value={nuevaCat} onChange={e => setNuevaCat(e.target.value)} placeholder="Ej: Herramientas" style={{ width: '100%', marginBottom: 12 }} autoFocus onKeyDown={e => e.key === 'Enter' && crearCat()} />
+              <button className="btn btn-primary" onClick={crearCat} style={{ width: '100%' }}>Crear</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal fusionar en masa */}
       {showMasa && (
@@ -2702,6 +2730,7 @@ function AdminProductos() {
                 <td><input type="checkbox" defaultChecked={p.visible !== false} onChange={e => inlineUpdate(p.id, 'visible', e.target.checked)} /></td>
                 <td>
                   <button className="btn btn-outline btn-sm" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} style={{ padding: '2px 6px' }} title="Variantes"><Ico n="shuffle" s={15} /></button>
+                  <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.duplicarProducto(p.id); toast('Producto duplicado'); load(); } catch (e) { toast(e.message, 'error'); } }} style={{ padding: '2px 6px', marginLeft: 4 }} title="Duplicar"><Ico n="copy" s={15} /></button>
                   <button className="btn btn-outline btn-sm" onClick={() => setEditProd(p)} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="edit" s={15} /></button>
                   <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteProducto(p.id); load(); }} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="trash" s={15} /></button>
                 </td>
@@ -3334,7 +3363,7 @@ function AdminPedidos({ filtroTipo }) {
         <div key={p.id} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <strong>#{p.id}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>🧪 TEST</span>}
+              <strong>{numOrden(p)}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>🧪 TEST</span>}
               {p.seccion_nombre && <span style={{ background: p.seccion_color || 'var(--primary)', color: '#fff', padding: '1px 8px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{p.seccion_nombre}</span>}
               {' — '}{p.usuario_nombre || '(sin nombre)'} {p.nombre_fantasia && `(${p.nombre_fantasia})`}
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
@@ -3468,7 +3497,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
         <div>
           ${logo ? `<img src="${logo}" style="max-height:${isSmall ? '34px' : '58px'};margin-bottom:4px">` : ''}
           <h1 class="biz">${biz}</h1>
-          <p style="margin:2px 0;color:#555">Remito / Pedido #${o.id}</p>
+          <p style="margin:2px 0;color:#555">${o.tipo==='presupuesto'?'Presupuesto P-':'Remito / Pedido #'}${String(o.id).padStart(4,'0')}</p>
         </div>
         <div style="text-align:center">
           <img src="${qrUrl}" width="${qrSize}" height="${qrSize}" style="display:block">
@@ -3495,7 +3524,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">Pedido #{o.id}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {/* Client info */}
           <div className="card" style={{ padding: 12, marginBottom: 12 }}>
