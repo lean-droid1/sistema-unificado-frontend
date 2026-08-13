@@ -2400,13 +2400,40 @@ function AdminCategorias() {
   const [merging, setMerging] = useState(null);
   const [dragIdx, setDragIdx] = useState(null);
   const [dirty, setDirty] = useState(false);
+  const [sel, setSel] = useState(new Set());
+  const [busq, setBusq] = useState('');
+  const [showMasa, setShowMasa] = useState(false);
+  const [masaDestino, setMasaDestino] = useState('');
 
   const load = async () => {
     setLoading(true);
     try { const d = await api.getCategoriasAdmin(adminSeccion); setCats(d || []); } catch (e) { toast(e.message, 'error'); }
-    setLoading(false); setDirty(false);
+    setLoading(false); setDirty(false); setSel(new Set());
   };
   useEffect(() => { load(); }, [adminSeccion]);
+
+  const catsVista = busq ? cats.filter(c => c.nombre.toLowerCase().includes(busq.toLowerCase())) : cats;
+  const toggleSel = (nombre) => { const s = new Set(sel); s.has(nombre) ? s.delete(nombre) : s.add(nombre); setSel(s); };
+  const toggleAll = () => { if (sel.size === catsVista.length) setSel(new Set()); else setSel(new Set(catsVista.map(c => c.nombre))); };
+
+  // Fusionar todas las seleccionadas en una destino
+  const fusionarMasa = async () => {
+    if (!masaDestino) { toast('Elegí o escribí la categoría destino', 'error'); return; }
+    const desde = [...sel].filter(n => n !== masaDestino);
+    if (!desde.length) { toast('Seleccioná categorías a fusionar', 'warning'); return; }
+    try {
+      let total = 0;
+      for (const d of desde) { const r = await api.renombrarCategoria(d, masaDestino, adminSeccion); total += r.afectados || 0; }
+      toast(`${total} productos movidos a "${masaDestino}" (${desde.length} categorías fusionadas)`);
+      setShowMasa(false); setMasaDestino(''); load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  // Eliminar seleccionadas (productos van a Sin categoría)
+  const eliminarMasa = async () => {
+    if (!confirm(`¿Eliminar ${sel.size} categorías? Sus productos pasan a "Sin categoría" (no se borran).`)) return;
+    try { for (const n of sel) await api.deleteCategoria(n); toast(`${sel.size} categorías eliminadas`); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
 
   const onDrop = (idx) => {
     if (dragIdx === null || dragIdx === idx) return;
@@ -2450,14 +2477,31 @@ function AdminCategorias() {
         <h3 style={{ fontWeight: 900, fontSize: 22 }}>Categorías ({cats.length})</h3>
         {dirty && <button className="btn btn-primary btn-sm" onClick={saveOrden}>Guardar orden</button>}
       </div>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Arrastrá ⠿ para reordenar cómo se ven en la tienda. Tocá el ojo para mostrar/ocultar. Renombrá o fusioná categorías (útil para arreglar las del import).</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Arrastrá ⠿ para reordenar cómo se ven en la tienda. Tocá el ojo para mostrar/ocultar. Para arreglar las del import: buscá, seleccioná varias y fusionalas en la correcta.</p>
+
+      <input placeholder="Buscar categoría..." value={busq} onChange={e => setBusq(e.target.value)} style={{ width: '100%', marginBottom: 12 }} />
+
+      {/* Barra seleccionar todo + acciones masa */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <input type="checkbox" checked={catsVista.length > 0 && sel.size === catsVista.length} onChange={toggleAll} />
+          Seleccionar {busq ? 'filtradas' : 'todas'}
+        </label>
+        {sel.size > 0 && <>
+          <span style={{ fontSize: 13, color: 'var(--primary)', fontWeight: 700 }}>{sel.size} seleccionada{sel.size !== 1 ? 's' : ''}</span>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowMasa(true)}>Fusionar seleccionadas</button>
+          <button className="btn btn-danger btn-sm" onClick={eliminarMasa}>Eliminar seleccionadas</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setSel(new Set())}>Limpiar</button>
+        </>}
+      </div>
 
       {cats.length === 0 && <p style={{ color: 'var(--text-muted)', padding: 20, textAlign: 'center' }}>No hay categorías en esta sección.</p>}
 
-      {cats.map((c, idx) => (
-        <div key={c.nombre} draggable onDragStart={() => setDragIdx(idx)} onDragOver={e => e.preventDefault()} onDrop={() => onDrop(idx)}
-          className="card" style={{ padding: '10px 14px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 12, opacity: c.visible ? 1 : 0.5, cursor: 'grab', border: dragIdx === idx ? '2px dashed var(--primary)' : undefined }}>
-          <span style={{ color: 'var(--text-muted)', fontSize: 18, cursor: 'grab' }}>⠿</span>
+      {catsVista.map((c, idx) => (
+        <div key={c.nombre} draggable={!busq} onDragStart={() => setDragIdx(idx)} onDragOver={e => e.preventDefault()} onDrop={() => onDrop(idx)}
+          className="card" style={{ padding: '10px 14px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 12, opacity: c.visible ? 1 : 0.5, border: sel.has(c.nombre) ? '2px solid var(--primary)' : (dragIdx === idx ? '2px dashed var(--primary)' : undefined) }}>
+          <input type="checkbox" checked={sel.has(c.nombre)} onChange={() => toggleSel(c.nombre)} />
+          {!busq && <span style={{ color: 'var(--text-muted)', fontSize: 18, cursor: 'grab' }}>⠿</span>}
           <div style={{ flex: 1 }}>
             <strong style={{ fontSize: 14 }}>{c.nombre}</strong>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{c.cantidad} producto{c.cantidad !== 1 ? 's' : ''}</span>
@@ -2468,6 +2512,21 @@ function AdminCategorias() {
           <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}>🗑</button>
         </div>
       ))}
+
+      {/* Modal fusionar en masa */}
+      {showMasa && (
+        <div className="modal-overlay" onClick={() => setShowMasa(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div className="modal-header"><span className="modal-title">Fusionar {sel.size} categorías</span><button className="modal-close" onClick={() => setShowMasa(false)}>✕</button></div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Todos los productos de las {sel.size} categorías seleccionadas pasan a la categoría destino. Escribí una nueva o elegí una existente.</p>
+              <input list="cats-destino" value={masaDestino} onChange={e => setMasaDestino(e.target.value)} placeholder="Categoría destino (ej: Herramientas)" style={{ width: '100%', marginBottom: 12 }} autoFocus />
+              <datalist id="cats-destino">{cats.map(c => <option key={c.nombre} value={c.nombre} />)}</datalist>
+              <button className="btn btn-primary" onClick={fusionarMasa} style={{ width: '100%' }}>Fusionar en "{masaDestino || '...'}"</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {renaming && (
         <div className="modal-overlay" onClick={() => setRenaming(null)}>
