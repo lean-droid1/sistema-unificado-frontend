@@ -213,7 +213,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .admin-subtab { padding: 8px 16px; border: none; background: var(--bg-card); border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
 .admin-subtab:hover { background: var(--border-light); }
 .admin-subtab.active { background: var(--primary); color: #fff; font-weight: 700; }
-.admin-content { flex: 1; padding: 24px; max-width: 960px; }
+.admin-content { flex: 1; padding: 24px 32px; max-width: 1500px; }
 @media (max-width: 768px) {
   .admin-layout { flex-direction: column; }
   .admin-sidebar { display: none; position: fixed; top: 0; left: 0; width: 280px; height: 100vh; z-index: 150; border-right: none; padding: 20px 16px; }

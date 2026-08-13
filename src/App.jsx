@@ -2097,7 +2097,7 @@ function AdminPanel() {
     dashboard: 'stats',
     pedidos: 'pedidos', presupuestos: 'pedidos', leads: 'stats', reglas_compra: 'pedidos',
     cupones: 'config', promociones: 'config', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
-    productos: 'productos', listas: 'listas',
+    productos: 'productos', categorias: 'productos', listas: 'listas',
     usuarios: 'usuarios',
     envios: 'config', metodos_pago: 'config',
     diseno: 'config', barras: 'config', menu: 'config', paginas: 'config', contactos: 'config',
@@ -2121,6 +2121,7 @@ function AdminPanel() {
     ]},
     { id: 'catalogo', label: 'Catálogo', icon: 'box', items: [
       { id: 'productos', label: 'Productos' },
+      { id: 'categorias', label: 'Categorías' },
       { id: 'listas', label: 'Listas de precio' },
     ]},
     { id: 'clientes', label: 'Clientes', icon: 'users', single: 'usuarios' },
@@ -2232,6 +2233,7 @@ function AdminPanel() {
         {adminTab === 'reglas_compra' && <AdminReglasCompra />}
         {adminTab === 'usuarios' && <AdminUsuarios />}
         {adminTab === 'listas' && <AdminListas />}
+        {adminTab === 'categorias' && <AdminCategorias />}
         {adminTab === 'cupones' && <AdminCupones />}
         {adminTab === 'promociones' && <AdminPromociones />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
@@ -2390,6 +2392,115 @@ function AdminDashboard() {
 }
 
 // ─── ADMIN: Productos (inline editable table) ───
+function AdminCategorias() {
+  const { adminSeccion, secciones, toast } = useContext(Ctx);
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [renaming, setRenaming] = useState(null);
+  const [merging, setMerging] = useState(null);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dirty, setDirty] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try { const d = await api.getCategoriasAdmin(adminSeccion); setCats(d || []); } catch (e) { toast(e.message, 'error'); }
+    setLoading(false); setDirty(false);
+  };
+  useEffect(() => { load(); }, [adminSeccion]);
+
+  const onDrop = (idx) => {
+    if (dragIdx === null || dragIdx === idx) return;
+    const arr = [...cats];
+    const [moved] = arr.splice(dragIdx, 1);
+    arr.splice(idx, 0, moved);
+    setCats(arr.map((c, i) => ({ ...c, orden: i })));
+    setDragIdx(null); setDirty(true);
+  };
+
+  const toggleVisible = (nombre) => { setCats(cats.map(c => c.nombre === nombre ? { ...c, visible: !c.visible } : c)); setDirty(true); };
+
+  const saveOrden = async () => {
+    try { await api.guardarCategoriasMeta(cats.map((c, i) => ({ nombre: c.nombre, orden: i, visible: c.visible }))); toast('Orden guardado'); setDirty(false); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  const doRename = async () => {
+    if (!renaming.nuevo?.trim()) { toast('Poné un nombre', 'error'); return; }
+    try { const r = await api.renombrarCategoria(renaming.nombre, renaming.nuevo.trim(), adminSeccion); toast(`${r.afectados} productos actualizados`); setRenaming(null); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  const doMerge = async () => {
+    if (!merging.hasta) { toast('Elegí la categoría destino', 'error'); return; }
+    try { const r = await api.renombrarCategoria(merging.desde, merging.hasta, adminSeccion); toast(`${r.afectados} productos movidos a ${merging.hasta}`); setMerging(null); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  const doDelete = async (nombre) => {
+    if (!confirm(`¿Eliminar la categoría "${nombre}"? Los productos pasan a "Sin categoría" (no se borran).`)) return;
+    try { const r = await api.deleteCategoria(nombre); toast(`${r.movidos} productos movidos a "${r.destino}"`); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando categorías...</div>;
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+        <h3 style={{ fontWeight: 900, fontSize: 22 }}>Categorías ({cats.length})</h3>
+        {dirty && <button className="btn btn-primary btn-sm" onClick={saveOrden}>Guardar orden</button>}
+      </div>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Arrastrá ⠿ para reordenar cómo se ven en la tienda. Tocá el ojo para mostrar/ocultar. Renombrá o fusioná categorías (útil para arreglar las del import).</p>
+
+      {cats.length === 0 && <p style={{ color: 'var(--text-muted)', padding: 20, textAlign: 'center' }}>No hay categorías en esta sección.</p>}
+
+      {cats.map((c, idx) => (
+        <div key={c.nombre} draggable onDragStart={() => setDragIdx(idx)} onDragOver={e => e.preventDefault()} onDrop={() => onDrop(idx)}
+          className="card" style={{ padding: '10px 14px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 12, opacity: c.visible ? 1 : 0.5, cursor: 'grab', border: dragIdx === idx ? '2px dashed var(--primary)' : undefined }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 18, cursor: 'grab' }}>⠿</span>
+          <div style={{ flex: 1 }}>
+            <strong style={{ fontSize: 14 }}>{c.nombre}</strong>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{c.cantidad} producto{c.cantidad !== 1 ? 's' : ''}</span>
+          </div>
+          <button onClick={() => toggleVisible(c.nombre)} title={c.visible ? 'Ocultar' : 'Mostrar'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>{c.visible ? '👁️' : '🚫'}</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setRenaming({ nombre: c.nombre, nuevo: c.nombre })}>Renombrar</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setMerging({ desde: c.nombre, hasta: '' })}>Fusionar</button>
+          <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}>🗑</button>
+        </div>
+      ))}
+
+      {renaming && (
+        <div className="modal-overlay" onClick={() => setRenaming(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header"><span className="modal-title">Renombrar categoría</span><button className="modal-close" onClick={() => setRenaming(null)}>✕</button></div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Se renombra "{renaming.nombre}" en todos sus productos.</p>
+              <input value={renaming.nuevo} onChange={e => setRenaming({ ...renaming, nuevo: e.target.value })} placeholder="Nuevo nombre" style={{ width: '100%', marginBottom: 12 }} autoFocus />
+              <button className="btn btn-primary" onClick={doRename} style={{ width: '100%' }}>Renombrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {merging && (
+        <div className="modal-overlay" onClick={() => setMerging(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header"><span className="modal-title">Fusionar categoría</span><button className="modal-close" onClick={() => setMerging(null)}>✕</button></div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Todos los productos de "{merging.desde}" pasan a la categoría que elijas.</p>
+              <select value={merging.hasta} onChange={e => setMerging({ ...merging, hasta: e.target.value })} style={{ width: '100%', marginBottom: 12 }}>
+                <option value="">Elegí destino...</option>
+                {cats.filter(c => c.nombre !== merging.desde).map(c => <option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
+              </select>
+              <button className="btn btn-primary" onClick={doMerge} style={{ width: '100%' }}>Fusionar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminProductos() {
   const { adminSeccion, secciones, toast } = useContext(Ctx);
   const [productos, setProductos] = useState([]);
@@ -2404,21 +2515,63 @@ function AdminProductos() {
   const [showHistory, setShowHistory] = useState(false);
   const [pageSize, setPageSize] = useState(50);
   const [expandVars, setExpandVars] = useState(null);
+  const [catFiltro, setCatFiltro] = useState('');
+  const [stockFiltro, setStockFiltro] = useState('todos'); // todos | con | sin | bajo
+  const [seleccion, setSeleccion] = useState(new Set());
+  const [showMasa, setShowMasa] = useState(false);
+  const [masaAccion, setMasaAccion] = useState({ tipo: '', valor: '' });
 
   const [secFiltro, setSecFiltro] = useState(adminSeccion);
 
   const load = async () => {
     const secId = secFiltro !== 'all' ? secFiltro : undefined;
-    const data = await api.getProductos({ seccion_id: secId, q: busq, page: pagina, limit: pageSize });
+    const data = await api.getProductos({ seccion_id: secId, q: busq, categoria: catFiltro, page: pagina, limit: pageSize });
     setProductos(data.productos || []); setTotal(data.total || 0);
     const cats = await api.getCategorias(secId).catch(() => []);
     setCategorias(cats || []);
+    setSeleccion(new Set());
   };
   useEffect(() => { setSecFiltro(adminSeccion); }, [adminSeccion]);
-  useEffect(() => { load(); }, [secFiltro, busq, pagina]);
+  useEffect(() => { load(); }, [secFiltro, busq, catFiltro, pagina]);
 
   const inlineUpdate = async (id, field, value) => {
     try { await api.updateProducto(id, { [field]: value }); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Filtro de stock en frontend sobre la página cargada
+  const productosVista = productos.filter(p => {
+    if (stockFiltro === 'con') return (p.stock > 0) || p.permitir_sin_stock || p.es_digital;
+    if (stockFiltro === 'sin') return !(p.stock > 0) && !p.permitir_sin_stock && !p.es_digital;
+    if (stockFiltro === 'bajo') return p.stock_minimo > 0 && p.stock <= p.stock_minimo;
+    return true;
+  });
+
+  // Selección múltiple
+  const toggleSel = (id) => { const s = new Set(seleccion); s.has(id) ? s.delete(id) : s.add(id); setSeleccion(s); };
+  const toggleAll = () => { if (seleccion.size === productosVista.length) setSeleccion(new Set()); else setSeleccion(new Set(productosVista.map(p => p.id))); };
+
+  const aplicarMasa = async () => {
+    const ids = [...seleccion];
+    if (!ids.length) { toast('No hay productos seleccionados', 'warning'); return; }
+    try {
+      if (masaAccion.tipo === 'categoria') {
+        if (!masaAccion.valor) { toast('Elegí una categoría', 'error'); return; }
+        await api.reasignarCategoria(ids, masaAccion.valor);
+        toast(`${ids.length} productos → ${masaAccion.valor}`);
+      } else if (masaAccion.tipo === 'seccion') {
+        if (!masaAccion.valor) { toast('Elegí una sección', 'error'); return; }
+        for (const id of ids) await api.updateProducto(id, { seccion_id: Number(masaAccion.valor) });
+        toast(`${ids.length} productos movidos de sección`);
+      } else if (masaAccion.tipo === 'visible') {
+        for (const id of ids) await api.updateProducto(id, { visible: masaAccion.valor === 'true' });
+        toast(`${ids.length} productos ${masaAccion.valor === 'true' ? 'activados' : 'ocultados'}`);
+      } else if (masaAccion.tipo === 'borrar') {
+        if (!confirm(`¿Eliminar ${ids.length} productos? No se puede deshacer.`)) return;
+        for (const id of ids) await api.deleteProducto(id);
+        toast(`${ids.length} productos eliminados`);
+      } else { toast('Elegí una acción', 'warning'); return; }
+      setShowMasa(false); setMasaAccion({ tipo: '', valor: '' }); load();
+    } catch (e) { toast(e.message, 'error'); }
   };
 
   return (
@@ -2432,13 +2585,32 @@ function AdminProductos() {
           <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}>📜 Historial</button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <select value={secFiltro} onChange={e => { setSecFiltro(e.target.value); setPagina(1); }} style={{ width: 200 }}>
           <option value="all">📦 Todas las secciones</option>
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
-        <input placeholder="Buscar productos..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ flex: 1 }} />
+        <input placeholder="Buscar por nombre o SKU..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 160 }} />
+        <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ width: 180 }}>
+          <option value="">Todas las categorías</option>
+          {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={stockFiltro} onChange={e => setStockFiltro(e.target.value)} style={{ width: 150 }}>
+          <option value="todos">Todo el stock</option>
+          <option value="con">Con stock</option>
+          <option value="sin">Sin stock</option>
+          <option value="bajo">Stock bajo mínimo</option>
+        </select>
       </div>
+
+      {/* Barra de acciones en masa (aparece con selección) */}
+      {seleccion.size > 0 && (
+        <div style={{ background: 'var(--primary-light)', border: '1.5px solid var(--primary)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 13, color: 'var(--primary)' }}>{seleccion.size} seleccionado{seleccion.size !== 1 ? 's' : ''}</strong>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowMasa(true)}>Acciones en masa</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setSeleccion(new Set())}>Deseleccionar</button>
+        </div>
+      )}
 
       {/* Alerta de stock bajo */}
       {(() => {
@@ -2452,14 +2624,15 @@ function AdminProductos() {
       {/* Product table */}
       <div style={{ overflowX: 'auto' }}>
         <table className="admin-table">
-          <thead><tr><th style={{width:50}}>Img</th><th>Producto</th><th>Categoría</th>{secFiltro === 'all' && <th>Sección</th>}<th style={{width:90}}>Precio</th><th style={{width:90}}>Oferta</th><th style={{width:70}}>Stock</th><th style={{width:50}}>👁</th><th style={{width:110}}>Acc.</th></tr></thead>
+          <thead><tr><th style={{width:34}}><input type="checkbox" checked={productosVista.length > 0 && seleccion.size === productosVista.length} onChange={toggleAll} /></th><th style={{width:50}}>Img</th><th>Producto</th><th>Categoría</th>{secFiltro === 'all' && <th>Sección</th>}<th style={{width:90}}>Precio</th><th style={{width:90}}>Oferta</th><th style={{width:70}}>Stock</th><th style={{width:50}}>👁</th><th style={{width:110}}>Acc.</th></tr></thead>
           <tbody>
-            {productos.map(p => {
+            {productosVista.map(p => {
               const secNombre = secciones.find(s => s.id === p.seccion_id)?.nombre || '';
-              const colCount = secFiltro === 'all' ? 9 : 8;
+              const colCount = secFiltro === 'all' ? 10 : 9;
               return (
               <Fragment key={p.id}>
-              <tr style={{ opacity: p.visible === false ? 0.5 : 1 }}>
+              <tr style={{ opacity: p.visible === false ? 0.5 : 1, background: seleccion.has(p.id) ? 'var(--primary-light)' : undefined }}>
+                <td><input type="checkbox" checked={seleccion.has(p.id)} onChange={() => toggleSel(p.id)} /></td>
                 <td>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : '—'}</td>
                 <td><strong style={{ cursor: 'pointer' }} onClick={() => setEditProd(p)}>{p.nombre || p.modelo}</strong><br/><small style={{ color: 'var(--text-muted)' }}>{p.sku || ''}</small></td>
                 <td>{p.categoria}</td>
@@ -2503,6 +2676,42 @@ function AdminProductos() {
       {showImport && <ImportModal onClose={() => { setShowImport(false); load(); }} />}
       {showPriceAdj && <PriceAdjustModal categorias={categorias} onClose={() => { setShowPriceAdj(false); load(); }} />}
       {showHistory && <PriceHistoryModal onClose={() => setShowHistory(false)} />}
+      {showMasa && (
+        <div className="modal-overlay" onClick={() => setShowMasa(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div className="modal-header"><span className="modal-title">Acciones en masa ({seleccion.size})</span><button className="modal-close" onClick={() => setShowMasa(false)}>✕</button></div>
+            <div className="modal-body">
+              <label className="form-label">¿Qué querés hacer?</label>
+              <select value={masaAccion.tipo} onChange={e => setMasaAccion({ tipo: e.target.value, valor: '' })} style={{ width: '100%', marginBottom: 12 }}>
+                <option value="">Elegí una acción...</option>
+                <option value="categoria">Cambiar categoría</option>
+                <option value="seccion">Mover a otra sección</option>
+                <option value="visible">Activar / Ocultar</option>
+                <option value="borrar">Eliminar</option>
+              </select>
+              {masaAccion.tipo === 'categoria' && (
+                <input list="cats-masa" value={masaAccion.valor} onChange={e => setMasaAccion({ ...masaAccion, valor: e.target.value })} placeholder="Categoría destino (podés escribir una nueva)" style={{ width: '100%', marginBottom: 12 }} />
+              )}
+              <datalist id="cats-masa">{categorias.map(c => <option key={c} value={c} />)}</datalist>
+              {masaAccion.tipo === 'seccion' && (
+                <select value={masaAccion.valor} onChange={e => setMasaAccion({ ...masaAccion, valor: e.target.value })} style={{ width: '100%', marginBottom: 12 }}>
+                  <option value="">Elegí sección...</option>
+                  {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              )}
+              {masaAccion.tipo === 'visible' && (
+                <select value={masaAccion.valor} onChange={e => setMasaAccion({ ...masaAccion, valor: e.target.value })} style={{ width: '100%', marginBottom: 12 }}>
+                  <option value="">Elegí...</option>
+                  <option value="true">Activar (mostrar)</option>
+                  <option value="false">Ocultar</option>
+                </select>
+              )}
+              {masaAccion.tipo === 'borrar' && <p style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>⚠️ Se eliminarán {seleccion.size} productos. No se puede deshacer.</p>}
+              <button className="btn btn-primary" onClick={aplicarMasa} style={{ width: '100%' }}>Aplicar a {seleccion.size} productos</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

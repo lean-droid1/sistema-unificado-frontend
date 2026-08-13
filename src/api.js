@@ -83,11 +83,15 @@ export async function getProductos({ q, categoria, page = 1, limit = 50, seccion
   return f(`/api/productos?${p}`);
 }
 export async function getCategorias(seccion_id) { return f(`/api/categorias${seccion_id ? `?seccion_id=${seccion_id}` : ''}`); }
+export async function getCategoriasAdmin(seccion_id) { return f(`/api/categorias/admin${seccion_id && seccion_id !== 'all' ? `?seccion_id=${seccion_id}` : ''}`); }
+export async function renombrarCategoria(desde, hasta, seccion_id) { return f('/api/categorias/renombrar', { method: 'POST', body: JSON.stringify({ desde, hasta, seccion_id }) }); }
+export async function reasignarCategoria(producto_ids, categoria) { return f('/api/categorias/reasignar', { method: 'POST', body: JSON.stringify({ producto_ids, categoria }) }); }
+export async function guardarCategoriasMeta(categorias) { return f('/api/categorias/meta', { method: 'POST', body: JSON.stringify({ categorias }) }); }
 export async function createProducto(producto) { return f('/api/productos', { method: 'POST', body: JSON.stringify(producto) }); }
 export async function updateProducto(id, producto) { return f(`/api/productos/${id}`, { method: 'PUT', body: JSON.stringify(producto) }); }
 export async function deleteProducto(id) { return f(`/api/productos/${id}`, { method: 'DELETE' }); }
 export async function bulkProductos(productos, opts = {}) { return f('/api/productos/bulk', { method: 'POST', body: JSON.stringify({ productos, ...opts }) }); }
-export async function deleteCategoria(categoria) { return f(`/api/categorias/${encodeURIComponent(categoria)}`, { method: 'DELETE' }); }
+export async function deleteCategoria(categoria, mover_a) { return f(`/api/categorias/${encodeURIComponent(categoria)}${mover_a ? `?mover_a=${encodeURIComponent(mover_a)}` : ''}`, { method: 'DELETE' }); }
 export async function deleteAllProductos() { return f('/api/productos/all', { method: 'DELETE' }); }
 export async function buscarProductosAdmin(q) { return f(`/api/productos/buscar?q=${encodeURIComponent(q)}`); }
 
