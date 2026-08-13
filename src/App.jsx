@@ -2284,10 +2284,247 @@ function AdminGeneralHub() {
 
 // ── Placeholders Fase 2 (se completan después) ──
 function AdminVentaManual() {
-  return <div className="card" style={{ padding: 24 }}><h3>Agregar venta</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Venta interna de mostrador. Se implementa en la próxima etapa (con escáner QR a futuro).</p></div>;
+  const { secciones, toast } = useContext(Ctx);
+  const [seccionId, setSeccionId] = useState('');
+  const [items, setItems] = useState([]);
+  const [busq, setBusq] = useState('');
+  const [resultados, setResultados] = useState([]);
+  const [metodoPago, setMetodoPago] = useState('efectivo');
+  const [notas, setNotas] = useState('');
+  const [saving, setSaving] = useState(false);
+  const searchTimer = useRef(null);
+
+  useEffect(() => { if (secciones.length && !seccionId) setSeccionId(secciones[0].id); }, [secciones]);
+
+  const buscar = (q) => {
+    setBusq(q);
+    clearTimeout(searchTimer.current);
+    if (q.length < 2) { setResultados([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      try { const r = await api.buscarProductosAdmin(q); setResultados(r || []); } catch {}
+    }, 300);
+  };
+
+  const agregar = (p) => {
+    if (items.find(i => i.id === p.id)) { setItems(items.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i)); }
+    else setItems([...items, { ...p, qty: 1, precio_unitario: p.precio_base }]);
+    setBusq(''); setResultados([]);
+  };
+  const setQty = (id, qty) => setItems(items.map(i => i.id === id ? { ...i, qty: Math.max(1, qty) } : i));
+  const setPrecio = (id, precio) => setItems(items.map(i => i.id === id ? { ...i, precio_unitario: precio } : i));
+  const quitar = (id) => setItems(items.filter(i => i.id !== id));
+
+  const total = items.reduce((s, i) => s + (Number(i.precio_unitario) || 0) * i.qty, 0);
+
+  const guardar = async () => {
+    if (!items.length) { toast('Agregá al menos un producto', 'warning'); return; }
+    setSaving(true);
+    try {
+      await api.createPedido({
+        seccion_id: Number(seccionId), tipo: 'pedido', estado: 'entregado', estado_pago: 'pagado',
+        metodo_pago: metodoPago, notas: notas || 'Venta de mostrador', subtotal: total, descuento: 0, total,
+        items: items.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario, precio_base: i.precio_base }))
+      });
+      toast('¡Venta registrada! Stock descontado.');
+      setItems([]); setNotas('');
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Agregar venta</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Venta de mostrador: buscá productos, ajustá cantidad y precio, y registrá. Descuenta stock y queda como pedido entregado y pagado. (Próximamente: escanear con la cámara.)</p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <select value={seccionId} onChange={e => setSeccionId(e.target.value)} style={{ width: 200 }}>
+          {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+        </select>
+        <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} style={{ width: 160 }}>
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="qr">QR / Mercado Pago</option>
+        </select>
+      </div>
+
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <input placeholder="🔍 Buscar producto por nombre o SKU..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
+        {resultados.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+            {resultados.map(p => (
+              <div key={p.id} onClick={() => agregar(p)} style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)' }}>
+                <span>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></span>
+                <span style={{ fontWeight: 700 }}>{fmtARS(p.precio_base)} <span style={{ fontSize: 11, color: p.stock > 0 ? 'var(--success)' : 'var(--danger)' }}>stock: {p.stock}</span></span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {items.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Buscá y agregá productos a la venta</p> : (
+        <table className="admin-table" style={{ marginBottom: 12 }}>
+          <thead><tr><th>Producto</th><th style={{width:80}}>Cant</th><th style={{width:110}}>Precio</th><th style={{width:100}}>Subtotal</th><th style={{width:40}}></th></tr></thead>
+          <tbody>
+            {items.map(i => (
+              <tr key={i.id}>
+                <td>{i.nombre || i.modelo}</td>
+                <td><input type="number" value={i.qty} onChange={e => setQty(i.id, Number(e.target.value))} style={{ width: 60 }} /></td>
+                <td><input type="number" value={i.precio_unitario} onChange={e => setPrecio(i.id, Number(e.target.value))} style={{ width: 90 }} /></td>
+                <td style={{ fontWeight: 700 }}>{fmtARS(i.precio_unitario * i.qty)}</td>
+                <td><button className="btn btn-danger btn-sm" onClick={() => quitar(i.id)}>✕</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Notas (opcional)" rows={2} style={{ width: '100%', marginBottom: 12 }} />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontWeight: 900, fontSize: 22 }}>Total: {fmtARS(total)}</div>
+        <button className="btn btn-primary" onClick={guardar} disabled={saving || !items.length} style={{ padding: '12px 28px' }}>{saving ? 'Registrando...' : 'Registrar venta'}</button>
+      </div>
+    </div>
+  );
 }
+
 function AdminOrdenesCompra() {
-  return <div className="card" style={{ padding: 24 }}><h3>Órdenes de compra</h3><p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Compras a proveedores (stock entrante). Se implementa en la próxima etapa.</p></div>;
+  const { secciones, toast } = useContext(Ctx);
+  const [ordenes, setOrdenes] = useState([]);
+  const [showNew, setShowNew] = useState(false);
+  const [ver, setVer] = useState(null);
+  const load = () => api.getOrdenesCompra().then(setOrdenes).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const recibir = async (id) => {
+    if (!confirm('¿Marcar como recibida? Se sumará el stock de todos los productos.')) return;
+    try { const r = await api.recibirOrdenCompra(id); toast(`Stock actualizado (${r.items_recibidos} items)`); load(); setVer(null); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  const borrar = async (id) => {
+    if (!confirm('¿Eliminar esta orden de compra?')) return;
+    try { await api.deleteOrdenCompra(id); toast('Eliminada'); load(); setVer(null); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+        <h3 style={{ fontWeight: 900, fontSize: 22 }}>Órdenes de compra</h3>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>+ Nueva orden</button>
+      </div>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Registrá tus compras a proveedores. Al marcar una orden como "recibida", se suma automáticamente el stock. (Próximamente: cargar desde foto de la factura.)</p>
+
+      {ordenes.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay órdenes de compra todavía</p> : ordenes.map(o => (
+        <div key={o.id} className="card" onClick={() => api.getOrdenCompra(o.id).then(setVer)} style={{ padding: 14, marginBottom: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <strong>OC-{String(o.id).padStart(4, '0')}</strong>
+            <span style={{ marginLeft: 8 }}>{o.proveedor || 'Sin proveedor'}</span>
+            {o.seccion_nombre && <span style={{ fontSize: 10, background: 'var(--border)', padding: '1px 8px', borderRadius: 4, marginLeft: 6 }}>{o.seccion_nombre}</span>}
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(o.created_at).toLocaleDateString('es-AR')}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, background: o.recibida ? 'var(--success)' : 'var(--accent)', color: '#fff' }}>{o.recibida ? 'recibida' : 'pendiente'}</span>
+            <strong>{fmtARS(o.total)}</strong>
+          </div>
+        </div>
+      ))}
+
+      {showNew && <OrdenCompraModal secciones={secciones} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); load(); }} toast={toast} />}
+
+      {ver && (
+        <div className="modal-overlay" onClick={() => setVer(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header"><span className="modal-title">OC-{String(ver.id).padStart(4, '0')}</span><button className="modal-close" onClick={() => setVer(null)}>✕</button></div>
+            <div className="modal-body">
+              <div style={{ fontSize: 13, marginBottom: 4 }}><b>Proveedor:</b> {ver.proveedor || '—'}</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}><b>Sección:</b> {ver.seccion_nombre || '—'}</div>
+              <div style={{ fontSize: 13, marginBottom: 12 }}><b>Estado:</b> <span style={{ background: ver.recibida ? 'var(--success)' : 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{ver.recibida ? 'recibida' : 'pendiente'}</span></div>
+              {(ver.items || []).map((it, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                  <span>{it.nombre_producto} <span style={{ color: 'var(--text-muted)' }}>x{it.cantidad}</span></span>
+                  <span style={{ fontWeight: 700 }}>{fmtARS(it.costo_unitario * it.cantidad)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontWeight: 900, fontSize: 18 }}><span>Total</span><span>{fmtARS(ver.total)}</span></div>
+              {ver.notas && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>📝 {ver.notas}</div>}
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                {!ver.recibida && <button className="btn btn-success" onClick={() => recibir(ver.id)} style={{ flex: 1 }}>✓ Marcar recibida (sumar stock)</button>}
+                <button className="btn btn-danger" onClick={() => borrar(ver.id)}>🗑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrdenCompraModal({ secciones, onClose, onSaved, toast }) {
+  const [proveedor, setProveedor] = useState('');
+  const [seccionId, setSeccionId] = useState(secciones[0]?.id || '');
+  const [notas, setNotas] = useState('');
+  const [items, setItems] = useState([]);
+  const [busq, setBusq] = useState('');
+  const [resultados, setResultados] = useState([]);
+  const searchTimer = useRef(null);
+
+  const buscar = (q) => {
+    setBusq(q); clearTimeout(searchTimer.current);
+    if (q.length < 2) { setResultados([]); return; }
+    searchTimer.current = setTimeout(async () => { try { const r = await api.buscarProductosAdmin(q); setResultados(r || []); } catch {} }, 300);
+  };
+  const agregar = (p) => {
+    if (!items.find(i => i.producto_id === p.id)) setItems([...items, { producto_id: p.id, nombre_producto: p.nombre || p.modelo, cantidad: 1, costo_unitario: p.precio_original || 0 }]);
+    setBusq(''); setResultados([]);
+  };
+  const agregarManual = () => setItems([...items, { producto_id: null, nombre_producto: '', cantidad: 1, costo_unitario: 0 }]);
+  const upd = (idx, campo, val) => setItems(items.map((it, i) => i === idx ? { ...it, [campo]: val } : it));
+  const quitar = (idx) => setItems(items.filter((_, i) => i !== idx));
+  const total = items.reduce((s, i) => s + (Number(i.costo_unitario) || 0) * (Number(i.cantidad) || 0), 0);
+
+  const guardar = async () => {
+    if (!items.length) { toast('Agregá al menos un producto', 'warning'); return; }
+    try { await api.createOrdenCompra({ proveedor, seccion_id: Number(seccionId), notas, items, total }); toast('Orden de compra creada'); onSaved(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
+        <div className="modal-header"><span className="modal-title">Nueva orden de compra</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-body">
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <input placeholder="Proveedor" value={proveedor} onChange={e => setProveedor(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
+            <select value={seccionId} onChange={e => setSeccionId(e.target.value)} style={{ width: 160 }}>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select>
+          </div>
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <input placeholder="🔍 Buscar producto..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
+            {resultados.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
+                {resultados.map(p => <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)' }}>{p.nombre || p.modelo}</div>)}
+              </div>
+            )}
+          </div>
+          <button className="btn btn-outline btn-sm" onClick={agregarManual} style={{ marginBottom: 10 }}>+ Item manual (sin producto)</button>
+          {items.map((it, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+              <input value={it.nombre_producto} onChange={e => upd(idx, 'nombre_producto', e.target.value)} placeholder="Producto" style={{ flex: 1 }} />
+              <input type="number" value={it.cantidad} onChange={e => upd(idx, 'cantidad', Number(e.target.value))} style={{ width: 60 }} title="Cantidad" />
+              <input type="number" value={it.costo_unitario} onChange={e => upd(idx, 'costo_unitario', Number(e.target.value))} style={{ width: 90 }} title="Costo unitario" />
+              <button className="btn btn-danger btn-sm" onClick={() => quitar(idx)}>✕</button>
+            </div>
+          ))}
+          <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Notas" rows={2} style={{ width: '100%', margin: '10px 0' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong style={{ fontSize: 18 }}>Total: {fmtARS(total)}</strong>
+            <button className="btn btn-primary" onClick={guardar}>Crear orden</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 function AdminReglasCompra() {
   const { secciones, toast, config, setConfig } = useContext(Ctx);
@@ -3313,7 +3550,7 @@ function AdminPedidos({ filtroTipo }) {
   const pedidosFiltrados = (() => {
     let lista = pedidos;
     if (busqPed) { const q = busqPed.toLowerCase(); lista = lista.filter(p => String(p.id).includes(q) || (p.usuario_nombre || '').toLowerCase().includes(q) || (p.nombre_fantasia || '').toLowerCase().includes(q) || (p.usuario_telefono || '').includes(q)); }
-    if (pagoFiltro !== 'todos' && ordTab !== 'presupuestos') lista = lista.filter(p => (p.estado_pago || 'impago') === pagoFiltro);
+    if (pagoFiltro !== 'todos' && ordTab !== 'presupuestos') lista = lista.filter(p => { const ep = (p.estado_pago && String(p.estado_pago).trim()) ? p.estado_pago : 'impago'; return ep === pagoFiltro; });
     return lista;
   })();
 
