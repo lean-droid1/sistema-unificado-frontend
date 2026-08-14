@@ -2279,7 +2279,142 @@ function AdminDisenoHub() {
 
 // ── Hub General: config del negocio + mantenimiento ──
 function AdminGeneralHub() {
-  return <AdminConfig />;
+  const [sub, setSub] = useState('config');
+  return (
+    <div>
+      <div className="admin-subtabs">
+        <button className={`admin-subtab ${sub === 'config' ? 'active' : ''}`} onClick={() => setSub('config')}>Datos del negocio</button>
+        <button className={`admin-subtab ${sub === 'tiendas' ? 'active' : ''}`} onClick={() => setSub('tiendas')}>Tiendas / Puntos de venta</button>
+      </div>
+      {sub === 'config' && <AdminConfig />}
+      {sub === 'tiendas' && <AdminTiendas />}
+    </div>
+  );
+}
+
+function AdminTiendas() {
+  const { secciones, setSecciones, toast } = useContext(Ctx);
+  const [edit, setEdit] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [delSec, setDelSec] = useState(null);
+  const [delStats, setDelStats] = useState(null);
+  const [delModo, setDelModo] = useState({ tipo: '', destino: '' });
+
+  const refresh = () => api.getSecciones().then(setSecciones).catch(() => {});
+
+  const abrirEliminar = async (sec) => {
+    if (secciones.length <= 1) { toast('No podés eliminar la única tienda', 'warning'); return; }
+    setDelSec(sec); setDelStats(null); setDelModo({ tipo: '', destino: '' });
+    try { const s = await api.getSeccionStats(sec.id); setDelStats(s); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const confirmarEliminar = async () => {
+    try {
+      const opts = {};
+      if (delModo.tipo === 'mover') { if (!delModo.destino) { toast('Elegí a qué tienda mover', 'error'); return; } opts.mover_a = delModo.destino; }
+      else if (delModo.tipo === 'borrar') opts.borrar_productos = true;
+      else if (delStats && delStats.productos > 0) { toast('Elegí qué hacer con los productos', 'warning'); return; }
+      await api.deleteSeccion(delSec.id, opts);
+      toast('Tienda eliminada'); setDelSec(null); refresh();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+        <h3 style={{ fontWeight: 900, fontSize: 22 }}>Tiendas / Puntos de venta ({secciones.length})</h3>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>+ Nueva tienda</button>
+      </div>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Cada tienda es un punto de venta con su propio stock, carrito, envíos y checkout. Podés agregar todas las que necesites (local, depósito, mayorista, otra sucursal).</p>
+
+      {secciones.map(s => (
+        <div key={s.id} className="card" style={{ padding: 14, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
+            {s.requiere_aprobacion && <span style={{ fontSize: 10, background: 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, marginLeft: 8 }}>Requiere aprobación</span>}
+            {s.visible === false && <span style={{ fontSize: 10, background: '#999', color: '#fff', padding: '2px 8px', borderRadius: 4, marginLeft: 6 }}>Oculta</span>}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.descripcion || 'Sin descripción'}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-outline btn-sm" onClick={() => setEdit(s)}>Editar</button>
+            <button className="btn btn-danger btn-sm" onClick={() => abrirEliminar(s)}>Eliminar</button>
+          </div>
+        </div>
+      ))}
+
+      {(showNew || edit) && <TiendaModal sec={edit} onClose={() => { setShowNew(false); setEdit(null); }} onSaved={() => { setShowNew(false); setEdit(null); refresh(); }} toast={toast} />}
+
+      {/* Modal eliminar seguro */}
+      {delSec && (
+        <div className="modal-overlay" onClick={() => setDelSec(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="modal-header"><span className="modal-title">Eliminar "{delSec.nombre}"</span><button className="modal-close" onClick={() => setDelSec(null)}>✕</button></div>
+            <div className="modal-body">
+              {!delStats ? <p style={{ color: 'var(--text-muted)' }}>Cargando...</p> : (
+                <>
+                  <p style={{ fontSize: 13, marginBottom: 12 }}>Esta tienda tiene <b>{delStats.productos} productos</b> y <b>{delStats.pedidos} pedidos</b>.</p>
+                  {delStats.productos > 0 ? (
+                    <>
+                      <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>¿Qué hacemos con los productos?</p>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="radio" name="delmodo" checked={delModo.tipo === 'mover'} onChange={() => setDelModo({ tipo: 'mover', destino: '' })} />
+                        Mover a otra tienda
+                      </label>
+                      {delModo.tipo === 'mover' && (
+                        <select value={delModo.destino} onChange={e => setDelModo({ ...delModo, destino: e.target.value })} style={{ width: '100%', marginBottom: 10 }}>
+                          <option value="">Elegí destino...</option>
+                          {secciones.filter(x => x.id !== delSec.id).map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                        </select>
+                      )}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="radio" name="delmodo" checked={delModo.tipo === 'borrar'} onChange={() => setDelModo({ tipo: 'borrar', destino: '' })} />
+                        <span style={{ color: 'var(--danger)' }}>Borrar los productos también</span>
+                      </label>
+                    </>
+                  ) : <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>La tienda está vacía, se puede eliminar sin problemas.</p>}
+                  <button className="btn btn-danger" onClick={confirmarEliminar} style={{ width: '100%' }}>Eliminar tienda</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TiendaModal({ sec, onClose, onSaved, toast }) {
+  const isNew = !sec;
+  const [f, setF] = useState({
+    nombre: sec?.nombre || '', slug: sec?.slug || '', descripcion: sec?.descripcion || '',
+    requiere_aprobacion: sec?.requiere_aprobacion || false, visible: sec?.visible !== false,
+    cp_origen: sec?.cp_origen || '1888', ignorar_stock: sec?.ignorar_stock || false, permitir_sin_stock: sec?.permitir_sin_stock || false,
+  });
+  const save = async () => {
+    if (!f.nombre.trim()) { toast('Poné un nombre', 'error'); return; }
+    const slug = f.slug || f.nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    try {
+      if (isNew) await api.createSeccion({ ...f, slug });
+      else await api.updateSeccion(sec.id, { ...sec, ...f, slug });
+      toast(isNew ? 'Tienda creada' : 'Tienda actualizada'); onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <div className="modal-header"><span className="modal-title">{isNew ? 'Nueva tienda' : 'Editar tienda'}</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-body">
+          <div className="form-group"><label className="form-label">Nombre *</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej: Sucursal Centro" autoFocus /></div>
+          <div className="form-group"><label className="form-label">Descripción</label><input value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} placeholder="Ej: Retiro en local zona sur" /></div>
+          <div className="form-group"><label className="form-label">CP de origen (para envíos)</label><input value={f.cp_origen} onChange={e => setF({ ...f, cp_origen: e.target.value })} placeholder="1888" /></div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.requiere_aprobacion} onChange={e => setF({ ...f, requiere_aprobacion: e.target.checked })} /> Requiere aprobación (mayorista)</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.visible} onChange={e => setF({ ...f, visible: e.target.checked })} /> Visible en la tienda</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir vender sin stock</label>
+          <button className="btn btn-primary" onClick={save} style={{ width: '100%' }}>{isNew ? 'Crear tienda' : 'Guardar cambios'}</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Placeholders Fase 2 (se completan después) ──
@@ -2570,15 +2705,17 @@ function AdminReglasCompra() {
 
 // ─── ADMIN: Dashboard ───
 function AdminDashboard() {
-  const { adminSeccion } = useContext(Ctx);
+  const { adminSeccion, setAdminTab } = useContext(Ctx);
   const [stats, setStats] = useState({});
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
+  const [stockBajo, setStockBajo] = useState([]);
 
   const loadStats = async () => {
     try { const s = await api.getStats(adminSeccion, desde, hasta); setStats(s); } catch {}
   };
   useEffect(() => { loadStats(); }, [adminSeccion, desde, hasta]);
+  useEffect(() => { api.getStockBajo().then(setStockBajo).catch(() => {}); }, []);
 
   const kpis = [
     { label: 'PEDIDOS', value: stats.total_pedidos || 0, icon: '📦', color: 'var(--primary)', bg: 'var(--primary-light)' },
@@ -2607,6 +2744,23 @@ function AdminDashboard() {
         ))}
       </div>
 
+      {stockBajo.length > 0 && (
+        <div style={{ background: 'var(--warning-light, rgba(245,180,60,0.1))', border: '1.5px solid var(--warning, #e8a13a)', borderRadius: 16, padding: 18, marginTop: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <strong style={{ fontSize: 15 }}>⚠️ {stockBajo.length} producto{stockBajo.length !== 1 ? 's' : ''} con stock bajo</strong>
+            <button className="btn btn-outline btn-sm" onClick={() => setAdminTab('productos')}>Ver en productos</button>
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {stockBajo.slice(0, 15).map(p => (
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                <span>{p.nombre || p.modelo} {p.seccion_nombre && <span style={{ fontSize: 10, background: 'var(--border)', padding: '1px 6px', borderRadius: 4 }}>{p.seccion_nombre}</span>}</span>
+                <span style={{ fontWeight: 700, color: p.stock <= 0 ? 'var(--danger)' : 'var(--accent)' }}>{p.stock} / min {p.stock_minimo}</span>
+              </div>
+            ))}
+            {stockBajo.length > 15 && <div style={{ fontSize: 12, color: 'var(--text-muted)', paddingTop: 6 }}>y {stockBajo.length - 15} más...</div>}
+          </div>
+        </div>
+      )}
       {stats.ventas_por_dia?.length > 0 && (
         <div className="card" style={{ padding: 24, marginTop: 20, borderRadius: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

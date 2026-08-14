@@ -64,7 +64,9 @@ export async function getSecciones() { return f('/api/secciones'); }
 export async function getSeccion(id) { return f(`/api/secciones/${id}`); }
 export async function updateSeccion(id, datos) { return f(`/api/secciones/${id}`, { method: 'PUT', body: JSON.stringify(datos) }); }
 export async function createSeccion(datos) { return f('/api/secciones', { method: 'POST', body: JSON.stringify(datos) }); }
-export async function deleteSeccion(id) { return f(`/api/secciones/${id}`, { method: 'DELETE' }); }
+export async function deleteSeccion(id, opts = {}) { const q = opts.mover_a ? `?mover_a=${opts.mover_a}` : opts.borrar_productos ? '?borrar_productos=true' : ''; return f(`/api/secciones/${id}${q}`, { method: 'DELETE' }); }
+export async function getSeccionStats(id) { return f(`/api/secciones/${id}/stats`); }
+export async function getStockBajo() { return f('/api/stock-bajo'); }
 
 // upload
 export async function uploadImagen(file) {
@@ -90,6 +92,11 @@ export async function guardarCategoriasMeta(categorias) { return f('/api/categor
 export async function crearCategoria(nombre) { return f('/api/categorias/crear', { method: 'POST', body: JSON.stringify({ nombre }) }); }
 export async function duplicarProducto(id) { return f(`/api/productos/${id}/duplicar`, { method: 'POST' }); }
 export async function getHistorialCliente(id) { return f(`/api/usuarios/${id}/historial`); }
+export async function getOrdenesCompra() { return f('/api/ordenes-compra'); }
+export async function getOrdenCompra(id) { return f(`/api/ordenes-compra/${id}`); }
+export async function createOrdenCompra(data) { return f('/api/ordenes-compra', { method: 'POST', body: JSON.stringify(data) }); }
+export async function recibirOrdenCompra(id) { return f(`/api/ordenes-compra/${id}/recibir`, { method: 'POST' }); }
+export async function deleteOrdenCompra(id) { return f(`/api/ordenes-compra/${id}`, { method: 'DELETE' }); }
 export async function createProducto(producto) { return f('/api/productos', { method: 'POST', body: JSON.stringify(producto) }); }
 export async function updateProducto(id, producto) { return f(`/api/productos/${id}`, { method: 'PUT', body: JSON.stringify(producto) }); }
 export async function deleteProducto(id) { return f(`/api/productos/${id}`, { method: 'DELETE' }); }
