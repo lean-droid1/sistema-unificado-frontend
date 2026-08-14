@@ -3550,7 +3550,7 @@ function AdminPedidos({ filtroTipo }) {
   const pedidosFiltrados = (() => {
     let lista = pedidos;
     if (busqPed) { const q = busqPed.toLowerCase(); lista = lista.filter(p => String(p.id).includes(q) || (p.usuario_nombre || '').toLowerCase().includes(q) || (p.nombre_fantasia || '').toLowerCase().includes(q) || (p.usuario_telefono || '').includes(q)); }
-    if (pagoFiltro !== 'todos' && ordTab !== 'presupuestos') lista = lista.filter(p => { const ep = (p.estado_pago && String(p.estado_pago).trim()) ? p.estado_pago : 'impago'; return ep === pagoFiltro; });
+    if (pagoFiltro !== 'todos' && ordTab !== 'presupuestos') lista = lista.filter(p => { let ep = (p.estado_pago && String(p.estado_pago).trim()) ? String(p.estado_pago).trim() : 'impago'; if (ep === 'pendiente') ep = 'impago'; return ep === pagoFiltro; });
     return lista;
   })();
 
@@ -3628,7 +3628,7 @@ function AdminPedidos({ filtroTipo }) {
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {p.tipo !== 'presupuesto' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: p.estado_pago === 'pagado' ? 'var(--success)' : p.estado_pago === 'senado' ? 'var(--accent)' : p.estado_pago === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{p.estado_pago || 'impago'}</span>}
+              {p.tipo !== 'presupuesto' && (() => { let ep = (p.estado_pago && String(p.estado_pago).trim() && p.estado_pago !== 'pendiente') ? p.estado_pago : 'impago'; return <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: ep === 'pagado' ? 'var(--success)' : ep === 'senado' ? 'var(--accent)' : ep === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{ep}</span>; })()}
               <span style={{ background: colores[p.estado], color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{p.estado}</span>
               <strong>{fmtARS(p.total)}</strong>
             </div>
@@ -3811,7 +3811,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           {/* Estado de PAGO */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <label style={{ fontSize: 13, fontWeight: 600 }}>Pago:</label>
-            <select value={o.estado_pago || 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
+            <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
               <option value="impago">Impago</option>
               <option value="senado">Señado</option>
               <option value="pagado">Pagado</option>
