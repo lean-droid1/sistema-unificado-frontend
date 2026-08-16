@@ -864,6 +864,11 @@ function Landing() {
   const [sliders, setSliders] = useState([]);
   const [sliderIdx, setSliderIdx] = useState(0);
   const [favIds, setFavIds] = useState(new Set());
+  const [novedades, setNovedades] = useState([]);
+
+  useEffect(() => {
+    api.getNovedades('all', 10).then(setNovedades).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.getPopups().then(p => { if (p.length) setShowPopup(p[0]); }).catch(() => {});
@@ -1064,6 +1069,21 @@ function Landing() {
           </div>
         );
       })()}
+
+      {/* ── NOVEDADES ── productos más nuevos */}
+      {!globalResults && novedades.length > 0 && (
+        <div style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ background: 'var(--primary)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>NOVEDADES</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>Lo último que sumamos</span>
+            </h2>
+          </div>
+          <div className="product-grid">
+            {novedades.slice(0, 8).map(p => <ProductCard key={`nov-${p.id}`} p={p} secId={p.seccion_id} />)}
+          </div>
+        </div>
+      )}
 
       {/* ── PRODUCTS PER SECTION ── */}
       {!globalResults && secciones.map(s => {
@@ -1398,6 +1418,23 @@ function CartPage() {
     _validSecIds.has(String(secId)) && Array.isArray(items) ? items.map(i => ({ ...i, seccion_id: Number(secId) })) : []
   ).filter(i => i.qty > 0);
 
+  // Registrar carrito abandonado (una vez, si hay usuario con datos de contacto e items)
+  const abandonoReg = useRef(false);
+  useEffect(() => {
+    if (abandonoReg.current || !allItems.length) return;
+    if (!user || (!user.telefono && !user.email)) return;
+    abandonoReg.current = true;
+    const total = allItems.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+    const timer = setTimeout(() => {
+      api.guardarCarritoAbandonado({
+        usuario_id: user.id, email: user.email || '', telefono: user.telefono || '',
+        items: allItems.map(i => ({ nombre: i.nombre || i.modelo, qty: i.qty, precio: i.precio_unitario || i.precio_base })),
+        total, seccion_id: allItems[0]?.seccion_id || null
+      }).catch(() => {});
+    }, 3000); // 3s después de abrir el carrito
+    return () => clearTimeout(timer);
+  }, [allItems.length]);
+
   // Pop-up de carrito mixto: una vez por pedido (mientras el carrito tenga 2+ tiendas)
   useEffect(() => {
     if (seccionesConItems.length > 1 && !window.__mixPopupShown) {
@@ -1607,7 +1644,7 @@ function CartPage() {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
         <input placeholder="Código de cupón" value={cupon} onChange={e => setCupon(e.target.value.toUpperCase())} style={{ flex: 1, borderRadius: 10, padding: '10px 14px', border: '1.5px solid var(--border)' }} />
-        <button onClick={async () => { try { const r = await api.validarCupon(cupon, seccionesConItems[0]?.id, subtotal, metodoPago, allItems); setDescuento(r.descuento); toast(`Cupón: -${fmtARS(r.descuento)}`); } catch (e) { toast(e.message, 'error'); } }}
+        <button onClick={async () => { try { const r = await api.validarCupon(cupon, seccionesConItems[0]?.id, subtotal, metodoPago, allItems, user?.id); setDescuento(r.descuento); toast(`Cupón: -${fmtARS(r.descuento)}`); } catch (e) { toast(e.message, 'error'); } }}
           className="btn btn-outline" style={{ fontWeight: 700 }}>APLICAR</button>
       </div>
 
@@ -2099,8 +2136,8 @@ function AdminPanel() {
   const tabPerm = {
     dashboard: 'stats',
     pedidos: 'pedidos', presupuestos: 'pedidos', leads: 'stats', reglas_compra: 'pedidos',
-    cupones: 'config', promociones: 'config', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
-    productos: 'productos', categorias: 'productos', listas: 'listas',
+    cupones: 'config', promociones: 'config', carritos: 'stats', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
+    productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos',
     usuarios: 'usuarios',
     envios: 'config', metodos_pago: 'config',
     diseno: 'config', barras: 'config', menu: 'config', paginas: 'config', contactos: 'config',
@@ -2120,12 +2157,14 @@ function AdminPanel() {
       { id: 'reglas_compra', label: 'Reglas de compra' },
       { id: 'cupones', label: 'Cupones' },
       { id: 'promociones', label: 'Promociones' },
+      { id: 'carritos', label: 'Carritos abandonados' },
       { id: 'leads', label: 'Leads WhatsApp' },
     ]},
     { id: 'catalogo', label: 'Catálogo', icon: 'box', items: [
       { id: 'productos', label: 'Productos' },
       { id: 'categorias', label: 'Categorías' },
       { id: 'listas', label: 'Listas de precio' },
+      { id: 'notif_stock', label: 'Avisos de stock' },
     ]},
     { id: 'clientes', label: 'Clientes', icon: 'users', single: 'usuarios' },
     { id: 'envios_grp', label: 'Envíos', icon: 'truck', single: 'envios' },
@@ -2237,8 +2276,10 @@ function AdminPanel() {
         {adminTab === 'usuarios' && <AdminUsuarios />}
         {adminTab === 'listas' && <AdminListas />}
         {adminTab === 'categorias' && <AdminCategorias />}
+        {adminTab === 'notif_stock' && <AdminNotifStock />}
         {adminTab === 'cupones' && <AdminCupones />}
         {adminTab === 'promociones' && <AdminPromociones />}
+        {adminTab === 'carritos' && <AdminCarritosAbandonados />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
         {adminTab === 'menu' && <AdminMenu />}
         {adminTab === 'envios' && <AdminEnviosCustom />}
@@ -3282,7 +3323,7 @@ function ProductModal({ product, onClose }) {
     seccion_id: adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id,
     categoria: '', modelo: '', nombre: '', precio_base: 0, stock: 0, stock_minimo: 0,
     imagen: '', descripcion: '', sku: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
-    envio_gratis: false, visible: true, notas: '', compatibilidad: '',
+    envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
     peso: 0, alto: 0, ancho: 0, largo: 0
   });
   const [saving, setSaving] = useState(false);
@@ -3347,6 +3388,7 @@ function ProductModal({ product, onClose }) {
           </div>
           <div className="form-row">
             <div className="form-group"><label className="form-label">SKU</label><input value={f.sku} onChange={e => setF({ ...f, sku: e.target.value })} /></div>
+            <div className="form-group"><label className="form-label">Marca</label><input value={f.marca || ''} onChange={e => setF({ ...f, marca: e.target.value })} placeholder="Ej: Samsung, Bosch" /></div>
             <div className="form-group"><label className="form-label">Tipo</label>
               <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="fisico">Físico</option><option value="digital">Digital</option></select></div>
             <div className="form-group"><label className="form-label">Moneda</label>
@@ -4303,12 +4345,102 @@ function TierModal({ tier, onClose }) {
 }
 
 // ─── ADMIN: Cupones (section checkboxes, product search, label changes) ───
+function AdminNotifStock() {
+  const { toast } = useContext(Ctx);
+  const [notifs, setNotifs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => { setLoading(true); try { setNotifs(await api.getNotificacionesStock() || []); } catch (e) { toast(e.message, 'error'); } setLoading(false); };
+  useEffect(() => { load(); }, []);
+  const avisar = async (id) => { try { await api.avisarNotificacionStock(id); toast('Marcado como avisado'); load(); } catch (e) { toast(e.message, 'error'); } };
+  const borrar = async (id) => { try { await api.deleteNotificacionStock(id); load(); } catch (e) { toast(e.message, 'error'); } };
+
+  // Agrupar por producto
+  const porProducto = {};
+  notifs.forEach(n => { const k = n.producto_id; if (!porProducto[k]) porProducto[k] = { nombre: n.nombre || n.modelo, stock: n.stock, esperando: [] }; porProducto[k].esperando.push(n); });
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>;
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Avisos de stock ({notifs.length})</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Clientes que pidieron que les avises cuando vuelva un producto. Cuando repongas stock, contactalos y marcá el aviso.</p>
+
+      {notifs.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay avisos pendientes</p> : Object.entries(porProducto).map(([pid, g]) => (
+        <div key={pid} className="card" style={{ padding: 14, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <strong>{g.nombre}</strong>
+            <span style={{ fontSize: 12, color: g.stock > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>Stock actual: {g.stock ?? 0} {g.stock > 0 && '✓ ¡disponible!'}</span>
+          </div>
+          {g.esperando.map(n => (
+            <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
+              <span>{n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <a href={`mailto:${n.email}?subject=¡Volvió el stock!&body=Hola, el producto ${g.nombre} que esperabas ya está disponible.`} className="btn btn-success btn-sm" style={{ textDecoration: 'none' }}>Email</a>
+                <button className="btn btn-outline btn-sm" onClick={() => avisar(n.id)}>✓ Avisado</button>
+                <button className="btn btn-danger btn-sm" onClick={() => borrar(n.id)}>🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AdminCarritosAbandonados() {
+  const { toast } = useContext(Ctx);
+  const [carritos, setCarritos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => { setLoading(true); try { setCarritos(await api.getCarritosAbandonados() || []); } catch (e) { toast(e.message, 'error'); } setLoading(false); };
+  useEffect(() => { load(); }, []);
+
+  const contactar = (c) => {
+    const tel = (c.telefono || '').replace(/\D/g, '');
+    if (!tel) { toast('Este carrito no tiene teléfono', 'warning'); return; }
+    const items = (c.items || []).map(i => `• ${i.nombre || i.modelo} x${i.qty || i.cantidad || 1}`).join('\n');
+    const msg = `¡Hola${c.usuario_nombre ? ' ' + c.usuario_nombre : ''}! Vimos que dejaste productos en tu carrito:\n${items}\n\n¿Querés que te ayudemos a completar la compra?`;
+    window.open(`https://wa.me/54${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+  const recuperar = async (id) => { try { await api.recuperarCarrito(id); toast('Marcado como recuperado'); load(); } catch (e) { toast(e.message, 'error'); } };
+  const borrar = async (id) => { if (!confirm('¿Eliminar este carrito?')) return; try { await api.deleteCarritoAbandonado(id); load(); } catch (e) { toast(e.message, 'error'); } };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>;
+
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Carritos abandonados ({carritos.length})</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Clientes que agregaron productos pero no completaron la compra. Contactalos por WhatsApp para recuperar la venta.</p>
+
+      {carritos.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay carritos abandonados 🎉</p> : carritos.map(c => (
+        <div key={c.id} className="card" style={{ padding: 14, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <strong>{c.usuario_nombre || c.email || c.telefono || 'Anónimo'}</strong>
+              {c.seccion_nombre && <span style={{ fontSize: 10, background: 'var(--border)', padding: '1px 8px', borderRadius: 4, marginLeft: 8 }}>{c.seccion_nombre}</span>}
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(c.created_at).toLocaleString('es-AR')} · {(c.items || []).length} productos</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>{(c.items || []).slice(0, 4).map(i => (i.nombre || i.modelo) + ` x${i.qty || i.cantidad || 1}`).join(', ')}{(c.items || []).length > 4 ? '...' : ''}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{fmtARS(c.total)}</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {c.telefono && <button className="btn btn-success btn-sm" onClick={() => contactar(c)}>WhatsApp</button>}
+                <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}>✓ Recuperado</button>
+                <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)}>🗑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AdminCupones() {
   const { secciones, toast } = useContext(Ctx);
   const [cupones, setCupones] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [edit, setEdit] = useState(null);
-  const [form, setForm] = useState({ codigo: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', uso_maximo: 0, monto_minimo: 0, metodo_pago: '', fecha_desde: '', fecha_hasta: '' });
+  const [form, setForm] = useState({ codigo: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', uso_maximo: 0, monto_minimo: 0, metodo_pago: '', fecha_desde: '', fecha_hasta: '', solo_primera_compra: false });
   const [prodSearch, setProdSearch] = useState('');
   const [prodResults, setProdResults] = useState([]);
   const [selProds, setSelProds] = useState([]);
@@ -4317,7 +4449,7 @@ function AdminCupones() {
 
   const openEdit = async (c) => {
     setEdit(c);
-    setForm({ codigo: c.codigo, tipo: c.tipo, valor: c.valor, secciones_ids: c.secciones_ids || '', categoria: c.categoria || '', uso_maximo: c.uso_maximo || 0, monto_minimo: c.monto_minimo || 0, metodo_pago: c.metodo_pago || '', fecha_desde: c.fecha_desde ? String(c.fecha_desde).slice(0, 10) : '', fecha_hasta: c.fecha_hasta ? String(c.fecha_hasta).slice(0, 10) : '' });
+    setForm({ codigo: c.codigo, tipo: c.tipo, valor: c.valor, secciones_ids: c.secciones_ids || '', categoria: c.categoria || '', uso_maximo: c.uso_maximo || 0, monto_minimo: c.monto_minimo || 0, metodo_pago: c.metodo_pago || '', fecha_desde: c.fecha_desde ? String(c.fecha_desde).slice(0, 10) : '', fecha_hasta: c.fecha_hasta ? String(c.fecha_hasta).slice(0, 10) : '', solo_primera_compra: c.solo_primera_compra || false });
     // FIX #6: recuperar productos asociados para no borrarlos al guardar
     const pids = Array.isArray(c.productos_ids) ? c.productos_ids.filter(Boolean) : [];
     if (pids.length) { try { const d = await api.getProductos({ limit: 9999 }); setSelProds((d.productos || []).filter(pp => pids.includes(pp.id))); } catch { setSelProds([]); } }
@@ -4385,6 +4517,7 @@ function AdminCupones() {
               </div>
               <div className="form-row">
                 <div className="form-group"><label className="form-label">Monto mínimo ($, 0=sin mínimo)</label><input type="number" value={form.monto_minimo} onChange={e => setForm({ ...form, monto_minimo: Number(e.target.value) })} /></div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={form.solo_primera_compra} onChange={e => setForm({ ...form, solo_primera_compra: e.target.checked })} /> Solo para la primera compra del cliente</label>
                 <div className="form-group"><label className="form-label">Solo con método de pago (opcional)</label><input value={form.metodo_pago} onChange={e => setForm({ ...form, metodo_pago: e.target.value })} placeholder="Ej: Efectivo" /></div>
               </div>
               <div className="form-group">

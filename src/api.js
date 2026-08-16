@@ -146,7 +146,7 @@ export async function getStats(params={}) { const p=new URLSearchParams(params);
 
 // cupones promos etc
 export async function getCupones() { return f('/api/cupones'); }
-export async function validarCupon(codigo, seccion_id, subtotal, metodo_pago, items) { return f('/api/cupones/validar', { method: 'POST', body: JSON.stringify({ codigo, seccion_id, subtotal, metodo_pago, items }) }); }
+export async function validarCupon(codigo, seccion_id, subtotal, metodo_pago, items, usuario_id) { return f('/api/cupones/validar', { method: 'POST', body: JSON.stringify({ codigo, seccion_id, subtotal, metodo_pago, items, usuario_id }) }); }
 export async function createCupon(cupon) { return f('/api/cupones', { method: 'POST', body: JSON.stringify(cupon) }); }
 export async function updateCupon(id, cupon) { return f(`/api/cupones/${id}`, { method: 'PUT', body: JSON.stringify(cupon) }); }
 export async function deleteCupon(id) { return f(`/api/cupones/${id}`, { method: 'DELETE' }); }
@@ -240,8 +240,15 @@ export async function removeFavorito(productoId) { return f(`/api/favoritos/${pr
 export async function refreshToken() { return f('/api/refresh-token', { method: 'POST' }); }
 export async function toggleOTP(activo) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo }) }); }
 export async function notificarStock(productoId, email) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email }) }); }
+export async function getNotificacionesStock() { return f('/api/notificaciones-stock'); }
+export async function avisarNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}/avisar`, { method: 'POST' }); }
+export async function deleteNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}`, { method: 'DELETE' }); }
 export async function crearCarritoAbandonado(data) { return f('/api/carritos-abandonados', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getCarritosAbandonados() { return f('/api/carritos-abandonados'); }
+export async function recuperarCarrito(id) { return f(`/api/carritos-abandonados/${id}/recuperar`, { method: 'POST' }); }
+export async function deleteCarritoAbandonado(id) { return f(`/api/carritos-abandonados/${id}`, { method: 'DELETE' }); }
+export async function guardarCarritoAbandonado(data) { return f('/api/carritos-abandonados', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getNovedades(seccion_id, limit) { return f(`/api/productos/novedades?limit=${limit || 12}${seccion_id && seccion_id !== 'all' ? `&seccion_id=${seccion_id}` : ''}`); }
 
 export function trackEvent(eventName, params = {}) { if (typeof window.gtag === 'function') window.gtag('event', eventName, params); }
 export function trackPageView(page, title) { trackEvent('page_view', { page_location: page, page_title: title }); }
