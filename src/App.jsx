@@ -246,6 +246,23 @@ export default function App() {
   // Save cart
   useEffect(() => { localStorage.setItem('gm_cart', JSON.stringify(cart)); }, [cart]);
 
+  // Registrar carrito abandonado a nivel app: si hay usuario logueado e items, tras 30s sin comprar
+  const abandonoTimer = useRef(null);
+  useEffect(() => {
+    if (abandonoTimer.current) clearTimeout(abandonoTimer.current);
+    const items = Object.entries(cart).flatMap(([secId, its]) => Array.isArray(its) ? its.filter(i => i.qty > 0).map(i => ({ ...i, seccion_id: Number(secId) })) : []);
+    if (!user || !items.length) return;
+    abandonoTimer.current = setTimeout(() => {
+      const total = items.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+      api.guardarCarritoAbandonado({
+        usuario_id: user.id, email: user.email || '', telefono: user.telefono || user.whatsapp || '',
+        items: items.map(i => ({ nombre: i.nombre || i.modelo, qty: i.qty, precio: i.precio_unitario || i.precio_base })),
+        total, seccion_id: items[0]?.seccion_id || null
+      }).catch(() => {});
+    }, 30000); // 30s con items en el carrito sin cerrar compra
+    return () => { if (abandonoTimer.current) clearTimeout(abandonoTimer.current); };
+  }, [cart, user]);
+
   // Auto-limpieza: quitar del carrito secciones inexistentes o ítems inválidos (fantasmas)
   useEffect(() => {
     if (!secciones.length) return;
@@ -301,18 +318,26 @@ export default function App() {
         const carritoParam = new URLSearchParams(window.location.search).get('carrito');
         if (carritoParam) {
           try {
-            const payload = JSON.parse(decodeURIComponent(atob(carritoParam))); // [{s,p,q}]
+            let payload;
+            try { payload = JSON.parse(decodeURIComponent(atob(carritoParam))); }
+            catch { payload = JSON.parse(atob(carritoParam)); } // fallback sin encodeURIComponent
             const nuevoCart = {};
-            for (const it of payload) {
+            for (const it of (payload || [])) {
               const prod = await api.getProducto(it.p).catch(() => null);
               if (!prod) continue;
               const secId = String(it.s || prod.seccion_id);
               if (!nuevoCart[secId]) nuevoCart[secId] = [];
-              nuevoCart[secId].push({ ...prod, seccion_id: secId, qty: it.q || 1, precio_unitario: prod.precio_base });
+              nuevoCart[secId].push({ ...prod, seccion_id: secId, qty: Number(it.q) || 1, precio_unitario: prod.precio_base });
             }
-            if (Object.keys(nuevoCart).length) { setCart(nuevoCart); setPage('cart'); toast('Carrito cargado — revisá y continuá la compra'); }
+            if (Object.keys(nuevoCart).length) {
+              localStorage.setItem('gm_cart', JSON.stringify(nuevoCart));
+              setCart(nuevoCart); setPage('cart');
+              toast('Carrito cargado — revisá y continuá la compra');
+            } else {
+              toast('El carrito compartido no tiene productos disponibles', 'error');
+            }
             window.history.replaceState({}, '', window.location.pathname);
-          } catch {}
+          } catch (e) { toast('No se pudo cargar el carrito compartido', 'error'); }
         }
         const maint = await api.getMaintenanceStatus();
         if (maint.activo) {
@@ -910,6 +935,8 @@ function Landing() {
     const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
     const [notifyEmail, setNotifyEmail] = useState('');
     const [showNotify, setShowNotify] = useState(false);
+    const [notifyCanal, setNotifyCanal] = useState('whatsapp');
+    const [notifyTel, setNotifyTel] = useState('');
     const sinStock = p.stock === 0;
     const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital;
     return (
@@ -941,12 +968,32 @@ function Landing() {
               precio > 0 && <span className="price-new">{fmtARS(precio)}</span>
             )}
           </div>
-          {sinStock && !puedeComprar ? (
+          {p.es_preventa ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, background: 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, textTransform: 'uppercase' }}>Preventa</span>
+                {Number(p.preventa_precio) > 0 && <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>Reservá a {fmtARS(p.preventa_precio)}</span>}
+                {p.preventa_mostrar_fecha && p.preventa_fecha && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Llega {new Date(p.preventa_fecha).toLocaleDateString('es-AR')}</span>}
+              </div>
+              {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); const precioRes = Number(p.preventa_precio) > 0 ? Number(p.preventa_precio) : precio; addToCart(secId, { ...p, _preventa: true }, 1, precioRes); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR</button>}
+            </div>
+          ) : sinStock && !puedeComprar ? (
             <div>
               {showNotify ? (
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 12px' }} />
-                  <button className="btn btn-warning btn-sm" onClick={async (e) => { e.stopPropagation(); if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }} style={{ whiteSpace: 'nowrap' }}>OK</button>
+                <div onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                    <button className={`btn btn-sm ${notifyCanal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setNotifyCanal('whatsapp')} style={{ flex: 1, fontSize: 11 }}>WhatsApp</button>
+                    <button className={`btn btn-sm ${notifyCanal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setNotifyCanal('email')} style={{ flex: 1, fontSize: 11 }}>Email</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {notifyCanal === 'whatsapp'
+                      ? <input placeholder="Tu WhatsApp" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 12px' }} />
+                      : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 12px' }} />}
+                    <button className="btn btn-warning btn-sm" onClick={async () => {
+                      if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 8) { toast('Poné un WhatsApp válido', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); setNotifyTel(''); } catch (err) { toast(err.message, 'error'); } }
+                      else { if (!notifyEmail.includes('@')) { toast('Poné un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('¡Listo! Te avisamos por email'); setShowNotify(false); setNotifyEmail(''); } catch (err) { toast(err.message, 'error'); } }
+                    }} style={{ whiteSpace: 'nowrap' }}>OK</button>
+                  </div>
                 </div>
               ) : (
                 <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setShowNotify(true); }} style={{ width: '100%' }}>
@@ -1152,6 +1199,7 @@ function SectionPage() {
   const [catFiltro, setCatFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [stockFiltro, setStockFiltro] = useState('todos'); // todos | con | sin
+  const [marcaFiltro, setMarcaFiltro] = useState('');
   const [precioMin, setPrecioMin] = useState('');
   const [precioMax, setPrecioMax] = useState('');
   const [orden, setOrden] = useState('relevancia'); // relevancia | precio_asc | precio_desc | nombre
@@ -1218,6 +1266,7 @@ function SectionPage() {
     let lista = [...productos];
     if (stockFiltro === 'con') lista = lista.filter(p => (p.stock > 0) || p.permitir_sin_stock || p.es_digital);
     else if (stockFiltro === 'sin') lista = lista.filter(p => !(p.stock > 0) && !p.permitir_sin_stock && !p.es_digital);
+    if (marcaFiltro) lista = lista.filter(p => (p.marca || '') === marcaFiltro);
     const min = Number(precioMin) || 0;
     const max = Number(precioMax) || Infinity;
     if (min > 0 || max < Infinity) lista = lista.filter(p => { const pr = getPrecio(p).final; return pr >= min && pr <= max; });
@@ -1226,7 +1275,8 @@ function SectionPage() {
     else if (orden === 'nombre') lista.sort((a, b) => (a.nombre || a.modelo || '').localeCompare(b.nombre || b.modelo || ''));
     return lista;
   })();
-  const hayFiltrosActivos = stockFiltro !== 'todos' || precioMin || precioMax || orden !== 'relevancia' || catFiltro;
+  const marcasDisponibles = [...new Set(productos.map(p => p.marca).filter(Boolean))].sort();
+  const hayFiltrosActivos = stockFiltro !== 'todos' || precioMin || precioMax || orden !== 'relevancia' || catFiltro || marcaFiltro;
 
   // Vitrina mode for mayorista
   if (esMayorista && sec.requiere_aprobacion && !user) {
@@ -1284,6 +1334,12 @@ function SectionPage() {
           <option value="con">Solo con stock</option>
           <option value="sin">Solo sin stock</option>
         </select>
+        {marcasDisponibles.length > 0 && (
+          <select value={marcaFiltro} onChange={e => setMarcaFiltro(e.target.value)} style={{ borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border)', fontWeight: 600, fontSize: 12.5, background: 'var(--bg-card)', width: 'auto' }}>
+            <option value="">Todas las marcas</option>
+            {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1.5px solid var(--border)', borderRadius: 10, padding: '2px 8px', background: 'var(--bg-card)' }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>$</span>
           <input type="number" placeholder="mín" value={precioMin} onChange={e => setPrecioMin(e.target.value)} style={{ width: 70, border: 'none', padding: '7px 2px', fontSize: 12.5, background: 'transparent' }} />
@@ -1296,7 +1352,7 @@ function SectionPage() {
           <option value="precio_desc">Precio: mayor a menor</option>
           <option value="nombre">Nombre A-Z</option>
         </select>
-        {hayFiltrosActivos && <button onClick={() => { setStockFiltro('todos'); setPrecioMin(''); setPrecioMax(''); setOrden('relevancia'); setCatFiltro(''); setPagina(1); }} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Limpiar filtros</button>}
+        {hayFiltrosActivos && <button onClick={() => { setStockFiltro('todos'); setPrecioMin(''); setPrecioMax(''); setOrden('relevancia'); setCatFiltro(''); setMarcaFiltro(''); setPagina(1); }} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Limpiar filtros</button>}
         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>{productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}</span>
       </div>
 
@@ -1418,22 +1474,8 @@ function CartPage() {
     _validSecIds.has(String(secId)) && Array.isArray(items) ? items.map(i => ({ ...i, seccion_id: Number(secId) })) : []
   ).filter(i => i.qty > 0);
 
-  // Registrar carrito abandonado (una vez, si hay usuario con datos de contacto e items)
-  const abandonoReg = useRef(false);
-  useEffect(() => {
-    if (abandonoReg.current || !allItems.length) return;
-    if (!user || (!user.telefono && !user.email)) return;
-    abandonoReg.current = true;
-    const total = allItems.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
-    const timer = setTimeout(() => {
-      api.guardarCarritoAbandonado({
-        usuario_id: user.id, email: user.email || '', telefono: user.telefono || '',
-        items: allItems.map(i => ({ nombre: i.nombre || i.modelo, qty: i.qty, precio: i.precio_unitario || i.precio_base })),
-        total, seccion_id: allItems[0]?.seccion_id || null
-      }).catch(() => {});
-    }, 3000); // 3s después de abrir el carrito
-    return () => clearTimeout(timer);
-  }, [allItems.length]);
+  // (el registro de carrito abandonado ahora se hace a nivel App)
+
 
   // Pop-up de carrito mixto: una vez por pedido (mientras el carrito tenga 2+ tiendas)
   useEffect(() => {
@@ -1714,6 +1756,8 @@ function ProductDetailPage() {
   const [isFav, setIsFav] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
   const [showNotify, setShowNotify] = useState(false);
+  const [notifyCanal, setNotifyCanal] = useState('whatsapp');
+  const [notifyTel, setNotifyTel] = useState('');
 
   useEffect(() => {
     if (!p) return;
@@ -1825,9 +1869,20 @@ function ProductDetailPage() {
             <div>
               <div className="pdp-nostock">SIN STOCK</div>
               {showNotify ? (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1 }} />
-                  <button className="btn btn-primary" onClick={async () => { if (notifyEmail) { await api.notificarStock(p.id, notifyEmail); toast('Te avisamos cuando llegue'); setShowNotify(false); } }}>Avisar</button>
+                <div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                    <button className={`btn btn-sm ${notifyCanal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setNotifyCanal('whatsapp')} style={{ flex: 1 }}>WhatsApp</button>
+                    <button className={`btn btn-sm ${notifyCanal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setNotifyCanal('email')} style={{ flex: 1 }}>Email</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {notifyCanal === 'whatsapp'
+                      ? <input placeholder="Tu WhatsApp" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ flex: 1 }} />
+                      : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1 }} />}
+                    <button className="btn btn-primary" onClick={async () => {
+                      if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 8) { toast('Poné un WhatsApp válido', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); } catch (err) { toast(err.message, 'error'); } }
+                      else { if (!notifyEmail.includes('@')) { toast('Poné un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('Te avisamos por email'); setShowNotify(false); } catch (err) { toast(err.message, 'error'); } }
+                    }}>Avisar</button>
+                  </div>
                 </div>
               ) : (
                 <button className="btn btn-outline" onClick={() => setShowNotify(true)} style={{ width: '100%' }}>🔔 Avisame cuando llegue</button>
@@ -3324,6 +3379,7 @@ function ProductModal({ product, onClose }) {
     categoria: '', modelo: '', nombre: '', precio_base: 0, stock: 0, stock_minimo: 0,
     imagen: '', descripcion: '', sku: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
     envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
+    es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false,
     peso: 0, alto: 0, ancho: 0, largo: 0
   });
   const [saving, setSaving] = useState(false);
@@ -3434,6 +3490,23 @@ function ProductModal({ product, onClose }) {
           <div className="form-row">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={f.envio_gratis} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={f.visible !== false} onChange={e => setF({ ...f, visible: e.target.checked })} /> Visible</label>
+          </div>
+
+          {/* ── PREVENTA / próximo ingreso ── */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, margin: '12px 0' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={f.es_preventa || false} onChange={e => setF({ ...f, es_preventa: e.target.checked })} /> 🔜 Producto en preventa / próximo a ingresar
+            </label>
+            {f.es_preventa && (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>El cliente puede reservar pagando la seña/precio de preventa por adelantado. Si no le ponés precio de preventa, se muestra como próximo ingreso al precio normal.</p>
+                <div className="form-group"><label className="form-label">Precio de preventa (con descuento, 0 = precio normal)</label><input type="number" value={f.preventa_precio || ''} onChange={e => setF({ ...f, preventa_precio: Number(e.target.value) || 0 })} placeholder="0" /></div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}><input type="checkbox" checked={f.preventa_mostrar_fecha || false} onChange={e => setF({ ...f, preventa_mostrar_fecha: e.target.checked })} /> Mostrar fecha estimada de ingreso al cliente</label>
+                {f.preventa_mostrar_fecha && (
+                  <div className="form-group"><label className="form-label">Fecha estimada de ingreso</label><input type="date" value={f.preventa_fecha ? String(f.preventa_fecha).slice(0, 10) : ''} onChange={e => setF({ ...f, preventa_fecha: e.target.value })} /></div>
+                )}
+              </div>
+            )}
           </div>
           {f.tipo === 'fisico' && (
             <div className="form-row">
@@ -4373,9 +4446,11 @@ function AdminNotifStock() {
           </div>
           {g.esperando.map(n => (
             <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
-              <span>{n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
+              <span>{n.canal === 'whatsapp' ? `📱 ${n.telefono}` : n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <a href={`mailto:${n.email}?subject=¡Volvió el stock!&body=Hola, el producto ${g.nombre} que esperabas ya está disponible.`} className="btn btn-success btn-sm" style={{ textDecoration: 'none' }}>Email</a>
+                {n.canal === 'whatsapp' && n.telefono
+                  ? <button className="btn btn-success btn-sm" onClick={() => window.open(`https://wa.me/54${n.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`¡Hola! El producto ${g.nombre} que esperabas ya está disponible. ¿Lo querés?`)}`, '_blank')}>WhatsApp</button>
+                  : <a href={`mailto:${n.email}?subject=¡Volvió el stock!&body=Hola, el producto ${g.nombre} que esperabas ya está disponible.`} className="btn btn-success btn-sm" style={{ textDecoration: 'none' }}>Email</a>}
                 <button className="btn btn-outline btn-sm" onClick={() => avisar(n.id)}>✓ Avisado</button>
                 <button className="btn btn-danger btn-sm" onClick={() => borrar(n.id)}>🗑</button>
               </div>

@@ -239,7 +239,8 @@ export async function removeFavorito(productoId) { return f(`/api/favoritos/${pr
 
 export async function refreshToken() { return f('/api/refresh-token', { method: 'POST' }); }
 export async function toggleOTP(activo) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo }) }); }
-export async function notificarStock(productoId, email) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email }) }); }
+export async function notificarStock(productoId, { email, telefono, canal } = {}) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email, telefono, canal }) }); }
+export async function getPreventa(seccion_id) { return f(`/api/productos/preventa${seccion_id && seccion_id !== 'all' ? `?seccion_id=${seccion_id}` : ''}`); }
 export async function getNotificacionesStock() { return f('/api/notificaciones-stock'); }
 export async function avisarNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}/avisar`, { method: 'POST' }); }
 export async function deleteNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}`, { method: 'DELETE' }); }
