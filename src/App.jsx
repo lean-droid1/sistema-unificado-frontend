@@ -968,37 +968,51 @@ function Landing() {
               precio > 0 && <span className="price-new">{fmtARS(precio)}</span>
             )}
           </div>
-          {p.es_preventa ? (
+          {p.es_preventa ? (() => {
+            const pct = Number(p.preventa_descuento_pct) || 0;
+            const precioReserva = pct > 0 ? Math.round(Number(p.precio_base) * (1 - pct / 100)) : Number(p.precio_base);
+            return (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 10, fontWeight: 800, background: 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, textTransform: 'uppercase' }}>Preventa</span>
-                {Number(p.preventa_precio) > 0 && <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>Reservá a {fmtARS(p.preventa_precio)}</span>}
                 {p.preventa_mostrar_fecha && p.preventa_fecha && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Llega {new Date(p.preventa_fecha).toLocaleDateString('es-AR')}</span>}
               </div>
-              {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); const precioRes = Number(p.preventa_precio) > 0 ? Number(p.preventa_precio) : precio; addToCart(secId, { ...p, _preventa: true }, 1, precioRes); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR</button>}
+              {pct > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 13 }}>{fmtARS(p.precio_base)}</span>
+                  <span style={{ fontWeight: 900, fontSize: 16, color: 'var(--success)' }}>{fmtARS(precioReserva)}</span>
+                  <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{pct}%</span>
+                </div>
+              )}
+              {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, { ...p, _preventa: true, _precioReserva: precioReserva }, 1, precioReserva); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR {pct > 0 ? `a ${fmtARS(precioReserva)}` : ''}</button>}
             </div>
-          ) : sinStock && !puedeComprar ? (
+            );
+          })()
+          : sinStock && !puedeComprar ? (
             <div>
-              {showNotify ? (
-                <div onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                    <button className={`btn btn-sm ${notifyCanal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setNotifyCanal('whatsapp')} style={{ flex: 1, fontSize: 11 }}>WhatsApp</button>
-                    <button className={`btn btn-sm ${notifyCanal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setNotifyCanal('email')} style={{ flex: 1, fontSize: 11 }}>Email</button>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {notifyCanal === 'whatsapp'
-                      ? <input placeholder="Tu WhatsApp" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 12px' }} />
-                      : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1, fontSize: 11, padding: '6px 12px' }} />}
-                    <button className="btn btn-warning btn-sm" onClick={async () => {
-                      if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 8) { toast('Poné un WhatsApp válido', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); setNotifyTel(''); } catch (err) { toast(err.message, 'error'); } }
-                      else { if (!notifyEmail.includes('@')) { toast('Poné un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('¡Listo! Te avisamos por email'); setShowNotify(false); setNotifyEmail(''); } catch (err) { toast(err.message, 'error'); } }
-                    }} style={{ whiteSpace: 'nowrap' }}>OK</button>
+              <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setShowNotify(true); }} style={{ width: '100%' }}>
+                🔔 Avisame cuando llegue
+              </button>
+              {showNotify && (
+                <div className="modal-overlay" onClick={(e) => { e.stopPropagation(); setShowNotify(false); }}>
+                  <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+                    <div className="modal-header"><span className="modal-title">Avisame cuando llegue</span><button className="modal-close" onClick={() => setShowNotify(false)}>✕</button></div>
+                    <div className="modal-body">
+                      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Te avisamos apenas vuelva <b>{p.nombre || p.modelo}</b>. ¿Cómo preferís que te contactemos?</p>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                        <button className={`btn ${notifyCanal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setNotifyCanal('whatsapp')} style={{ flex: 1 }}>📱 WhatsApp</button>
+                        <button className={`btn ${notifyCanal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setNotifyCanal('email')} style={{ flex: 1 }}>✉️ Email</button>
+                      </div>
+                      {notifyCanal === 'whatsapp'
+                        ? <input placeholder="Tu WhatsApp (ej: 11 2345 6789)" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />
+                        : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />}
+                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={async () => {
+                        if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 8) { toast('Escribí un número de WhatsApp válido', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); setNotifyTel(''); } catch (err) { toast(err.message, 'error'); } }
+                        else { if (!notifyEmail.includes('@')) { toast('Escribí un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('¡Listo! Te avisamos por email'); setShowNotify(false); setNotifyEmail(''); } catch (err) { toast(err.message, 'error'); } }
+                      }}>Confirmar aviso</button>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setShowNotify(true); }} style={{ width: '100%' }}>
-                  🔔 Avisame cuando llegue
-                </button>
               )}
             </div>
           ) : addToCart && (
@@ -1447,6 +1461,12 @@ function CartPage() {
           try {
             const prod = await api.getProducto(it.id);
             if (!prod) { cambios.push(`"${it.nombre || it.modelo}" ya no está disponible y se quitó del carrito`); continue; }
+            // Reserva de preventa: respetar el precio de reserva, no tocar stock ni precio
+            if (it._preventa) {
+              const precioReserva = Number(it._precioReserva || it.precio_unitario);
+              nuevoCart[secId].push({ ...it, ...prod, _preventa: true, _precioReserva: precioReserva, seccion_id: secId, qty: it.qty, precio_unitario: precioReserva });
+              continue;
+            }
             const sinStock = !prod.permitir_sin_stock && !prod.es_digital && Number(prod.stock) < it.qty;
             const precioViejo = Number(it.precio_unitario || it.precio_base);
             const precioNuevo = Number(prod.precio_base);
@@ -3376,10 +3396,10 @@ function ProductModal({ product, onClose }) {
   const isEdit = !!product;
   const [f, setF] = useState(product || {
     seccion_id: adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id,
-    categoria: '', modelo: '', nombre: '', precio_base: 0, stock: 0, stock_minimo: 0,
+    categoria: '', modelo: '', nombre: '', precio_base: 0, precio_original: 0, stock: 0, stock_minimo: 0,
     imagen: '', descripcion: '', sku: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
     envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
-    es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false,
+    es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false, preventa_descuento_pct: 0,
     peso: 0, alto: 0, ancho: 0, largo: 0
   });
   const [saving, setSaving] = useState(false);
@@ -3453,6 +3473,7 @@ function ProductModal({ product, onClose }) {
           <div className="form-row">
             <div className="form-group"><label className="form-label">Precio base *</label><input type="number" value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
             <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
+            <div className="form-group"><label className="form-label">Precio de costo (lo que te sale)</label><input type="number" value={f.precio_original || ''} onChange={e => setF({ ...f, precio_original: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_original: Number(e.target.value) || 0 })} placeholder="Para calcular ganancia" /></div>
           </div>
           <div className="form-row">
             <div className="form-group"><label className="form-label">Stock *</label><input type="number" value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
@@ -3500,7 +3521,14 @@ function ProductModal({ product, onClose }) {
             {f.es_preventa && (
               <div style={{ marginTop: 12 }}>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>El cliente puede reservar pagando la seña/precio de preventa por adelantado. Si no le ponés precio de preventa, se muestra como próximo ingreso al precio normal.</p>
-                <div className="form-group"><label className="form-label">Precio de preventa (con descuento, 0 = precio normal)</label><input type="number" value={f.preventa_precio || ''} onChange={e => setF({ ...f, preventa_precio: Number(e.target.value) || 0 })} placeholder="0" /></div>
+                <div className="form-group"><label className="form-label">% de descuento por reservar (0 = sin descuento, precio normal)</label><input type="number" min="0" max="99" value={f.preventa_descuento_pct || ''} onChange={e => setF({ ...f, preventa_descuento_pct: Number(e.target.value) || 0 })} placeholder="Ej: 15" /></div>
+                {Number(f.preventa_descuento_pct) > 0 && Number(f.precio_base) > 0 && (
+                  <div style={{ fontSize: 13, background: 'var(--bg-hover, rgba(0,0,0,0.04))', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
+                    El cliente verá: <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{fmtARS(f.precio_base)}</span> {' '}
+                    <b style={{ color: 'var(--success)' }}>{fmtARS(Math.round(Number(f.precio_base) * (1 - Number(f.preventa_descuento_pct) / 100)))}</b> {' '}
+                    <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>-{f.preventa_descuento_pct}%</span>
+                  </div>
+                )}
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}><input type="checkbox" checked={f.preventa_mostrar_fecha || false} onChange={e => setF({ ...f, preventa_mostrar_fecha: e.target.checked })} /> Mostrar fecha estimada de ingreso al cliente</label>
                 {f.preventa_mostrar_fecha && (
                   <div className="form-group"><label className="form-label">Fecha estimada de ingreso</label><input type="date" value={f.preventa_fecha ? String(f.preventa_fecha).slice(0, 10) : ''} onChange={e => setF({ ...f, preventa_fecha: e.target.value })} /></div>
@@ -4498,7 +4526,7 @@ function AdminCarritosAbandonados() {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{fmtARS(c.total)}</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                {c.telefono && <button className="btn btn-success btn-sm" onClick={() => contactar(c)}>WhatsApp</button>}
+                <button className="btn btn-success btn-sm" onClick={() => contactar(c)}>WhatsApp</button>
                 <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}>✓ Recuperado</button>
                 <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)}>🗑</button>
               </div>
