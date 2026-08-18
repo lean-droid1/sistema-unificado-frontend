@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import * as api from './api';
 import { Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle } from 'lucide-react';
 import gsap from 'gsap';
@@ -993,7 +994,7 @@ function Landing() {
               <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setShowNotify(true); }} style={{ width: '100%' }}>
                 🔔 Avisame cuando llegue
               </button>
-              {showNotify && (
+              {showNotify && createPortal(
                 <div className="modal-overlay" onClick={(e) => { e.stopPropagation(); setShowNotify(false); }}>
                   <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
                     <div className="modal-header"><span className="modal-title">Avisame cuando llegue</span><button className="modal-close" onClick={() => setShowNotify(false)}>✕</button></div>
@@ -1007,12 +1008,12 @@ function Landing() {
                         ? <input placeholder="Tu WhatsApp (ej: 11 2345 6789)" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />
                         : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />}
                       <button className="btn btn-primary" style={{ width: '100%' }} onClick={async () => {
-                        if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 8) { toast('Escribí un número de WhatsApp válido', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); setNotifyTel(''); } catch (err) { toast(err.message, 'error'); } }
+                        if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 10) { toast('Escribí tu WhatsApp con código de área (10 dígitos, ej: 1123456789)', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); setNotifyTel(''); } catch (err) { toast(err.message, 'error'); } }
                         else { if (!notifyEmail.includes('@')) { toast('Escribí un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('¡Listo! Te avisamos por email'); setShowNotify(false); setNotifyEmail(''); } catch (err) { toast(err.message, 'error'); } }
                       }}>Confirmar aviso</button>
                     </div>
                   </div>
-                </div>
+                </div>, document.body
               )}
             </div>
           ) : addToCart && (
@@ -1547,7 +1548,7 @@ function CartPage() {
         return {
           seccion_id: sec.id, tipo: 'presupuesto', estado: 'pendiente', metodo_pago: metodoPago, notas,
           subtotal: secSubtotal, descuento: 0, total: secSubtotal,
-          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
+          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false }))
         };
       }).filter(pp => pp.items.length);
       for (const p of pedidos) await api.createPedido(p);
@@ -1600,7 +1601,7 @@ function CartPage() {
         subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
         total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
         costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: '',
-        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base }))
+        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false }))
       };
     }).filter(pp => pp.items.length);
     try {
@@ -1899,7 +1900,7 @@ function ProductDetailPage() {
                       ? <input placeholder="Tu WhatsApp" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ flex: 1 }} />
                       : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ flex: 1 }} />}
                     <button className="btn btn-primary" onClick={async () => {
-                      if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 8) { toast('Poné un WhatsApp válido', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); } catch (err) { toast(err.message, 'error'); } }
+                      if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 10) { toast('Escribí tu WhatsApp con código de área (10 dígitos)', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); } catch (err) { toast(err.message, 'error'); } }
                       else { if (!notifyEmail.includes('@')) { toast('Poné un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('Te avisamos por email'); setShowNotify(false); } catch (err) { toast(err.message, 'error'); } }
                     }}>Avisar</button>
                   </div>
@@ -3920,6 +3921,7 @@ function AdminPedidos({ filtroTipo }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
               <strong>{numOrden(p)}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>🧪 TEST</span>}
+              {p.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6 }}>🔖 RESERVA</span>}
               {p.seccion_nombre && <span style={{ background: p.seccion_color || 'var(--primary)', color: '#fff', padding: '1px 8px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{p.seccion_nombre}</span>}
               {' — '}{p.usuario_nombre || '(sin nombre)'} {p.nombre_fantasia && `(${p.nombre_fantasia})`}
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
@@ -4081,7 +4083,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}>🔖 RESERVA / PREVENTA</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {/* Client info */}
           <div className="card" style={{ padding: 12, marginBottom: 12 }}>
@@ -4477,7 +4479,7 @@ function AdminNotifStock() {
               <span>{n.canal === 'whatsapp' ? `📱 ${n.telefono}` : n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {n.canal === 'whatsapp' && n.telefono
-                  ? <button className="btn btn-success btn-sm" onClick={() => window.open(`https://wa.me/54${n.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`¡Hola! El producto ${g.nombre} que esperabas ya está disponible. ¿Lo querés?`)}`, '_blank')}>WhatsApp</button>
+                  ? <button className="btn btn-success btn-sm" onClick={() => { let t = n.telefono.replace(/\D/g, ''); if (t.startsWith('0')) t = t.slice(1); if (!t.startsWith('54')) t = '549' + t; window.open(`https://wa.me/${t}?text=${encodeURIComponent(`¡Hola! El producto ${g.nombre} que esperabas ya está disponible. ¿Lo querés?`)}`, '_blank'); }}>WhatsApp</button>
                   : <a href={`mailto:${n.email}?subject=¡Volvió el stock!&body=Hola, el producto ${g.nombre} que esperabas ya está disponible.`} className="btn btn-success btn-sm" style={{ textDecoration: 'none' }}>Email</a>}
                 <button className="btn btn-outline btn-sm" onClick={() => avisar(n.id)}>✓ Avisado</button>
                 <button className="btn btn-danger btn-sm" onClick={() => borrar(n.id)}>🗑</button>
