@@ -1020,7 +1020,16 @@ function Landing() {
                   <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{pct}%</span>
                 </div>
               )}
-              {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, { ...p, _preventa: true, _precioReserva: precioReserva }, 1, precioReserva); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR {pct > 0 ? `a ${fmtARS(precioReserva)}` : ''}</button>}
+              {(() => {
+                const cupo = Number(p.preventa_cupo) || 0;
+                const reservado = Number(p.preventa_reservado) || 0;
+                const agotada = cupo > 0 && reservado >= cupo;
+                if (agotada) return <button className="btn btn-outline btn-sm" disabled style={{ width: '100%', opacity: 0.6 }}>Preventa agotada</button>;
+                return <>
+                  {cupo > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Quedan {cupo - reservado} de {cupo} en preventa</div>}
+                  {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, { ...p, _preventa: true, _precioReserva: precioReserva }, 1, precioReserva); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR {pct > 0 ? `a ${fmtARS(precioReserva)}` : ''}</button>}
+                </>;
+              })()}
             </div>
             );
           })()
@@ -3435,7 +3444,7 @@ function ProductModal({ product, onClose }) {
     categoria: '', modelo: '', nombre: '', precio_base: 0, precio_original: 0, stock: 0, stock_minimo: 0,
     imagen: '', descripcion: '', sku: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
     envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
-    es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false, preventa_descuento_pct: 0,
+    es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false, preventa_descuento_pct: 0, preventa_cupo: 0,
     peso: 0, alto: 0, ancho: 0, largo: 0
   });
   const [saving, setSaving] = useState(false);
@@ -3558,6 +3567,7 @@ function ProductModal({ product, onClose }) {
               <div style={{ marginTop: 12 }}>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>El cliente puede reservar pagando la seña/precio de preventa por adelantado. Si no le ponés precio de preventa, se muestra como próximo ingreso al precio normal.</p>
                 <div className="form-group"><label className="form-label">% de descuento por reservar (0 = sin descuento, precio normal)</label><input type="number" min="0" max="99" value={f.preventa_descuento_pct || ''} onChange={e => setF({ ...f, preventa_descuento_pct: Number(e.target.value) || 0 })} placeholder="Ej: 15" /></div>
+                <div className="form-group"><label className="form-label">Stock de preventa (cuántas unidades van a llegar, 0 = sin límite)</label><input type="number" min="0" value={f.preventa_cupo || ''} onChange={e => setF({ ...f, preventa_cupo: Number(e.target.value) || 0 })} placeholder="Ej: 10" />{f.es_preventa && Number(f.preventa_reservado) > 0 && <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ya reservaron: {f.preventa_reservado} de {f.preventa_cupo || '∞'}</small>}</div>
                 {Number(f.preventa_descuento_pct) > 0 && Number(f.precio_base) > 0 && (
                   <div style={{ fontSize: 13, background: 'var(--bg-hover, rgba(0,0,0,0.04))', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
                     El cliente verá: <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{fmtARS(f.precio_base)}</span> {' '}
@@ -3568,6 +3578,15 @@ function ProductModal({ product, onClose }) {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}><input type="checkbox" checked={f.preventa_mostrar_fecha || false} onChange={e => setF({ ...f, preventa_mostrar_fecha: e.target.checked })} /> Mostrar fecha estimada de ingreso al cliente</label>
                 {f.preventa_mostrar_fecha && (
                   <div className="form-group"><label className="form-label">Fecha estimada de ingreso</label><input type="date" value={f.preventa_fecha ? String(f.preventa_fecha).slice(0, 10) : ''} onChange={e => setF({ ...f, preventa_fecha: e.target.value })} /></div>
+                )}
+                {isEdit && f.es_preventa && (
+                  <div style={{ marginTop: 10, padding: 10, background: 'var(--success)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 12, color: '#fff', marginBottom: 8 }}>Cuando llegue la mercadería, tocá el botón: las unidades pasan al stock físico y se descuentan las {f.preventa_reservado || 0} ya reservadas.</p>
+                    <button type="button" className="btn btn-sm" style={{ width: '100%', background: '#fff', color: 'var(--success)', fontWeight: 800 }} onClick={async () => {
+                      if (!confirm(`¿Recibiste la preventa de "${f.nombre || f.modelo}"? Se sumarán al stock físico (menos las ${f.preventa_reservado || 0} reservadas) y se desactivará la preventa.`)) return;
+                      try { const r = await api.recibirPreventa(f.id); toast(`Recibido: +${r.sumado_a_stock} al stock, ${r.reservas_tomadas} reservas tomadas`); onClose(); } catch (e) { toast(e.message, 'error'); }
+                    }}>📦 Recibí la preventa</button>
+                  </div>
                 )}
               </div>
             )}
@@ -4440,11 +4459,11 @@ function UserModal({ u, onClose }) {
             )}
           </div>
         )}
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ flexWrap: 'wrap', gap: 8 }}>
           {!isNew && (
             <>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowHist(!showHist)} style={{ marginRight: 8 }}>{showHist ? 'Ocultar historial' : '📊 Ver historial'}</button>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowCta(!showCta)} style={{ marginRight: 8 }}>{showCta ? 'Ocultar cuenta' : '💳 Cuenta corriente'}</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowHist(!showHist)}>{showHist ? 'Ocultar historial' : '📊 Ver historial'}</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowCta(!showCta)}>{showCta ? 'Ocultar cuenta' : '💳 Cuenta corriente'}</button>
             </>
           )}
           {!isNew && (
