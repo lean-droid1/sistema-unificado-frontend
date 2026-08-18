@@ -241,6 +241,11 @@ export async function refreshToken() { return f('/api/refresh-token', { method: 
 export async function toggleOTP(activo) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo }) }); }
 export async function notificarStock(productoId, { email, telefono, canal } = {}) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email, telefono, canal }) }); }
 export async function getPreventa(seccion_id) { return f(`/api/productos/preventa${seccion_id && seccion_id !== 'all' ? `?seccion_id=${seccion_id}` : ''}`); }
+export async function getReportes(desde, hasta, seccion_id) { const q = new URLSearchParams(); if (desde) q.set('desde', desde); if (hasta) q.set('hasta', hasta); if (seccion_id && seccion_id !== 'all') q.set('seccion_id', seccion_id); return f(`/api/reportes?${q.toString()}`); }
+export async function getRelacionados(id) { return f(`/api/productos/relacionados/${id}`); }
+export async function getCuentaCorriente(id) { return f(`/api/usuarios/${id}/cuenta`); }
+export async function addMovimientoCuenta(id, tipo, monto, concepto) { return f(`/api/usuarios/${id}/cuenta`, { method: 'POST', body: JSON.stringify({ tipo, monto, concepto }) }); }
+export async function deleteMovimientoCuenta(id) { return f(`/api/cuenta-corriente/${id}`, { method: 'DELETE' }); }
 export async function getNotificacionesStock() { return f('/api/notificaciones-stock'); }
 export async function avisarNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}/avisar`, { method: 'POST' }); }
 export async function deleteNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}`, { method: 'DELETE' }); }

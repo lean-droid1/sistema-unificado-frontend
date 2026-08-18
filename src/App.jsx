@@ -217,6 +217,7 @@ export default function App() {
   const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
+  const [notifyProduct, setNotifyProduct] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [redesSociales, setRedesSociales] = useState([]);
   const [badges, setBadges] = useState([]);
@@ -457,7 +458,8 @@ export default function App() {
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
     testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); },
-    globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch
+    globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch,
+    notifyProduct, setNotifyProduct
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
@@ -488,6 +490,7 @@ export default function App() {
         <Footer />
         <WhatsAppFloat />
         <ToastContainer />
+        <NotifyStockModal />
       </div>
     </Ctx.Provider>
   );
@@ -759,6 +762,38 @@ function Footer() {
 // ═══════════════════════════════════════════════════════════
 // WHATSAPP CONTACT WIDGET (multi-agente + captura de leads)
 // ═══════════════════════════════════════════════════════════
+function NotifyStockModal() {
+  const { notifyProduct, setNotifyProduct, toast } = useContext(Ctx);
+  const [canal, setCanal] = useState('whatsapp');
+  const [tel, setTel] = useState('');
+  const [email, setEmail] = useState('');
+  useEffect(() => { if (notifyProduct) { setCanal('whatsapp'); setTel(''); setEmail(''); } }, [notifyProduct]);
+  if (!notifyProduct) return null;
+  const p = notifyProduct;
+  const enviar = async () => {
+    if (canal === 'whatsapp') { const t = tel.replace(/\D/g, ''); if (t.length < 10) { toast('Escribí tu WhatsApp con código de área (10 dígitos, ej: 1123456789)', 'error'); return; } try { await api.notificarStock(p.id, { telefono: t, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setNotifyProduct(null); } catch (err) { toast(err.message, 'error'); } }
+    else { if (!email.includes('@')) { toast('Escribí un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email, canal: 'email' }); toast('¡Listo! Te avisamos por email'); setNotifyProduct(null); } catch (err) { toast(err.message, 'error'); } }
+  };
+  return (
+    <div className="modal-overlay" onClick={() => setNotifyProduct(null)}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+        <div className="modal-header"><span className="modal-title">Avisame cuando llegue</span><button className="modal-close" onClick={() => setNotifyProduct(null)}>✕</button></div>
+        <div className="modal-body">
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Te avisamos apenas vuelva <b>{p.nombre || p.modelo}</b>. ¿Cómo preferís que te contactemos?</p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button className={`btn ${canal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setCanal('whatsapp')} style={{ flex: 1 }}>📱 WhatsApp</button>
+            <button className={`btn ${canal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCanal('email')} style={{ flex: 1 }}>✉️ Email</button>
+          </div>
+          {canal === 'whatsapp'
+            ? <input placeholder="Tu WhatsApp (ej: 11 2345 6789)" value={tel} onChange={e => setTel(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />
+            : <input placeholder="Tu email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />}
+          <button className="btn btn-primary" style={{ width: '100%' }} onClick={enviar}>Confirmar aviso</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WhatsAppFloat() {
   const { config, design, user } = useContext(Ctx);
   const [contactos, setContactos] = useState([]);
@@ -884,7 +919,7 @@ function InfoPage() {
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
 function Landing() {
-  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch } = useContext(Ctx);
+  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
   const [secProds, setSecProds] = useState({});
   const [sliders, setSliders] = useState([]);
@@ -991,30 +1026,9 @@ function Landing() {
           })()
           : sinStock && !puedeComprar ? (
             <div>
-              <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setShowNotify(true); }} style={{ width: '100%' }}>
+              <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setNotifyProduct(p); }} style={{ width: '100%' }}>
                 🔔 Avisame cuando llegue
               </button>
-              {showNotify && createPortal(
-                <div className="modal-overlay" onClick={(e) => { e.stopPropagation(); setShowNotify(false); }}>
-                  <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
-                    <div className="modal-header"><span className="modal-title">Avisame cuando llegue</span><button className="modal-close" onClick={() => setShowNotify(false)}>✕</button></div>
-                    <div className="modal-body">
-                      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Te avisamos apenas vuelva <b>{p.nombre || p.modelo}</b>. ¿Cómo preferís que te contactemos?</p>
-                      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                        <button className={`btn ${notifyCanal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setNotifyCanal('whatsapp')} style={{ flex: 1 }}>📱 WhatsApp</button>
-                        <button className={`btn ${notifyCanal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setNotifyCanal('email')} style={{ flex: 1 }}>✉️ Email</button>
-                      </div>
-                      {notifyCanal === 'whatsapp'
-                        ? <input placeholder="Tu WhatsApp (ej: 11 2345 6789)" value={notifyTel} onChange={e => setNotifyTel(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />
-                        : <input placeholder="Tu email" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />}
-                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={async () => {
-                        if (notifyCanal === 'whatsapp') { const tel = notifyTel.replace(/\D/g, ''); if (tel.length < 10) { toast('Escribí tu WhatsApp con código de área (10 dígitos, ej: 1123456789)', 'error'); return; } try { await api.notificarStock(p.id, { telefono: tel, canal: 'whatsapp' }); toast('¡Listo! Te avisamos por WhatsApp'); setShowNotify(false); setNotifyTel(''); } catch (err) { toast(err.message, 'error'); } }
-                        else { if (!notifyEmail.includes('@')) { toast('Escribí un email válido', 'error'); return; } try { await api.notificarStock(p.id, { email: notifyEmail, canal: 'email' }); toast('¡Listo! Te avisamos por email'); setShowNotify(false); setNotifyEmail(''); } catch (err) { toast(err.message, 'error'); } }
-                      }}>Confirmar aviso</button>
-                    </div>
-                  </div>
-                </div>, document.body
-              )}
             </div>
           ) : addToCart && (
             <button className="btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); }}>
@@ -1596,11 +1610,13 @@ function CartPage() {
       const secItems = allItems.filter(i => i.seccion_id === sec.id);
       const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
       const secEnvio = envio[sec.id];
+      const tieneReserva = secItems.some(i => i._preventa);
       return {
-        seccion_id: sec.id, metodo_pago: metodoPago, notas, cupon_codigo: cupon,
+        seccion_id: sec.id, metodo_pago: metodoPago, notas: tieneReserva ? `${notas} [RESERVA/PREVENTA — requiere seña]`.trim() : notas, cupon_codigo: cupon,
         subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
         total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
         costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: '',
+        estado_pago: tieneReserva ? 'senado' : 'impago',
         items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false }))
       };
     }).filter(pp => pp.items.length);
@@ -1774,6 +1790,8 @@ function ProductDetailPage() {
   const [variantes, setVariantes] = useState([]);
   const [selVariante, setSelVariante] = useState(null);
   const [mainImg, setMainImg] = useState('');
+  const [relacionados, setRelacionados] = useState([]);
+  useEffect(() => { if (p?.id) api.getRelacionados(p.id).then(setRelacionados).catch(() => setRelacionados([])); }, [p?.id]);
   const [isFav, setIsFav] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
   const [showNotify, setShowNotify] = useState(false);
@@ -1940,6 +1958,21 @@ function ProductDetailPage() {
             onSelect={(envio) => toast(`${envio.nombre}: ${fmtARS(envio.costo)}`)} />
         </div>
       </div>
+
+      {relacionados.length > 0 && (
+        <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>También te puede interesar</h3>
+          <div className="product-grid">
+            {relacionados.map(rp => (
+              <div key={rp.id} className="card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => { window.__secId = rp.seccion_id; nav('product', rp); }}>
+                {rp.imagen ? <img src={rp.imagen} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ico n="cart" s={28} /></div>}
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rp.nombre || rp.modelo}</div>
+                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{fmtARS(rp.precio_oferta > 0 ? rp.precio_oferta : rp.precio_base)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2212,7 +2245,7 @@ function AdminPanel() {
   const tabPerm = {
     dashboard: 'stats',
     pedidos: 'pedidos', presupuestos: 'pedidos', leads: 'stats', reglas_compra: 'pedidos',
-    cupones: 'config', promociones: 'config', carritos: 'stats', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
+    cupones: 'config', promociones: 'config', carritos: 'stats', reportes: 'stats', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
     productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos',
     usuarios: 'usuarios',
     envios: 'config', metodos_pago: 'config',
@@ -2234,6 +2267,7 @@ function AdminPanel() {
       { id: 'cupones', label: 'Cupones' },
       { id: 'promociones', label: 'Promociones' },
       { id: 'carritos', label: 'Carritos abandonados' },
+      { id: 'reportes', label: 'Reportes' },
       { id: 'leads', label: 'Leads WhatsApp' },
     ]},
     { id: 'catalogo', label: 'Catálogo', icon: 'box', items: [
@@ -2356,6 +2390,7 @@ function AdminPanel() {
         {adminTab === 'cupones' && <AdminCupones />}
         {adminTab === 'promociones' && <AdminPromociones />}
         {adminTab === 'carritos' && <AdminCarritosAbandonados />}
+        {adminTab === 'reportes' && <AdminReportes />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
         {adminTab === 'menu' && <AdminMenu />}
         {adminTab === 'envios' && <AdminEnviosCustom />}
@@ -4258,6 +4293,16 @@ function UserModal({ u, onClose }) {
   const [sv, setSv] = useState(false);
   const [hist, setHist] = useState(null);
   const [showHist, setShowHist] = useState(false);
+  const [showCta, setShowCta] = useState(false);
+  const [cta, setCta] = useState(null);
+  const [movForm, setMovForm] = useState({ tipo: 'cargo', monto: '', concepto: '' });
+  const loadCta = () => { if (u.id) api.getCuentaCorriente(u.id).then(setCta).catch(() => {}); };
+  useEffect(() => { if (showCta && !cta) loadCta(); }, [showCta]);
+  const addMov = async () => {
+    if (!movForm.monto) { toast('Poné un monto', 'error'); return; }
+    try { await api.addMovimientoCuenta(u.id, movForm.tipo, Number(movForm.monto), movForm.concepto); setMovForm({ tipo: 'cargo', monto: '', concepto: '' }); setCta(null); loadCta(); toast('Movimiento registrado'); }
+    catch (e) { toast(e.message, 'error'); }
+  };
   useEffect(() => {
     if (!isNew && u.id && showHist && !hist) api.getHistorialCliente(u.id).then(setHist).catch(() => {});
   }, [showHist]);
@@ -4363,9 +4408,44 @@ function UserModal({ u, onClose }) {
             )}
           </div>
         )}
+        {!isNew && showCta && (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, margin: '12px 0' }}>
+            {!cta ? <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Cargando cuenta...</p> : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>Saldo actual</span>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: cta.saldo > 0 ? 'var(--danger)' : 'var(--success)' }}>{cta.saldo > 0 ? `Debe ${fmtARS(cta.saldo)}` : cta.saldo < 0 ? `A favor ${fmtARS(-cta.saldo)}` : 'Al día'}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <select value={movForm.tipo} onChange={e => setMovForm({ ...movForm, tipo: e.target.value })} style={{ width: 110 }}>
+                    <option value="cargo">Cargo (debe)</option>
+                    <option value="pago">Pago (a favor)</option>
+                  </select>
+                  <input type="number" placeholder="Monto" value={movForm.monto} onChange={e => setMovForm({ ...movForm, monto: e.target.value })} style={{ width: 100 }} />
+                  <input placeholder="Concepto" value={movForm.concepto} onChange={e => setMovForm({ ...movForm, concepto: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
+                  <button className="btn btn-primary btn-sm" onClick={addMov}>Agregar</button>
+                </div>
+                <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                  {cta.movimientos.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Sin movimientos</p> : cta.movimientos.map(m => (
+                    <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                      <span>{new Date(m.created_at).toLocaleDateString('es-AR')} · {m.concepto || (m.tipo === 'cargo' ? 'Cargo' : 'Pago')}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <b style={{ color: m.tipo === 'cargo' ? 'var(--danger)' : 'var(--success)' }}>{m.tipo === 'cargo' ? '+' : '-'}{fmtARS(m.monto)}</b>
+                        <button onClick={async () => { try { await api.deleteMovimientoCuenta(m.id); setCta(null); loadCta(); } catch (e) { toast(e.message, 'error'); } }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>✕</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className="modal-footer">
           {!isNew && (
+            <>
             <button className="btn btn-outline btn-sm" onClick={() => setShowHist(!showHist)} style={{ marginRight: 8 }}>{showHist ? 'Ocultar historial' : '📊 Ver historial'}</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowCta(!showCta)} style={{ marginRight: 8 }}>{showCta ? 'Ocultar cuenta' : '💳 Cuenta corriente'}</button>
+            </>
           )}
           {!isNew && (
             <button className="btn btn-outline btn-sm" onClick={async () => { const r = await api.resetPassword(u.id); toast('Contraseña reseteada a 1234'); if (r.telefono) { openWA(`54${r.telefono.replace(/\D/g, '')}`, `Hola ${r.nombre}, tu contraseña fue reseteada. Tu nueva contraseña es: 1234`); } }} style={{ marginRight: 'auto' }}>🔑 Reset pass</button>
@@ -4488,6 +4568,74 @@ function AdminNotifStock() {
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+function AdminReportes() {
+  const { adminSeccion, toast } = useContext(Ctx);
+  const [rep, setRep] = useState(null);
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [loading, setLoading] = useState(true);
+  const load = async () => { setLoading(true); try { setRep(await api.getReportes(desde, hasta, adminSeccion)); } catch (e) { toast(e.message, 'error'); } setLoading(false); };
+  useEffect(() => { load(); }, [adminSeccion, desde, hasta]);
+
+  return (
+    <div style={{ maxWidth: 1100 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 12 }}>Reportes</h3>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ fontSize: 13 }}>Desde <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={{ marginLeft: 4 }} /></label>
+        <label style={{ fontSize: 13 }}>Hasta <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={{ marginLeft: 4 }} /></label>
+        {(desde || hasta) && <button className="btn btn-outline btn-sm" onClick={() => { setDesde(''); setHasta(''); }}>Limpiar</button>}
+      </div>
+
+      {loading ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Cargando...</p> : !rep ? null : (
+        <>
+          {/* Ganancias */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+            <div className="card" style={{ padding: 18 }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Facturado</div><div style={{ fontSize: 26, fontWeight: 900 }}>{fmtARS(rep.ganancias.facturado)}</div></div>
+            <div className="card" style={{ padding: 18 }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Costo</div><div style={{ fontSize: 26, fontWeight: 900, color: 'var(--danger)' }}>{fmtARS(rep.ganancias.costo)}</div></div>
+            <div className="card" style={{ padding: 18, background: 'var(--success)', color: '#fff' }}><div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, opacity: 0.9 }}>Ganancia estimada</div><div style={{ fontSize: 26, fontWeight: 900 }}>{fmtARS(rep.ganancias.ganancia)}</div></div>
+          </div>
+          {rep.ganancias.costo === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, marginTop: -8 }}>💡 Cargá el "precio de costo" en tus productos para ver la ganancia real.</p>}
+
+          {/* Más vendidos */}
+          <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Más vendidos</h4>
+          {rep.masVendidos.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Sin ventas en el período</p> : (
+            <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
+              {rep.masVendidos.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < rep.masVendidos.length - 1 ? '1px solid var(--border-light)' : 'none', fontSize: 13 }}>
+                  <span><b style={{ color: 'var(--text-muted)', marginRight: 8 }}>{i + 1}</b>{p.nombre_producto}</span>
+                  <span><b>{p.unidades}</b> u. · {fmtARS(p.facturado)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Por sección */}
+          <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Ventas por tienda</h4>
+          <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
+            {rep.porSeccion.map((s, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < rep.porSeccion.length - 1 ? '1px solid var(--border-light)' : 'none', fontSize: 13 }}>
+                <span>{s.seccion || 'Sin tienda'}</span>
+                <span>{s.pedidos} pedidos · <b>{fmtARS(s.total)}</b></span>
+              </div>
+            ))}
+          </div>
+
+          {/* Por mes */}
+          <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Ventas por mes</h4>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {rep.porMes.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < rep.porMes.length - 1 ? '1px solid var(--border-light)' : 'none', fontSize: 13 }}>
+                <span>{m.mes}</span>
+                <span>{m.pedidos} pedidos · <b>{fmtARS(m.total)}</b></span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
