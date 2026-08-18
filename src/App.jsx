@@ -3264,7 +3264,7 @@ function AdminProductos() {
               <tr style={{ opacity: p.visible === false ? 0.5 : 1, background: seleccion.has(p.id) ? 'var(--primary-light)' : undefined }}>
                 <td><input type="checkbox" checked={seleccion.has(p.id)} onChange={() => toggleSel(p.id)} /></td>
                 <td>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : '—'}</td>
-                <td><strong style={{ cursor: 'pointer' }} onClick={() => setEditProd(p)}>{p.nombre || p.modelo}</strong><br/><small style={{ color: 'var(--text-muted)' }}>{p.sku || ''}</small></td>
+                <td><strong style={{ cursor: 'pointer' }} onClick={() => setEditProd(p)}>{p.nombre || p.modelo}</strong>{p.es_preventa && <span style={{ fontSize: 9, background: 'var(--accent)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 800, marginLeft: 6, verticalAlign: 'middle' }}>PREVENTA</span>}<br/><small style={{ color: 'var(--text-muted)' }}>{p.sku || ''}</small></td>
                 <td>{p.categoria}</td>
                 {secFiltro === 'all' && <td><span style={{ fontSize: 11, background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>{secNombre}</span></td>}
                 <td><input type="number" defaultValue={p.precio_base} onBlur={e => inlineUpdate(p.id, 'precio_base', Number(e.target.value))} style={{ width: 80 }} /></td>
@@ -4428,7 +4428,7 @@ function UserModal({ u, onClose }) {
                 <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                   {cta.movimientos.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Sin movimientos</p> : cta.movimientos.map(m => (
                     <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                      <span>{new Date(m.created_at).toLocaleDateString('es-AR')} · {m.concepto || (m.tipo === 'cargo' ? 'Cargo' : 'Pago')}</span>
+                      <span>{new Date(m.created_at).toLocaleDateString('es-AR')} · {m.concepto || (m.tipo === 'cargo' ? 'Cargo' : 'Pago')}{m.pedido_id && <span style={{ fontSize: 11, background: 'var(--primary-light)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 4, marginLeft: 6 }}>{m.pedido_tipo === 'presupuesto' ? 'P' : '#'}{String(m.pedido_id).padStart(4, '0')}</span>}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <b style={{ color: m.tipo === 'cargo' ? 'var(--danger)' : 'var(--success)' }}>{m.tipo === 'cargo' ? '+' : '-'}{fmtARS(m.monto)}</b>
                         <button onClick={async () => { try { await api.deleteMovimientoCuenta(m.id); setCta(null); loadCta(); } catch (e) { toast(e.message, 'error'); } }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>✕</button>
@@ -4614,12 +4614,19 @@ function AdminReportes() {
           )}
 
           {/* Por sección */}
-          <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Ventas por tienda</h4>
+          <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Ventas y ganancias por tienda</h4>
           <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
             {rep.porSeccion.map((s, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < rep.porSeccion.length - 1 ? '1px solid var(--border-light)' : 'none', fontSize: 13 }}>
-                <span>{s.seccion || 'Sin tienda'}</span>
-                <span>{s.pedidos} pedidos · <b>{fmtARS(s.total)}</b></span>
+              <div key={i} style={{ padding: '12px 14px', borderBottom: i < rep.porSeccion.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700 }}>{s.seccion || 'Sin tienda'}</span>
+                  <span style={{ fontSize: 13 }}>{s.pedidos} pedidos · <b>{fmtARS(s.total)}</b></span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+                  <span>Facturado: {fmtARS(s.facturado)}</span>
+                  <span>Costo: {fmtARS(s.costo)}</span>
+                  <span style={{ color: 'var(--success)', fontWeight: 700 }}>Ganancia: {fmtARS(s.ganancia)}</span>
+                </div>
               </div>
             ))}
           </div>
