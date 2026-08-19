@@ -1027,7 +1027,7 @@ function Landing() {
                 if (agotada) return <button className="btn btn-outline btn-sm" disabled style={{ width: '100%', opacity: 0.6 }}>Preventa agotada</button>;
                 return <>
                   {cupo > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Quedan {cupo - reservado} de {cupo} en preventa</div>}
-                  {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, { ...p, _preventa: true, _precioReserva: precioReserva }, 1, precioReserva); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR {pct > 0 ? `a ${fmtARS(precioReserva)}` : ''}</button>}
+                  {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(secId, { ...p, _preventa: true, _precioReserva: precioReserva }, 1, precioReserva); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR {pct > 0 ? `a ${fmtARS(precioReserva)}` : ''}</button>}
                 </>;
               })()}
             </div>
@@ -1935,7 +1935,7 @@ function ProductDetailPage() {
                 {cupo > 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Quedan {Math.max(0, cupo - reservado)} de {cupo} unidades en preventa</p>}
                 {agotada
                   ? <button className="btn btn-outline" disabled style={{ width: '100%', opacity: 0.6 }}>Preventa agotada</button>
-                  : <button className="btn" style={{ width: '100%', background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 800 }} onClick={() => { addToCart(sec?.id, { ...p, _preventa: true, _precioReserva: precioReserva }, qty, precioReserva); toast('Reserva agregada al carrito'); }}>RESERVAR{pct > 0 ? ` a ${fmtARS(precioReserva)}` : ''}</button>}
+                  : <button className="btn" style={{ width: '100%', background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 800 }} onClick={() => { const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(sec?.id, { ...p, _preventa: true, _precioReserva: precioReserva }, qty, precioReserva); toast('Reserva agregada al carrito'); }}>RESERVAR{pct > 0 ? ` a ${fmtARS(precioReserva)}` : ''}</button>}
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Reservás pagando por adelantado. Te avisamos cuando llegue.</p>
               </div>
             );
@@ -3473,6 +3473,8 @@ function CatOptions({ seccionId, exclude }) {
 function ProductModal({ product, onClose }) {
   const { secciones, adminSeccion, toast, listas, preciosFijos, setPreciosFijos } = useContext(Ctx);
   const isEdit = !!product;
+  const [reservadoReal, setReservadoReal] = useState(null);
+  useEffect(() => { if (isEdit && product?.es_preventa && product?.id) api.getReservadoReal(product.id).then(r => setReservadoReal(r.reservado)).catch(() => {}); }, [product?.id]);
   const [f, setF] = useState(product || {
     seccion_id: adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id,
     categoria: '', modelo: '', nombre: '', precio_base: 0, precio_original: 0, stock: 0, stock_minimo: 0,
@@ -3615,10 +3617,11 @@ function ProductModal({ product, onClose }) {
                 )}
                 {isEdit && f.es_preventa && (
                   <div style={{ marginTop: 10, padding: 10, background: 'var(--success)', borderRadius: 8 }}>
-                    <p style={{ fontSize: 12, color: '#fff', marginBottom: 8 }}>Cuando llegue la mercadería, tocá el botón: las unidades pasan al stock físico y se descuentan las {f.preventa_reservado || 0} ya reservadas.</p>
+                    <p style={{ fontSize: 12, color: '#fff', marginBottom: 8 }}>Cuando llegue la mercadería, tocá el botón: las unidades pasan al stock físico y se descuentan las {reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0)} ya reservadas (según los pedidos reales).</p>
                     <button type="button" className="btn btn-sm" style={{ width: '100%', background: '#fff', color: 'var(--success)', fontWeight: 800 }} onClick={async () => {
-                      if (!confirm(`¿Recibiste la preventa de "${f.nombre || f.modelo}"? Se sumarán al stock físico (menos las ${f.preventa_reservado || 0} reservadas) y se desactivará la preventa.`)) return;
-                      try { const r = await api.recibirPreventa(f.id); toast(`Recibido: +${r.sumado_a_stock} al stock, ${r.reservas_tomadas} reservas tomadas`); onClose(); } catch (e) { toast(e.message, 'error'); }
+                      const resv = reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0);
+                      if (!confirm(`¿Recibiste la preventa de "${f.nombre || f.modelo}"?\n\nCupo de preventa: ${f.preventa_cupo || 0}\nYa reservadas (pedidos reales): ${resv}\n\nSe sumarán al stock físico las que sobran (cupo menos reservadas) y se desactivará la preventa.`)) return;
+                      try { const r = await api.recibirPreventa(f.id); toast(`Recibido: +${r.sumado_a_stock} al stock físico, ${r.reservas_tomadas} ya reservadas`); onClose(); } catch (e) { toast(e.message, 'error'); }
                     }}>📦 Recibí la preventa</button>
                   </div>
                 )}
