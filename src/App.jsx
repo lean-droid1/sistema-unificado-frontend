@@ -3669,6 +3669,14 @@ function ImportModal({ onClose }) {
       const keys = Object.keys(json[0]);
       const pick = (r, re) => { const k = keys.find(k => re.test(k)); return k !== undefined ? r[k] : undefined; };
       // Detecta ambos formatos (Empretienda "Exportación" y Tienda Negocio "Listado")
+      // Categoría: toma la SUBCATEGORÍA (última parte después de > o /), Opción B
+      const parseCat = (raw) => {
+        const s = (raw ?? '').toString().trim();
+        if (!s || s.toLowerCase() === 'none' || s === '-') return 'Sin categoría';
+        // Separa por > (jerarquía Empretienda/Tienda Negocio). Usa la última parte no vacía.
+        const partes = s.split('>').map(x => x.trim()).filter(Boolean);
+        return partes.length ? partes[partes.length - 1] : 'Sin categoría';
+      };
       const prods = json.map(r => {
         const nombre = pick(r, /^nombre del producto$|^nombre$|modelo|model/i) || '';
         const precio = Number(String(pick(r, /^precio$|price/i) ?? '').toString().replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
@@ -3676,7 +3684,7 @@ function ImportModal({ onClose }) {
         const stock = Number(pick(r, /^stock$/i)) || 0;
         return {
           seccion_id: importSecId,
-          categoria: (pick(r, /categor|subcategor/i) || '').toString().split(/>|\//).pop().trim(),
+          categoria: parseCat(pick(r, /categor|subcategor/i)),
           modelo: nombre, nombre,
           precio_base: precio, precio_oferta: oferta < precio ? oferta : 0,
           stock,
@@ -3718,10 +3726,12 @@ function ImportModal({ onClose }) {
           </div>
           <div className="form-group"><label className="form-label">¿Qué hacer con los productos?</label>
             <select value={modo} onChange={e => setModo(e.target.value)}>
-              <option value="crear_actualizar">Crear nuevos y actualizar existentes (por SKU)</option>
+              <option value="crear_actualizar">Crear nuevos y actualizar existentes (por SKU o nombre)</option>
               <option value="solo_nuevos">Solo agregar los que faltan (no toca existentes)</option>
+              <option value="solo_categorias">Solo corregir categorías (por nombre, no toca nada más)</option>
               <option value="reemplazar">Borrar todo de la sección y cargar de cero</option>
             </select>
+            {modo === 'solo_categorias' && <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Busca cada producto por SKU o nombre y le corrige solo la categoría. Ideal para arreglar categorías mal importadas sin duplicar nada.</small>}
           </div>
           <div className="form-group"><label className="form-label">Productos de esta sección que NO están en el Excel</label>
             <select value={faltantes} onChange={e => setFaltantes(e.target.value)} disabled={modo === 'reemplazar'}>

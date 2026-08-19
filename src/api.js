@@ -101,6 +101,7 @@ export async function createProducto(producto) { return f('/api/productos', { me
 export async function updateProducto(id, producto) { return f(`/api/productos/${id}`, { method: 'PUT', body: JSON.stringify(producto) }); }
 export async function deleteProducto(id) { return f(`/api/productos/${id}`, { method: 'DELETE' }); }
 export async function bulkProductos(productos, opts = {}) { return f('/api/productos/bulk', { method: 'POST', body: JSON.stringify({ productos, ...opts }) }); }
+// opts puede ser { reemplazar:true } o { modo:'actualizar' } o { modo:'solo_categorias' }
 export async function deleteCategoria(categoria, mover_a) { return f(`/api/categorias/${encodeURIComponent(categoria)}${mover_a ? `?mover_a=${encodeURIComponent(mover_a)}` : ''}`, { method: 'DELETE' }); }
 export async function deleteAllProductos() { return f('/api/productos/all', { method: 'DELETE' }); }
 export async function buscarProductosAdmin(q) { return f(`/api/productos/buscar?q=${encodeURIComponent(q)}`); }
