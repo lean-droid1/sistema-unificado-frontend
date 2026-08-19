@@ -4044,7 +4044,7 @@ function AdminPedidos({ filtroTipo }) {
 
 // ─── ORDER DETAIL MODAL (full: edit items, print, clone, WA, assign client) ───
 function OrderDetailModal({ order: initOrder, onClose }) {
-  const { toast, listas, getPrice, userLista, openWA, config } = useContext(Ctx);
+  const { toast, listas, getPrice, userLista, openWA, config, design } = useContext(Ctx);
   const [o, setO] = useState(initOrder);
   const [items, setItems] = useState([]);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -4130,10 +4130,10 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   };
 
   const printOrder = (format = 'A4') => {
-    const logo = config.logo_url || '';
-    const biz = config.nombre_tienda || 'Tienda';
+    const logo = design.logo_url || config.logo_url || '';
+    const biz = config.nombre_tienda || design.nombre_tienda || 'Tienda';
     const isSmall = format !== 'A4';
-    const widths = { A4: '210mm', '58mm': '58mm', '80mm': '80mm' };
+    const widths = { A4: '210mm', '50mm': '50mm', '58mm': '58mm', '80mm': '80mm', '100mm': '100mm' };
     const fontSize = isSmall ? '10px' : '13px';
     const pagado = o.estado_pago === 'pagado' || o.pagado;
     const senaMonto = Number(o.sena) || 0;
@@ -4165,7 +4165,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           <p style="margin:2px 0;color:#555">${o.tipo==='presupuesto'?'Presupuesto P-':'Remito / Pedido #'}${String(o.id).padStart(4,'0')}</p>
         </div>
         <div style="text-align:center">
-          <img src="${qrUrl}" width="${qrSize}" height="${qrSize}" style="display:block">
+          <img src="${qrUrl}" width="${qrSize}" height="${qrSize}" style="display:block" onerror="this.style.display='none';this.nextElementSibling.textContent='';">
           <span style="font-size:9px;color:#888">Escaneá para abrir</span>
         </div>
       </div>
@@ -4185,7 +4185,17 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px">Notas: ${o.notas}</p>` : ''}
     </body></html>`);
     w.document.close();
-    setTimeout(() => w.print(), 400);
+    // Esperar a que carguen las imágenes (logo + QR externo) antes de imprimir
+    w.onload = () => {
+      const imgs = Array.from(w.document.images || []);
+      const pending = imgs.filter(img => !img.complete);
+      if (pending.length === 0) { setTimeout(() => w.print(), 250); return; }
+      let done = 0;
+      const finish = () => { done++; if (done >= pending.length) setTimeout(() => w.print(), 200); };
+      pending.forEach(img => { img.addEventListener('load', finish); img.addEventListener('error', finish); });
+      // Fallback: imprimir igual tras 2.5s aunque alguna imagen no cargue
+      setTimeout(() => w.print(), 2500);
+    };
   };
 
   const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
@@ -4293,7 +4303,13 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
             <button className="btn btn-outline btn-sm" onClick={() => printOrder('A4')}><Ico n="printer" s={15} /> Remito A4</button>
-            <button className="btn btn-outline btn-sm" onClick={() => printOrder('80mm')}><Ico n="printer" s={15} /> Térmica</button>
+            <select className="btn btn-outline btn-sm" defaultValue="" onChange={e => { if (e.target.value) { printOrder(e.target.value); e.target.value = ''; } }} style={{ cursor: 'pointer' }}>
+              <option value="">🖨️ Térmica...</option>
+              <option value="50mm">Térmica 50mm</option>
+              <option value="58mm">Térmica 58mm</option>
+              <option value="80mm">Térmica 80mm</option>
+              <option value="100mm">Térmica 100mm</option>
+            </select>
             <button className="btn btn-outline btn-sm" onClick={cloneOrder}>📋 Duplicar</button>
             {o.tipo === 'presupuesto' && <button className="btn btn-success btn-sm" onClick={async () => {
               try {
