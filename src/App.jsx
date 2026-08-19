@@ -2210,6 +2210,7 @@ function AccountPanel() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(o.total)}</div>
+                {Number(o.sena) > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe') && <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700 }}>Resta {fmtARS(Math.max(0, Number(o.total) - Number(o.sena || 0)))}</div>}
                 <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: estadoColor[o.estado] || '#999', color: '#fff', padding: '2px 8px', borderRadius: 6 }}>{o.estado}</span>
               </div>
             </div>
@@ -2254,6 +2255,13 @@ function AccountPanel() {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontWeight: 900, fontSize: 18 }}>
                 <span>Total</span><span>{fmtARS(viewDetail.total)}</span>
               </div>
+              {Number(viewDetail.sena) > 0 && (viewDetail.estado_pago === 'senado' || viewDetail.estado_pago === 'debe') && (
+                <div style={{ marginTop: 10, background: 'var(--border-light)', borderRadius: 10, padding: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--success)', marginBottom: 4 }}><span>Seña pagada</span><span style={{ fontWeight: 700 }}>{fmtARS(viewDetail.sena)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: 'var(--danger)' }}><span>Resta abonar</span><span>{fmtARS(Math.max(0, Number(viewDetail.total) - Number(viewDetail.sena || 0)))}</span></div>
+                </div>
+              )}
+              {viewDetail.estado_pago === 'pagado' && <div style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 700, background: 'var(--border-light)', padding: 8, borderRadius: 8 }}>✓ Pagado completo</div>}
               {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}>📝 {viewDetail.notas}</div>}
             </div>
           </div>
@@ -4125,6 +4133,11 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const widths = { A4: '210mm', '58mm': '58mm', '80mm': '80mm' };
     const fontSize = isSmall ? '10px' : '13px';
     const pagado = o.estado_pago === 'pagado' || o.pagado;
+    const senaMonto = Number(o.sena) || 0;
+    const tieneSena = senaMonto > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe');
+    const restaAbonar = Math.max(0, Number(editTotal) - senaMonto);
+    const estadoPagoLabel = o.estado_pago === 'pagado' ? 'PAGADO' : o.estado_pago === 'senado' ? 'SEÑADO' : o.estado_pago === 'debe' ? 'DEBE' : 'IMPAGO';
+    const estadoPagoColor = o.estado_pago === 'pagado' ? '#16a34a' : o.estado_pago === 'senado' ? '#d97706' : '#dc2626';
     // URL del pedido para el QR (abre el pedido en el panel)
     const pedidoUrl = `${window.location.origin}/?pedido=${o.id}`;
     const qrSize = isSmall ? 90 : 120;
@@ -4157,11 +4170,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       <p style="margin:2px 0"><strong>${o.usuario_nombre || 'Cliente'}</strong> ${o.nombre_fantasia ? `(${o.nombre_fantasia})` : ''}${o.usuario_telefono ? ` · ${o.usuario_telefono}` : ''}</p>
       <p style="margin:2px 0">${o.tipo_entrega === 'retiro' ? 'Retiro en local' : 'Envío'}${o.direccion ? ` — ${o.direccion}` : ''}</p>
       <p style="margin:6px 0">
-        <span class="badge" style="background:${pagado ? '#16a34a' : '#dc2626'}">${pagado ? 'PAGADO' : 'IMPAGO'}</span>
+        <span class="badge" style="background:${estadoPagoColor}">${estadoPagoLabel}</span>
         <span style="margin-left:8px">Método: ${o.metodo_pago || '-'}</span>
       </p>
       <table><thead><tr><th>Producto</th><th style="text-align:center">Cant</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
       <p style="text-align:right;font-weight:800;font-size:${isSmall ? '14px' : '19px'};margin-top:10px">TOTAL: $${fmt(editTotal)}</p>
+      ${tieneSena ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
+        <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagó (seña): $${fmt(senaMonto)}</p>
+        <p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(restaAbonar)}</p>
+      </div>` : ''}
       ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px">Notas: ${o.notas}</p>` : ''}
     </body></html>`);
     w.document.close();
@@ -4258,6 +4275,13 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           <div style={{ textAlign: 'right', marginBottom: 12 }}>
             {editing && ajuste !== 0 && <div style={{ fontSize: 12, color: ajuste < 0 ? 'var(--success)' : 'var(--accent)' }}>{ajuste < 0 ? `Descuento: -${fmtARS(Math.abs(ajuste))}` : `Recargo: +${fmtARS(ajuste)}`}</div>}
             <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtARS(editTotal)}</div>
+            {Number(o.sena) > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe') && (
+              <div style={{ marginTop: 6, display: 'inline-block', textAlign: 'right', background: 'var(--bg-hover, rgba(0,0,0,0.04))', borderRadius: 8, padding: '8px 14px' }}>
+                <div style={{ fontSize: 13, color: 'var(--success)' }}>Pagó (seña): {fmtARS(o.sena)}</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--danger)' }}>Resta abonar: {fmtARS(Math.max(0, Number(editTotal) - Number(o.sena || 0)))}</div>
+              </div>
+            )}
+            {o.estado_pago === 'pagado' && <div style={{ marginTop: 4, fontSize: 13, color: 'var(--success)', fontWeight: 700 }}>✓ Pagado completo</div>}
           </div>
           {o.metodo_pago && <p style={{ fontSize: 13 }}>💳 {o.metodo_pago}</p>}
           {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
