@@ -1913,7 +1913,33 @@ function ProductDetailPage() {
           {p.descripcion && <p className="pdp-desc">{p.descripcion}</p>}
           {p.compatibilidad && <p className="pdp-compat">Compatible: {p.compatibilidad}</p>}
 
-          {sinStock ? (
+          {p.es_preventa ? (() => {
+            const pct = Number(p.preventa_descuento_pct) || 0;
+            const precioReserva = pct > 0 ? Math.round(Number(p.precio_base) * (1 - pct / 100)) : Number(p.precio_base);
+            const cupo = Number(p.preventa_cupo) || 0;
+            const reservado = Number(p.preventa_reservado) || 0;
+            const agotada = cupo > 0 && reservado >= cupo;
+            return (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, background: 'var(--accent)', color: '#fff', padding: '3px 12px', borderRadius: 5, textTransform: 'uppercase' }}>Preventa</span>
+                  {p.preventa_mostrar_fecha && p.preventa_fecha && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Llega el {new Date(p.preventa_fecha).toLocaleDateString('es-AR')}</span>}
+                </div>
+                {pct > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 18 }}>{fmtARS(p.precio_base)}</span>
+                    <span style={{ fontWeight: 900, fontSize: 26, color: 'var(--success)' }}>{fmtARS(precioReserva)}</span>
+                    <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 8px', borderRadius: 5, fontSize: 13, fontWeight: 800 }}>-{pct}%</span>
+                  </div>
+                )}
+                {cupo > 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Quedan {Math.max(0, cupo - reservado)} de {cupo} unidades en preventa</p>}
+                {agotada
+                  ? <button className="btn btn-outline" disabled style={{ width: '100%', opacity: 0.6 }}>Preventa agotada</button>
+                  : <button className="btn" style={{ width: '100%', background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 800 }} onClick={() => { addToCart(sec?.id, { ...p, _preventa: true, _precioReserva: precioReserva }, qty, precioReserva); toast('Reserva agregada al carrito'); }}>RESERVAR{pct > 0 ? ` a ${fmtARS(precioReserva)}` : ''}</button>}
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Reservás pagando por adelantado. Te avisamos cuando llegue.</p>
+              </div>
+            );
+          })() : sinStock ? (
             <div>
               <div className="pdp-nostock">SIN STOCK</div>
               {showNotify ? (
