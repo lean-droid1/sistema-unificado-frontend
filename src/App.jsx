@@ -246,6 +246,7 @@ export default function App() {
       window.fbq('track', 'PageView');
     }
   }, [config.ga_id, config.fb_pixel_id]);
+  const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [notifyProduct, setNotifyProduct] = useState(null);
