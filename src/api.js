@@ -1,4 +1,3 @@
-
 const BASE = import.meta.env.VITE_API_URL || '';
 let token = localStorage.getItem('gm_token') || null;
 let refreshPromise = null;
@@ -272,4 +271,3 @@ export function trackSearch(query, resultCount) { trackEvent('search', { search_
 // Missing exports
 export function trackSectionView(sec) { trackEvent("view_section", { section_name: sec?.nombre }); }
 export async function resetPrecios(seccionId) { return f(`/api/precios/reset/${seccionId}`, { method: "POST" }); }
-
