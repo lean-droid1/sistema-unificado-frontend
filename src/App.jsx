@@ -3315,6 +3315,32 @@ function AdminProductos() {
   const toggleSel = (id) => { const s = new Set(seleccion); s.has(id) ? s.delete(id) : s.add(id); setSeleccion(s); };
   const toggleAll = () => { if (seleccion.size === productosVista.length) setSeleccion(new Set()); else setSeleccion(new Set(productosVista.map(p => p.id))); };
 
+  // Imprime etiquetas de varios productos en una sola hoja
+  const printEtiquetasMasa = (ids) => {
+    if (!ids.length) { toast('No hay productos seleccionados', 'warning'); return; }
+    const conPrecio = window.confirm('¿Incluir el precio en las etiquetas?\n\n(Aceptar = con precio, Cancelar = sin precio)');
+    const prods = productos.filter(p => ids.includes(p.id));
+    const etiquetas = prods.map(prod => {
+      const codigo = prod.codigo_barras || ('P' + String(prod.id).padStart(6, '0'));
+      const nombre = prod.nombre || prod.modelo || '';
+      const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
+      return `<div style="border:1px solid #000;padding:8px;display:inline-block;margin:5px;text-align:center;page-break-inside:avoid;width:180px;vertical-align:top">
+        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;height:28px;overflow:hidden">${nombre}</div>
+        <img src="${barcodeUrl}" style="max-width:160px;display:block;margin:0 auto" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div style="display:none;font-family:monospace;font-size:16px">*${codigo}*</div>
+        <div style="font-size:12px;font-family:monospace;margin-top:2px">${codigo}</div>
+        ${conPrecio ? `<div style="font-size:11px;color:#333;margin-top:2px">${fmtARS(prod.precio_base)}</div>` : ''}
+      </div>`;
+    }).join('');
+    const w = window.open('', '', 'width=800,height=600');
+    if (!w) { toast('El navegador bloqueó la ventana. Permití los pop-ups para este sitio.', 'error'); return; }
+    w.document.write(`<html><head><title>Etiquetas (${prods.length})</title></head>
+      <body style="font-family:sans-serif;margin:0;padding:10px">${etiquetas}
+        <script>window.onload=function(){var imgs=Array.prototype.slice.call(document.images);var pend=imgs.filter(function(i){return !i.complete});if(pend.length===0){setTimeout(function(){window.print()},400);return}var d=0;function fin(){d++;if(d>=pend.length)setTimeout(function(){window.print()},300)}pend.forEach(function(i){i.addEventListener('load',fin);i.addEventListener('error',fin)});setTimeout(function(){window.print()},4000)}<\/script>
+      </body></html>`);
+    w.document.close();
+  };
+
   const aplicarMasa = async () => {
     const ids = [...seleccion];
     if (!ids.length) { toast('No hay productos seleccionados', 'warning'); return; }
@@ -3377,6 +3403,7 @@ function AdminProductos() {
         <div style={{ background: 'var(--primary-light)', border: '1.5px solid var(--primary)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <strong style={{ fontSize: 13, color: 'var(--primary)' }}>{seleccion.size} seleccionado{seleccion.size !== 1 ? 's' : ''}</strong>
           <button className="btn btn-primary btn-sm" onClick={() => setShowMasa(true)}>Acciones en masa</button>
+          <button className="btn btn-outline btn-sm" onClick={() => printEtiquetasMasa([...seleccion])}>🏷️ Imprimir etiquetas</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSeleccion(new Set())}>Deseleccionar</button>
         </div>
       )}
@@ -3499,22 +3526,23 @@ function MultiImageUpload({ productoId }) {
   };
 
   // Imprime una etiqueta con el código de barras del producto
-  const printEtiqueta = (prod) => {
+  const printEtiqueta = (prod, opts = {}) => {
+    const conPrecio = opts.conPrecio || false;
     const codigo = prod.codigo_barras || ('P' + String(prod.id).padStart(6, '0'));
     const nombre = prod.nombre || prod.modelo || '';
-    // Código de barras Code128 vía servicio bwip-js online (imagen)
     const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
-    const w = window.open('', '', 'width=400,height=300');
-    w.document.write(`<html><head><title>Etiqueta</title></head>
-      <body style="font-family:sans-serif;text-align:center;padding:10px;margin:0">
-        <div style="border:1px solid #000;padding:10px;display:inline-block">
-          <div style="font-size:13px;font-weight:bold;margin-bottom:6px;max-width:280px">${nombre}</div>
-          <img src="${barcodeUrl}" style="max-width:280px;display:block;margin:0 auto" onerror="this.style.display='none';document.getElementById('fallback').style.display='block'">
-          <div id="fallback" style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${codigo}*</div>
-          <div style="font-size:14px;font-family:monospace;margin-top:4px">${codigo}</div>
-          <div style="font-size:12px;color:#333;margin-top:4px">${fmtARS(prod.precio_base)}</div>
-        </div>
-        <script>window.onload=function(){var img=document.images[0];if(img&&!img.complete){img.onload=function(){setTimeout(function(){window.print()},200)};img.onerror=function(){setTimeout(function(){window.print()},200)}}else{setTimeout(function(){window.print()},300)}}<\/script>
+    const html = `<div style="border:1px solid #000;padding:10px;display:inline-block;margin:6px;text-align:center;page-break-inside:avoid">
+        <div style="font-size:13px;font-weight:bold;margin-bottom:6px;max-width:280px">${nombre}</div>
+        <img src="${barcodeUrl}" style="max-width:280px;display:block;margin:0 auto" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${codigo}*</div>
+        <div style="font-size:14px;font-family:monospace;margin-top:4px">${codigo}</div>
+        ${conPrecio ? `<div style="font-size:12px;color:#333;margin-top:4px">${fmtARS(prod.precio_base)}</div>` : ''}
+      </div>`;
+    const w = window.open('', '', 'width=500,height=400');
+    if (!w) { toast('El navegador bloqueó la ventana de impresión. Permití los pop-ups para este sitio.', 'error'); return; }
+    w.document.write(`<html><head><title>Etiqueta ${codigo}</title></head>
+      <body style="font-family:sans-serif;margin:0;padding:10px">${html}
+        <script>window.onload=function(){var imgs=Array.prototype.slice.call(document.images);var pend=imgs.filter(function(i){return !i.complete});if(pend.length===0){setTimeout(function(){window.print()},300);return}var d=0;function fin(){d++;if(d>=pend.length)setTimeout(function(){window.print()},200)}pend.forEach(function(i){i.addEventListener('load',fin);i.addEventListener('error',fin)});setTimeout(function(){window.print()},2500)}<\/script>
       </body></html>`);
     w.document.close();
   };
@@ -3665,7 +3693,7 @@ function ProductModal({ product, onClose }) {
             <div className="form-group"><label className="form-label">Código de barras (para escanear en ventas)</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input value={f.codigo_barras || ''} onChange={e => setF({ ...f, codigo_barras: e.target.value })} placeholder="Se genera solo al guardar" style={{ flex: 1 }} />
-                {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f)}>🏷️ Imprimir etiqueta</button>}
+                {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f, { conPrecio: window.confirm('¿Incluir el precio en la etiqueta?\n\n(Aceptar = con precio, Cancelar = sin precio)') })}>🏷️ Imprimir etiqueta</button>}
               </div>
               <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Si lo dejás vacío, el sistema le asigna un código único (P + número). Podés imprimir la etiqueta y pegarla al producto.</small>
             </div>
