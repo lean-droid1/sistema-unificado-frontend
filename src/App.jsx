@@ -2614,11 +2614,12 @@ function TiendaModal({ sec, onClose, onSaved, toast }) {
 
 // ── Placeholders Fase 2 (se completan después) ──
 // Escáner por cámara: carga html5-qrcode por CDN, lee QR y códigos de barras
-function CamScanner({ onScan, onClose }) {
-  const { toast } = useContext(Ctx);
+// Modo escáner pantalla completa: cámara arriba + lista de venta editable abajo
+function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, onRegistrar, saving }) {
   const scannerRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState('');
+  const [ultimo, setUltimo] = useState('');
 
   useEffect(() => {
     let scanner = null;
@@ -2640,36 +2641,65 @@ function CamScanner({ onScan, onClose }) {
         let lastCode = ''; let lastTime = 0;
         await scanner.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 150 } },
+          { fps: 10, qrbox: { width: 250, height: 120 } },
           (decodedText) => {
             const now = Date.now();
-            // Evitar leer el mismo código repetido en menos de 2s
             if (decodedText === lastCode && now - lastTime < 2000) return;
             lastCode = decodedText; lastTime = now;
+            setUltimo(decodedText);
             onScan(decodedText);
+            if (navigator.vibrate) navigator.vibrate(80);
           },
           () => {}
         );
       } catch (e) {
-        setErr('No se pudo abrir la cámara. Revisá los permisos.');
+        setErr('No se pudo abrir la cámara. Revisá los permisos del navegador.');
       }
     })();
     return () => { cancelled = true; if (scanner) { scanner.stop().then(() => scanner.clear()).catch(() => {}); } };
   }, []);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">📸 Escanear código</span><button className="modal-close" onClick={onClose}>✕</button></div>
-        <div className="modal-body" style={{ textAlign: 'center' }}>
-          {err ? <p style={{ color: 'var(--danger)', padding: 20 }}>{err}</p> : (
-            <>
-              <div id="cam-scanner-box" style={{ width: '100%', minHeight: 260, borderRadius: 12, overflow: 'hidden' }}></div>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 10 }}>{ready ? 'Apuntá al código de barras o QR del producto' : 'Cargando cámara...'}</p>
-            </>
-          )}
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <strong style={{ fontSize: 16 }}>📸 Venta con escáner</strong>
+        <button className="btn btn-outline btn-sm" onClick={onClose}>✕ Cerrar</button>
+      </div>
+
+      {/* Cámara arriba */}
+      <div style={{ flexShrink: 0, background: '#000', position: 'relative' }}>
+        {err ? <p style={{ color: '#fff', padding: 24, textAlign: 'center' }}>{err}</p> : (
+          <div id="cam-scanner-box" style={{ width: '100%', maxHeight: '38vh', overflow: 'hidden' }}></div>
+        )}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, padding: '4px 10px', textAlign: 'center' }}>
+          {ready ? (ultimo ? `Último: ${ultimo}` : 'Apuntá al código de barras o QR') : 'Cargando cámara...'}
         </div>
-        <div className="modal-footer"><button className="btn btn-outline" onClick={onClose}>Cerrar</button></div>
+      </div>
+
+      {/* Lista de venta abajo (scroll) */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+        {items.length === 0 ? (
+          <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24, fontSize: 14 }}>Escaneá productos para agregarlos a la venta</p>
+        ) : (
+          items.map(i => (
+            <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.nombre || i.modelo}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtARS(i.precio_unitario * i.qty)}</div>
+              </div>
+              <input type="number" value={i.qty} onChange={e => setQty(i.id, Number(e.target.value))} style={{ width: 52, textAlign: 'center' }} />
+              <input type="number" value={i.precio_unitario} onChange={e => setPrecio(i.id, Number(e.target.value))} style={{ width: 80 }} />
+              <button className="btn btn-danger btn-sm" onClick={() => quitar(i.id)}>✕</button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Footer fijo: total + registrar */}
+      <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--bg-card)' }}>
+        <div style={{ fontWeight: 900, fontSize: 20 }}>Total: {fmtARS(total)}</div>
+        <button className="btn btn-primary" onClick={onRegistrar} disabled={saving || !items.length} style={{ padding: '12px 24px' }}>{saving ? 'Registrando...' : 'Registrar venta'}</button>
       </div>
     </div>
   );
@@ -2734,7 +2764,7 @@ function AdminVentaManual() {
         items: items.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario, precio_base: i.precio_base }))
       });
       toast('¡Venta registrada! Stock descontado.');
-      setItems([]); setNotas('');
+      setItems([]); setNotas(''); setScanCam(false);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -2780,9 +2810,19 @@ function AdminVentaManual() {
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarPorCodigo(scanBuffer); setScanBuffer(''); } }}
           style={{ flex: 1, minWidth: 220, borderColor: 'var(--accent)' }}
         />
-        <button className="btn btn-outline btn-sm" onClick={() => setScanCam(true)}>📸 Cámara</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setScanCam(true)}>📸 Escanear con cámara (modo venta rápida)</button>
       </div>
-      {scanCam && <CamScanner onScan={(code) => { agregarPorCodigo(code); }} onClose={() => setScanCam(false)} />}
+      {scanCam && <CamScanner
+        onScan={(code) => { agregarPorCodigo(code); }}
+        onClose={() => setScanCam(false)}
+        items={items}
+        setQty={setQty}
+        setPrecio={setPrecio}
+        quitar={quitar}
+        total={total}
+        saving={saving}
+        onRegistrar={guardar}
+      />}
 
       {items.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Buscá y agregá productos a la venta</p> : (
         <table className="admin-table" style={{ marginBottom: 12 }}>
