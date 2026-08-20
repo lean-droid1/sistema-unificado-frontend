@@ -105,6 +105,8 @@ export async function bulkProductos(productos, opts = {}) { return f('/api/produ
 export async function deleteCategoria(categoria, mover_a) { return f(`/api/categorias/${encodeURIComponent(categoria)}${mover_a ? `?mover_a=${encodeURIComponent(mover_a)}` : ''}`, { method: 'DELETE' }); }
 export async function deleteAllProductos() { return f('/api/productos/all', { method: 'DELETE' }); }
 export async function buscarProductosAdmin(q) { return f(`/api/productos/buscar?q=${encodeURIComponent(q)}`); }
+export async function getProductoPorCodigo(codigo) { return f(`/api/productos/por-codigo/${encodeURIComponent(codigo)}`); }
+export async function generarCodigos(seccion_id) { return f('/api/productos/generar-codigos', { method: 'POST', body: JSON.stringify({ seccion_id }) }); }
 
 // imagenes variantes
 export async function getProductoImagenes(productoId) { return f(`/api/producto-imagenes/${productoId}`); }

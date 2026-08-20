@@ -2613,6 +2613,68 @@ function TiendaModal({ sec, onClose, onSaved, toast }) {
 }
 
 // ── Placeholders Fase 2 (se completan después) ──
+// Escáner por cámara: carga html5-qrcode por CDN, lee QR y códigos de barras
+function CamScanner({ onScan, onClose }) {
+  const { toast } = useContext(Ctx);
+  const scannerRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let scanner = null;
+    let cancelled = false;
+    const loadLib = () => new Promise((resolve, reject) => {
+      if (window.Html5Qrcode) return resolve();
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+      s.onload = resolve; s.onerror = reject;
+      document.body.appendChild(s);
+    });
+    (async () => {
+      try {
+        await loadLib();
+        if (cancelled) return;
+        setReady(true);
+        scanner = new window.Html5Qrcode('cam-scanner-box');
+        scannerRef.current = scanner;
+        let lastCode = ''; let lastTime = 0;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 150 } },
+          (decodedText) => {
+            const now = Date.now();
+            // Evitar leer el mismo código repetido en menos de 2s
+            if (decodedText === lastCode && now - lastTime < 2000) return;
+            lastCode = decodedText; lastTime = now;
+            onScan(decodedText);
+          },
+          () => {}
+        );
+      } catch (e) {
+        setErr('No se pudo abrir la cámara. Revisá los permisos.');
+      }
+    })();
+    return () => { cancelled = true; if (scanner) { scanner.stop().then(() => scanner.clear()).catch(() => {}); } };
+  }, []);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span className="modal-title">📸 Escanear código</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-body" style={{ textAlign: 'center' }}>
+          {err ? <p style={{ color: 'var(--danger)', padding: 20 }}>{err}</p> : (
+            <>
+              <div id="cam-scanner-box" style={{ width: '100%', minHeight: 260, borderRadius: 12, overflow: 'hidden' }}></div>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 10 }}>{ready ? 'Apuntá al código de barras o QR del producto' : 'Cargando cámara...'}</p>
+            </>
+          )}
+        </div>
+        <div className="modal-footer"><button className="btn btn-outline" onClick={onClose}>Cerrar</button></div>
+      </div>
+    </div>
+  );
+}
+
 function AdminVentaManual() {
   const { secciones, toast } = useContext(Ctx);
   const [seccionId, setSeccionId] = useState('');
@@ -2622,9 +2684,25 @@ function AdminVentaManual() {
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
+  const [scanCam, setScanCam] = useState(false);
+  const [scanBuffer, setScanBuffer] = useState('');
   const searchTimer = useRef(null);
+  const scanInputRef = useRef(null);
 
   useEffect(() => { if (secciones.length && !seccionId) setSeccionId(secciones[0].id); }, [secciones]);
+
+  // Buscar producto por código exacto (pistola USB o cámara) y agregarlo
+  const agregarPorCodigo = async (codigo) => {
+    const c = (codigo || '').trim();
+    if (!c) return;
+    try {
+      const p = await api.getProductoPorCodigo(c);
+      agregar(p);
+      toast(`✓ ${p.nombre || p.modelo}`);
+    } catch (e) {
+      toast(`Código "${c}" no encontrado`, 'error');
+    }
+  };
 
   const buscar = (q) => {
     setBusq(q);
@@ -2691,6 +2769,20 @@ function AdminVentaManual() {
           </div>
         )}
       </div>
+
+      {/* Escáner: pistola USB (input) + cámara */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          ref={scanInputRef}
+          placeholder="📷 Escaneá con pistola acá (o escribí el código y Enter)"
+          value={scanBuffer}
+          onChange={e => setScanBuffer(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarPorCodigo(scanBuffer); setScanBuffer(''); } }}
+          style={{ flex: 1, minWidth: 220, borderColor: 'var(--accent)' }}
+        />
+        <button className="btn btn-outline btn-sm" onClick={() => setScanCam(true)}>📸 Cámara</button>
+      </div>
+      {scanCam && <CamScanner onScan={(code) => { agregarPorCodigo(code); }} onClose={() => setScanCam(false)} />}
 
       {items.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Buscá y agregá productos a la venta</p> : (
         <table className="admin-table" style={{ marginBottom: 12 }}>
@@ -3254,6 +3346,10 @@ function AdminProductos() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Nuevo</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)}>📥 Importar</button>
+          <button className="btn btn-outline btn-sm" onClick={async () => {
+            if (!confirm('Generar código de barras a todos los productos de esta sección que no tengan uno. ¿Continuar?')) return;
+            try { const r = await api.generarCodigos(adminSeccion); toast(`${r.generados} códigos generados`); load(); } catch (e) { toast(e.message, 'error'); }
+          }}>🏷️ Generar códigos</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowPriceAdj(true)}>💲 Ajustar precios</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}>📜 Historial</button>
         </div>
@@ -3401,6 +3497,27 @@ function MultiImageUpload({ productoId }) {
     try { const r = await api.uploadImagen(file); await api.addProductoImagen(productoId, r.url, imgs.length); const updated = await api.getProductoImagenes(productoId); setImgs(updated); } catch { toast('Error al subir', 'error'); }
     setUploading(false);
   };
+
+  // Imprime una etiqueta con el código de barras del producto
+  const printEtiqueta = (prod) => {
+    const codigo = prod.codigo_barras || ('P' + String(prod.id).padStart(6, '0'));
+    const nombre = prod.nombre || prod.modelo || '';
+    // Código de barras Code128 vía servicio bwip-js online (imagen)
+    const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
+    const w = window.open('', '', 'width=400,height=300');
+    w.document.write(`<html><head><title>Etiqueta</title></head>
+      <body style="font-family:sans-serif;text-align:center;padding:10px;margin:0">
+        <div style="border:1px solid #000;padding:10px;display:inline-block">
+          <div style="font-size:13px;font-weight:bold;margin-bottom:6px;max-width:280px">${nombre}</div>
+          <img src="${barcodeUrl}" style="max-width:280px;display:block;margin:0 auto" onerror="this.style.display='none';document.getElementById('fallback').style.display='block'">
+          <div id="fallback" style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${codigo}*</div>
+          <div style="font-size:14px;font-family:monospace;margin-top:4px">${codigo}</div>
+          <div style="font-size:12px;color:#333;margin-top:4px">${fmtARS(prod.precio_base)}</div>
+        </div>
+        <script>window.onload=function(){var img=document.images[0];if(img&&!img.complete){img.onload=function(){setTimeout(function(){window.print()},200)};img.onerror=function(){setTimeout(function(){window.print()},200)}}else{setTimeout(function(){window.print()},300)}}<\/script>
+      </body></html>`);
+    w.document.close();
+  };
   const remove = async (id) => { await api.deleteProductoImagen(id); setImgs(imgs.filter(i => i.id !== id)); };
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
@@ -3478,7 +3595,7 @@ function ProductModal({ product, onClose }) {
   const [f, setF] = useState(product || {
     seccion_id: adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id,
     categoria: '', modelo: '', nombre: '', precio_base: 0, precio_original: 0, stock: 0, stock_minimo: 0,
-    imagen: '', descripcion: '', sku: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
+    imagen: '', descripcion: '', sku: '', codigo_barras: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
     envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
     es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false, preventa_descuento_pct: 0, preventa_cupo: 0,
     peso: 0, alto: 0, ancho: 0, largo: 0
@@ -3545,6 +3662,13 @@ function ProductModal({ product, onClose }) {
           </div>
           <div className="form-row">
             <div className="form-group"><label className="form-label">SKU</label><input value={f.sku} onChange={e => setF({ ...f, sku: e.target.value })} /></div>
+            <div className="form-group"><label className="form-label">Código de barras (para escanear en ventas)</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input value={f.codigo_barras || ''} onChange={e => setF({ ...f, codigo_barras: e.target.value })} placeholder="Se genera solo al guardar" style={{ flex: 1 }} />
+                {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f)}>🏷️ Imprimir etiqueta</button>}
+              </div>
+              <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Si lo dejás vacío, el sistema le asigna un código único (P + número). Podés imprimir la etiqueta y pegarla al producto.</small>
+            </div>
             <div className="form-group"><label className="form-label">Marca</label><input value={f.marca || ''} onChange={e => setF({ ...f, marca: e.target.value })} placeholder="Ej: Samsung, Bosch" /></div>
             <div className="form-group"><label className="form-label">Tipo</label>
               <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="fisico">Físico</option><option value="digital">Digital</option></select></div>
