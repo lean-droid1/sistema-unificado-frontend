@@ -1517,33 +1517,38 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
   const envioTotal = seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0);
   const totalFinal = subtotalTodo - (seccionesConItems.length === 1 ? descuento : 0) + (entrega.tipo === 'envio' ? envioTotal : 0);
 
+  const pasoActual = pasos[paso - 1]; // nombre del paso actual
+  const totalPasos = pasos.length;
+
   const validarPaso = () => {
-    if (paso === 1) {
+    if (pasoActual === 'Contacto') {
       if (!contacto.nombre.trim()) { toast('Poné el nombre', 'error'); return false; }
       if (!contacto.telefono.trim()) { toast('Poné un teléfono de contacto', 'error'); return false; }
     }
-    if (paso === 2 && entrega.tipo === 'envio') {
+    if (pasoActual === 'Entrega' && entrega.tipo === 'envio') {
       if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim() || !entrega.cp.trim()) {
         toast('Completá la dirección de envío (calle, número, localidad y código postal)', 'error'); return false;
       }
     }
-    if (paso === 3 && facturacion.necesita) {
+    if (pasoActual === 'Facturación' && facturacion.necesita) {
       if (!facturacion.cuit_dni.trim()) { toast('Poné el CUIT o DNI para la factura', 'error'); return false; }
       if (!facturacion.razon_social.trim()) { toast('Poné la razón social o nombre para la factura', 'error'); return false; }
     }
     return true;
   };
 
-  const siguiente = () => { if (validarPaso()) setPaso(p => Math.min(5, p + 1)); };
+  const siguiente = () => { if (validarPaso()) setPaso(p => Math.min(totalPasos, p + 1)); };
   const anterior = () => setPaso(p => Math.max(1, p - 1));
 
   const confirmar = async () => {
     setSaving(true);
-    await onConfirm({ contacto, entrega, facturacion, metodoPago, notas });
+    await onConfirm({ contacto, entrega, facturacion: facturaActiva ? facturacion : { necesita: false }, metodoPago, notas });
     setSaving(false);
   };
 
-  const pasos = ['Contacto', 'Entrega', 'Facturación', 'Pago', 'Resumen'];
+  // El paso de facturación es opcional según config del panel (checkout_factura !== 'off')
+  const facturaActiva = config.checkout_factura !== 'off';
+  const pasos = facturaActiva ? ['Contacto', 'Entrega', 'Facturación', 'Pago', 'Resumen'] : ['Contacto', 'Entrega', 'Pago', 'Resumen'];
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
@@ -1565,7 +1570,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
 
         <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {/* PASO 1: Contacto */}
-          {paso === 1 && (
+          {pasoActual === 'Contacto' && (
             <div>
               <h4 style={{ marginBottom: 12, fontSize: 15 }}>📇 Datos de contacto</h4>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Ya cargamos tus datos. Podés ajustarlos si querés.</p>
@@ -1576,7 +1581,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
           )}
 
           {/* PASO 2: Entrega */}
-          {paso === 2 && (
+          {pasoActual === 'Entrega' && (
             <div>
               <h4 style={{ marginBottom: 12, fontSize: 15 }}>🚚 ¿Cómo lo recibís?</h4>
               <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -1603,7 +1608,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
           )}
 
           {/* PASO 3: Facturación (opcional) */}
-          {paso === 3 && (
+          {pasoActual === 'Facturación' && (
             <div>
               <h4 style={{ marginBottom: 12, fontSize: 15 }}>🧾 Facturación</h4>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 14 }}>
@@ -1631,7 +1636,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
           )}
 
           {/* PASO 4: Pago */}
-          {paso === 4 && (
+          {pasoActual === 'Pago' && (
             <div>
               <h4 style={{ marginBottom: 12, fontSize: 15 }}>💳 Método de pago</h4>
               {metodos && metodos.length > 0 ? (
@@ -1660,7 +1665,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
           )}
 
           {/* PASO 5: Resumen */}
-          {paso === 5 && (
+          {pasoActual === 'Resumen' && (
             <div>
               <h4 style={{ marginBottom: 12, fontSize: 15 }}>✅ Revisá tu pedido</h4>
               <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
@@ -1690,7 +1695,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
 
         <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
           {paso > 1 ? <button className="btn btn-outline" onClick={anterior}>← Atrás</button> : <span></span>}
-          {paso < 5
+          {paso < totalPasos
             ? <button className="btn btn-primary" onClick={siguiente}>Siguiente →</button>
             : <button className="btn btn-primary" onClick={confirmar} disabled={saving} style={{ minWidth: 160 }}>{saving ? 'Creando...' : (testMode ? '🧪 Confirmar (prueba)' : 'Confirmar pedido')}</button>}
         </div>
@@ -3047,6 +3052,7 @@ function AdminVentaManual() {
   const [resClientes, setResClientes] = useState([]);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: '', telefono: '', email: '' });
+  const [credsNuevoCliente, setCredsNuevoCliente] = useState(null);
   const searchTimer = useRef(null);
   const clienteTimer = useRef(null);
   const scanInputRef = useRef(null);
@@ -3067,8 +3073,34 @@ function AdminVentaManual() {
       const u = await api.createUsuario({ ...nuevoCliente, rol: 'cliente', activo: true });
       setCliente({ id: u.id, nombre: u.nombre });
       setShowNuevoCliente(false); setNuevoCliente({ nombre: '', telefono: '', email: '' });
+      // Guardar credenciales para mostrar/imprimir (el cliente las usa para entrar online)
+      setCredsNuevoCliente({ nombre: u.nombre, usuario: u.usuario, password: u.password_temporal });
       toast('Cliente creado y asignado');
     } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Imprime una ficha con los datos de acceso del cliente nuevo
+  const imprimirCredenciales = (creds) => {
+    const w = window.open('', '', 'width=400,height=400');
+    if (!w) { toast('Permití los pop-ups para imprimir', 'error'); return; }
+    w.document.write(`<html><head><title>Datos de acceso</title></head>
+      <body style="font-family:sans-serif;padding:20px;text-align:center">
+        <div style="border:2px solid #000;border-radius:10px;padding:20px;display:inline-block;max-width:320px">
+          <h2 style="margin:0 0 4px">Tus datos de acceso</h2>
+          <p style="color:#555;font-size:13px;margin:0 0 16px">Entrá a nuestra tienda online con estos datos</p>
+          <div style="text-align:left;font-size:15px;line-height:2">
+            <div><strong>Cliente:</strong> ${creds.nombre}</div>
+            <div style="background:#f0f0f0;padding:8px;border-radius:6px;margin-top:8px">
+              <div><strong>Usuario:</strong> ${creds.usuario}</div>
+              <div><strong>Contraseña:</strong> ${creds.password}</div>
+            </div>
+          </div>
+          <p style="color:#777;font-size:12px;margin-top:16px">Podés cambiar tu contraseña desde tu perfil cuando ingreses.</p>
+          <p style="color:#999;font-size:11px;margin-top:8px">${window.location.origin}</p>
+        </div>
+        <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
+      </body></html>`);
+    w.document.close();
   };
 
   // Buscar producto por código exacto (pistola USB o cámara) y agregarlo
@@ -3180,6 +3212,22 @@ function AdminVentaManual() {
           </div>
         )}
       </div>
+
+      {/* Ficha de credenciales del cliente recién creado */}
+      {credsNuevoCliente && (
+        <div style={{ marginBottom: 16, padding: 14, background: 'var(--success-light, #ecfdf5)', border: '1.5px solid var(--success)', borderRadius: 10 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>✓ Cliente creado — datos de acceso</div>
+          <div style={{ fontSize: 14, lineHeight: 1.8 }}>
+            <div><strong>Usuario:</strong> {credsNuevoCliente.usuario}</div>
+            <div><strong>Contraseña:</strong> {credsNuevoCliente.password}</div>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>Dale estos datos al cliente para que pueda comprar online la próxima vez. Puede cambiar la contraseña desde su perfil.</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => imprimirCredenciales(credsNuevoCliente)}>🖨️ Imprimir ficha</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setCredsNuevoCliente(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ position: 'relative', marginBottom: 16 }}>
         <input placeholder="🔍 Buscar producto por nombre o SKU..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
@@ -6379,6 +6427,14 @@ function AdminConfig() {
         {/* Dolar blue manual fallback */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
           <div className="form-group"><label className="form-label">Dólar blue manual (fallback si la API falla)</label><input type="number" value={c.dolar_blue || ''} onChange={e => setC({ ...c, dolar_blue: e.target.value })} placeholder="Se busca automáticamente de dolarapi.com" /></div>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14 }}>
+            <input type="checkbox" checked={c.checkout_factura !== 'off'} onChange={e => setC({ ...c, checkout_factura: e.target.checked ? 'on' : 'off' })} />
+            Ofrecer opción de factura en el checkout
+          </label>
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Si lo desactivás, el cliente no ve el paso de facturación al comprar. Vos elegís después cuáles pedidos facturar.</small>
         </div>
 
         <button className="btn btn-primary" onClick={saveAll} style={{ marginTop: 16, width: '100%' }}>Guardar configuración</button>
