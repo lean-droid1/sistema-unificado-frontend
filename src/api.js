@@ -128,6 +128,7 @@ export async function setPrecioFijo(producto_id, lista_precio_id, precio_fijo) {
 export async function getUsuarios(q) { return f(`/api/usuarios${q ? `?q=${encodeURIComponent(q)}` : ''}`); }
 export async function getPendientesCount() { return f('/api/usuarios/pendientes/count'); }
 export async function updateUsuario(id, datos) { return f(`/api/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(datos) }); }
+export async function createUsuario(datos) { return f('/api/usuarios/rapido', { method: 'POST', body: JSON.stringify(datos) }); }
 export async function aprobarUsuario(id, lista_precio_id) { return f(`/api/usuarios/${id}/aprobar`, { method: 'POST', body: JSON.stringify({ lista_precio_id }) }); }
 export async function rechazarUsuario(id) { return f(`/api/usuarios/${id}/rechazar`, { method: 'POST' }); }
 export async function suspenderUsuario(id, activo) { return f(`/api/usuarios/${id}/suspender`, { method: 'POST', body: JSON.stringify({ activo }) }); }

@@ -12,6 +12,11 @@ gsap.registerPlugin(ScrollTrigger);
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
+// Dispara un evento a Google Analytics y Facebook Pixel (si están cargados). gaName y fbName son los nombres estándar de cada plataforma.
+const trackEvent = (gaName, fbName, data = {}) => {
+  try { if (window.gtag && gaName) window.gtag('event', gaName, data); } catch {}
+  try { if (window.fbq && fbName) window.fbq('track', fbName, data); } catch {}
+};
 // Nº de orden con prefijo según tipo: presupuesto → P-0001, pedido → #0001. El id interno no cambia.
 const numOrden = (o) => { const id = String(o?.id ?? '').padStart(4, '0'); return (o?.tipo === 'presupuesto') ? `P-${id}` : `#${id}`; };
 const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${String(num).replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
@@ -214,7 +219,33 @@ export default function App() {
       link.href = design.favicon_url;
     }
   }, [design.nombre_tienda, design.favicon_url]);
-  const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
+  // Inyectar Google Analytics (GA4) y Facebook Pixel según config del negocio
+  useEffect(() => {
+    const gaId = (config.ga_id || '').trim();
+    const pixelId = (config.fb_pixel_id || '').trim();
+    // Google Analytics 4
+    if (gaId && !window.__gaLoaded) {
+      window.__gaLoaded = true;
+      const s = document.createElement('script');
+      s.async = true; s.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', gaId);
+    }
+    // Facebook Pixel
+    if (pixelId && !window.__fbLoaded) {
+      window.__fbLoaded = true;
+      !function (f, b, e, v, n, t, s) {
+        if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+        if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0'; n.queue = [];
+        t = b.createElement(e); t.async = !0; t.src = v; s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+      }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      window.fbq('init', pixelId);
+      window.fbq('track', 'PageView');
+    }
+  }, [config.ga_id, config.fb_pixel_id]);
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [notifyProduct, setNotifyProduct] = useState(null);
@@ -412,6 +443,7 @@ export default function App() {
       return { ...prev, [realSec]: items };
     });
     toast('Agregado al carrito');
+    trackEvent('add_to_cart', 'AddToCart', { value: (precio || product.precio_base) * qty, currency: 'ARS', content_name: product.nombre || product.modelo });
   };
   const removeFromCart = (secId, productId) => {
     setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).filter(i => i.id !== productId) }));
@@ -1458,6 +1490,214 @@ function SectionPage() {
 // ═══════════════════════════════════════════════════════════
 // CART PAGE
 // ═══════════════════════════════════════════════════════════
+// Checkout profesional por pasos: contacto, entrega, facturación (opcional), pago, resumen
+function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, metodos, config, cupon, descuento, testMode, onConfirm, onClose }) {
+  const { toast } = useContext(Ctx);
+  const [paso, setPaso] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  // Datos precargados del usuario (editables)
+  const [contacto, setContacto] = useState({
+    nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '',
+  });
+  const [entrega, setEntrega] = useState({
+    tipo: 'retiro', // 'retiro' | 'envio'
+    calle: '', numero: '', piso: '', localidad: '', cp: '',
+  });
+  const [facturacion, setFacturacion] = useState({
+    necesita: false, tipo: 'consumidor_final', razon_social: user?.nombre_fantasia || user?.nombre || '',
+    cuit_dni: '', condicion_iva: 'consumidor_final', domicilio_fiscal: '',
+  });
+  const [metodoPago, setMetodoPago] = useState(metodos && metodos[0] ? (metodos[0].nombre || metodos[0]) : 'transferencia');
+  const [notas, setNotas] = useState('');
+
+  // Totales
+  const subtotalTodo = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+  const envioTotal = seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0);
+  const totalFinal = subtotalTodo - (seccionesConItems.length === 1 ? descuento : 0) + (entrega.tipo === 'envio' ? envioTotal : 0);
+
+  const validarPaso = () => {
+    if (paso === 1) {
+      if (!contacto.nombre.trim()) { toast('Poné el nombre', 'error'); return false; }
+      if (!contacto.telefono.trim()) { toast('Poné un teléfono de contacto', 'error'); return false; }
+    }
+    if (paso === 2 && entrega.tipo === 'envio') {
+      if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim() || !entrega.cp.trim()) {
+        toast('Completá la dirección de envío (calle, número, localidad y código postal)', 'error'); return false;
+      }
+    }
+    if (paso === 3 && facturacion.necesita) {
+      if (!facturacion.cuit_dni.trim()) { toast('Poné el CUIT o DNI para la factura', 'error'); return false; }
+      if (!facturacion.razon_social.trim()) { toast('Poné la razón social o nombre para la factura', 'error'); return false; }
+    }
+    return true;
+  };
+
+  const siguiente = () => { if (validarPaso()) setPaso(p => Math.min(5, p + 1)); };
+  const anterior = () => setPaso(p => Math.max(1, p - 1));
+
+  const confirmar = async () => {
+    setSaving(true);
+    await onConfirm({ contacto, entrega, facturacion, metodoPago, notas });
+    setSaving(false);
+  };
+
+  const pasos = ['Contacto', 'Entrega', 'Facturación', 'Pago', 'Resumen'];
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
+      <div className="modal" style={{ maxWidth: 540, width: '100%' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Finalizar compra</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Barra de pasos */}
+        <div style={{ display: 'flex', gap: 4, padding: '10px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          {pasos.map((p, idx) => (
+            <div key={p} style={{ flex: 1, minWidth: 60, textAlign: 'center', fontSize: 11, fontWeight: paso === idx + 1 ? 800 : 500, color: paso === idx + 1 ? 'var(--primary)' : (paso > idx + 1 ? 'var(--success)' : 'var(--text-muted)') }}>
+              <div style={{ height: 3, borderRadius: 2, background: paso >= idx + 1 ? (paso > idx + 1 ? 'var(--success)' : 'var(--primary)') : 'var(--border)', marginBottom: 4 }}></div>
+              {paso > idx + 1 ? '✓ ' : ''}{p}
+            </div>
+          ))}
+        </div>
+
+        <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {/* PASO 1: Contacto */}
+          {paso === 1 && (
+            <div>
+              <h4 style={{ marginBottom: 12, fontSize: 15 }}>📇 Datos de contacto</h4>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Ya cargamos tus datos. Podés ajustarlos si querés.</p>
+              <div className="form-group"><label className="form-label">Nombre *</label><input value={contacto.nombre} onChange={e => setContacto({ ...contacto, nombre: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Teléfono *</label><input value={contacto.telefono} onChange={e => setContacto({ ...contacto, telefono: e.target.value })} placeholder="Ej: 11 2345 6789" /></div>
+              <div className="form-group"><label className="form-label">Email</label><input value={contacto.email} onChange={e => setContacto({ ...contacto, email: e.target.value })} /></div>
+            </div>
+          )}
+
+          {/* PASO 2: Entrega */}
+          {paso === 2 && (
+            <div>
+              <h4 style={{ marginBottom: 12, fontSize: 15 }}>🚚 ¿Cómo lo recibís?</h4>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                <button onClick={() => setEntrega({ ...entrega, tipo: 'retiro' })} style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 10, border: `2px solid ${entrega.tipo === 'retiro' ? 'var(--primary)' : 'var(--border)'}`, background: entrega.tipo === 'retiro' ? 'var(--primary-light)' : 'var(--bg-card)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>🏪 Retiro en el local</button>
+                <button onClick={() => setEntrega({ ...entrega, tipo: 'envio' })} style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 10, border: `2px solid ${entrega.tipo === 'envio' ? 'var(--primary)' : 'var(--border)'}`, background: entrega.tipo === 'envio' ? 'var(--primary-light)' : 'var(--bg-card)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>📦 Envío a domicilio</button>
+              </div>
+              {entrega.tipo === 'retiro' ? (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-card)', borderRadius: 10 }}>Coordinás el retiro después de confirmar el pedido. Te contactamos por los datos que dejaste.</p>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="form-group" style={{ flex: 2 }}><label className="form-label">Calle *</label><input value={entrega.calle} onChange={e => setEntrega({ ...entrega, calle: e.target.value })} /></div>
+                    <div className="form-group" style={{ flex: 1 }}><label className="form-label">Número *</label><input value={entrega.numero} onChange={e => setEntrega({ ...entrega, numero: e.target.value })} /></div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="form-group" style={{ flex: 1 }}><label className="form-label">Piso/Depto</label><input value={entrega.piso} onChange={e => setEntrega({ ...entrega, piso: e.target.value })} /></div>
+                    <div className="form-group" style={{ flex: 2 }}><label className="form-label">Localidad *</label><input value={entrega.localidad} onChange={e => setEntrega({ ...entrega, localidad: e.target.value })} /></div>
+                  </div>
+                  <div className="form-group"><label className="form-label">Código postal *</label><input value={entrega.cp} onChange={e => setEntrega({ ...entrega, cp: e.target.value })} style={{ maxWidth: 160 }} /></div>
+                  {envioTotal > 0 && <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>Costo de envío estimado: {fmtARS(envioTotal)}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PASO 3: Facturación (opcional) */}
+          {paso === 3 && (
+            <div>
+              <h4 style={{ marginBottom: 12, fontSize: 15 }}>🧾 Facturación</h4>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 14 }}>
+                <input type="checkbox" checked={facturacion.necesita} onChange={e => setFacturacion({ ...facturacion, necesita: e.target.checked })} />
+                Necesito factura
+              </label>
+              {!facturacion.necesita ? (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-card)', borderRadius: 10 }}>Si no necesitás factura, seguí al siguiente paso. Recibís tu comprobante de pedido igual.</p>
+              ) : (
+                <div>
+                  <div className="form-group"><label className="form-label">Razón social / Nombre *</label><input value={facturacion.razon_social} onChange={e => setFacturacion({ ...facturacion, razon_social: e.target.value })} /></div>
+                  <div className="form-group"><label className="form-label">CUIT / DNI *</label><input value={facturacion.cuit_dni} onChange={e => setFacturacion({ ...facturacion, cuit_dni: e.target.value })} /></div>
+                  <div className="form-group"><label className="form-label">Condición frente al IVA</label>
+                    <select value={facturacion.condicion_iva} onChange={e => setFacturacion({ ...facturacion, condicion_iva: e.target.value })}>
+                      <option value="consumidor_final">Consumidor final</option>
+                      <option value="monotributo">Monotributo</option>
+                      <option value="responsable_inscripto">Responsable inscripto</option>
+                      <option value="exento">Exento</option>
+                    </select>
+                  </div>
+                  <div className="form-group"><label className="form-label">Domicilio fiscal</label><input value={facturacion.domicilio_fiscal} onChange={e => setFacturacion({ ...facturacion, domicilio_fiscal: e.target.value })} /></div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PASO 4: Pago */}
+          {paso === 4 && (
+            <div>
+              <h4 style={{ marginBottom: 12, fontSize: 15 }}>💳 Método de pago</h4>
+              {metodos && metodos.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {metodos.map((m, idx) => {
+                    const nombre = m.nombre || m;
+                    return (
+                      <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, border: `2px solid ${metodoPago === nombre ? 'var(--primary)' : 'var(--border)'}`, cursor: 'pointer' }}>
+                        <input type="radio" checked={metodoPago === nombre} onChange={() => setMetodoPago(nombre)} />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{nombre}</div>
+                          {m.datos && <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{m.datos}</div>}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} style={{ width: '100%' }}>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="efectivo">Efectivo</option>
+                </select>
+              )}
+              <div className="form-group" style={{ marginTop: 16 }}><label className="form-label">Notas (opcional)</label><textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Alguna aclaración para tu pedido" /></div>
+            </div>
+          )}
+
+          {/* PASO 5: Resumen */}
+          {paso === 5 && (
+            <div>
+              <h4 style={{ marginBottom: 12, fontSize: 15 }}>✅ Revisá tu pedido</h4>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                {allItems.map((i, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                    <span>{i.qty}× {i.nombre || i.modelo}</span>
+                    <span style={{ fontWeight: 600 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>{fmtARS(subtotalTodo)}</span></div>
+                  {seccionesConItems.length === 1 && descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}><span>Descuento</span><span>-{fmtARS(descuento)}</span></div>}
+                  {entrega.tipo === 'envio' && envioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Envío</span><span>{fmtARS(envioTotal)}</span></div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 16, marginTop: 6 }}><span>Total</span><span>{fmtARS(totalFinal)}</span></div>
+                </div>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                <div><strong>Contacto:</strong> {contacto.nombre} · {contacto.telefono}</div>
+                <div><strong>Entrega:</strong> {entrega.tipo === 'retiro' ? 'Retiro en el local' : `Envío a ${entrega.calle} ${entrega.numero}${entrega.piso ? ` (${entrega.piso})` : ''}, ${entrega.localidad} (CP ${entrega.cp})`}</div>
+                <div><strong>Pago:</strong> {metodoPago}</div>
+                {facturacion.necesita && <div><strong>Factura:</strong> {facturacion.razon_social} · {facturacion.cuit_dni}</div>}
+              </div>
+              {testMode && <p style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: 'var(--warning-text, #b45309)' }}>🧪 Modo prueba: el pedido se marca como test.</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+          {paso > 1 ? <button className="btn btn-outline" onClick={anterior}>← Atrás</button> : <span></span>}
+          {paso < 5
+            ? <button className="btn btn-primary" onClick={siguiente}>Siguiente →</button>
+            : <button className="btn btn-primary" onClick={confirmar} disabled={saving} style={{ minWidth: 160 }}>{saving ? 'Creando...' : (testMode ? '🧪 Confirmar (prueba)' : 'Confirmar pedido')}</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CartPage() {
   const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
   const [cupon, setCupon] = useState('');
@@ -1467,6 +1707,7 @@ function CartPage() {
   const [notas, setNotas] = useState('');
   const [envio, setEnvio] = useState({});
   const [showMixPopup, setShowMixPopup] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [avisos, setAvisos] = useState([]); // cambios detectados al abrir el carrito
   const refreshDone = useRef(false);
 
@@ -1605,33 +1846,51 @@ function CartPage() {
     }
   };
 
-  const checkout = async () => {
+  // Abre el modal de checkout (valida mínimos antes)
+  const abrirCheckout = () => {
     if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
-    // Bloquear si alguna tienda no llega a su compra mínima
     const bajoMin = seccionesConItems.find(sec => {
       const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
       const min = Number(config[`compra_minima_${sec.id}`]) || 0;
       return min > 0 && ss < min;
     });
     if (bajoMin) { toast(`No llegás al mínimo de compra en ${bajoMin.nombre}`, 'warning'); return; }
-    // FIX #14: un pedido por seccion, todo transaccional (si falla uno no se crea ninguno)
+    const totalCarrito = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+    trackEvent('begin_checkout', 'InitiateCheckout', { value: totalCarrito, currency: 'ARS', num_items: allItems.length });
+    setShowCheckout(true);
+  };
+
+  // Crea el pedido con los datos del checkout (datosCheckout viene del modal)
+  const checkout = async (datosCheckout) => {
+    const dc = datosCheckout || {};
+    const datosEnvioJSON = JSON.stringify({
+      contacto: dc.contacto || {},
+      entrega: dc.entrega || {},
+    });
+    const datosFactJSON = dc.facturacion && dc.facturacion.necesita ? JSON.stringify(dc.facturacion) : '';
     const pedidos = seccionesConItems.map(sec => {
       const secItems = allItems.filter(i => i.seccion_id === sec.id);
       const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
       const secEnvio = envio[sec.id];
       const tieneReserva = secItems.some(i => i._preventa);
       return {
-        seccion_id: sec.id, metodo_pago: metodoPago, notas: tieneReserva ? `${notas} [RESERVA/PREVENTA — requiere seña]`.trim() : notas, cupon_codigo: cupon,
+        seccion_id: sec.id, metodo_pago: dc.metodoPago || metodoPago,
+        notas: tieneReserva ? `${dc.notas || notas} [RESERVA/PREVENTA — requiere seña]`.trim() : (dc.notas || notas), cupon_codigo: cupon,
         subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
         total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
-        costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: '',
+        costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: dc.entrega?.cp || '',
         estado_pago: tieneReserva ? 'senado' : 'impago',
+        datos_envio: datosEnvioJSON, datos_facturacion: datosFactJSON,
         items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false }))
       };
     }).filter(pp => pp.items.length);
     try {
       await api.createPedidosMulti(pedidos, testMode);
+      // Analytics: compra realizada
+      const totalCompra = pedidos.reduce((s, p) => s + Number(p.total || 0), 0);
+      trackEvent('purchase', 'Purchase', { value: totalCompra, currency: 'ARS', num_items: allItems.length });
       seccionesConItems.forEach(sec => clearCart(sec.id));
+      setShowCheckout(false);
       toast('¡Pedido creado!'); nav('landing');
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -1641,6 +1900,23 @@ function CartPage() {
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
       <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🛒 Carrito</h2>
       {testMode && <div style={{ background: 'var(--warning)', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
+      {showCheckout && (
+        <CheckoutModal
+          user={user}
+          secciones={secciones}
+          seccionesConItems={seccionesConItems}
+          allItems={allItems}
+          envio={envio}
+          metodos={metodos}
+          config={config}
+          cupon={cupon}
+          descuento={descuento}
+          testMode={testMode}
+          onConfirm={checkout}
+          onClose={() => setShowCheckout(false)}
+        />
+      )}
+
       {showMixPopup && (
         <div className="modal-overlay" onClick={() => setShowMixPopup(false)} style={{ zIndex: 3000 }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
@@ -1768,8 +2044,8 @@ function CartPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
       </div>
 
-      <button onClick={checkout} disabled={algunaBajoMin} style={{ width: '100%', marginTop: 16, padding: 14, background: algunaBajoMin ? 'var(--border)' : 'var(--primary)', color: algunaBajoMin ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: algunaBajoMin ? 'not-allowed' : 'pointer' }}>
-        {algunaBajoMin ? '🔒 No llegás a la compra mínima' : (testMode ? '🧪 CONFIRMAR PEDIDO (PRUEBA)' : 'CONFIRMAR PEDIDO')}
+      <button onClick={abrirCheckout} disabled={algunaBajoMin} style={{ width: '100%', marginTop: 16, padding: 14, background: algunaBajoMin ? 'var(--border)' : 'var(--primary)', color: algunaBajoMin ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: algunaBajoMin ? 'not-allowed' : 'pointer' }}>
+        {algunaBajoMin ? '🔒 No llegás a la compra mínima' : (testMode ? '🧪 CONTINUAR (PRUEBA)' : 'CONTINUAR AL CHECKOUT →')}
       </button>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -1801,6 +2077,7 @@ function ProductDetailPage() {
   const [mainImg, setMainImg] = useState('');
   const [relacionados, setRelacionados] = useState([]);
   useEffect(() => { if (p?.id) api.getRelacionados(p.id).then(setRelacionados).catch(() => setRelacionados([])); }, [p?.id]);
+  useEffect(() => { if (p?.id) trackEvent('view_item', 'ViewContent', { content_name: p.nombre || p.modelo, value: Number(p.precioFinal || p.precio_base) || 0, currency: 'ARS' }); }, [p?.id]);
   const [isFav, setIsFav] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
   const [showNotify, setShowNotify] = useState(false);
@@ -2473,6 +2750,52 @@ function AdminDisenoHub() {
 }
 
 // ── Hub General: config del negocio + mantenimiento ──
+function AdminAnalytics() {
+  const { config, setConfig, toast } = useContext(Ctx);
+  const [gaId, setGaId] = useState(config.ga_id || '');
+  const [pixelId, setPixelId] = useState(config.fb_pixel_id || '');
+  const [saving, setSaving] = useState(false);
+
+  const guardar = async () => {
+    setSaving(true);
+    try {
+      await api.updateConfig({ ga_id: gaId.trim(), fb_pixel_id: pixelId.trim() });
+      setConfig({ ...config, ga_id: gaId.trim(), fb_pixel_id: pixelId.trim() });
+      toast('Guardado. Recargá la página para que empiece a medir.');
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>Marketing y estadísticas</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Conectá tu tienda con Google Analytics y Facebook (Meta) para medir visitas, ventas y hacer publicidad. Pegá los IDs y guardá.</p>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Google Analytics (GA4) — ID de medición</label>
+          <input value={gaId} onChange={e => setGaId(e.target.value)} placeholder="G-XXXXXXXXXX" />
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Lo sacás de Google Analytics → Administrar → Flujos de datos. Empieza con "G-".</small>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Facebook / Meta Pixel — ID</label>
+          <input value={pixelId} onChange={e => setPixelId(e.target.value)} placeholder="123456789012345" />
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Lo sacás del Administrador de eventos de Meta → tu Pixel → Configuración. Son solo números.</small>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
+        <strong>Qué se mide automáticamente:</strong> visitas a la tienda, ver un producto, agregar al carrito, iniciar la compra y compra realizada (con el monto). Si dejás un campo vacío, esa plataforma no se activa.
+      </div>
+
+      <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+    </div>
+  );
+}
+
 function AdminGeneralHub() {
   const [sub, setSub] = useState('config');
   return (
@@ -2480,9 +2803,11 @@ function AdminGeneralHub() {
       <div className="admin-subtabs">
         <button className={`admin-subtab ${sub === 'config' ? 'active' : ''}`} onClick={() => setSub('config')}>Datos del negocio</button>
         <button className={`admin-subtab ${sub === 'tiendas' ? 'active' : ''}`} onClick={() => setSub('tiendas')}>Tiendas / Puntos de venta</button>
+        <button className={`admin-subtab ${sub === 'analytics' ? 'active' : ''}`} onClick={() => setSub('analytics')}>Marketing / Analytics</button>
       </div>
       {sub === 'config' && <AdminConfig />}
       {sub === 'tiendas' && <AdminTiendas />}
+      {sub === 'analytics' && <AdminAnalytics />}
     </div>
   );
 }
@@ -2615,7 +2940,7 @@ function TiendaModal({ sec, onClose, onSaved, toast }) {
 // ── Placeholders Fase 2 (se completan después) ──
 // Escáner por cámara: carga html5-qrcode por CDN, lee QR y códigos de barras
 // Modo escáner pantalla completa: cámara arriba + lista de venta editable abajo
-function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, onRegistrar, saving }) {
+function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, onRegistrar, saving, cliente }) {
   const scannerRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState('');
@@ -2663,7 +2988,7 @@ function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, 
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <strong style={{ fontSize: 16 }}>📸 Venta con escáner</strong>
+        <strong style={{ fontSize: 16 }}>📸 Venta con escáner{cliente ? ` · ${cliente.nombre}` : ''}</strong>
         <button className="btn btn-outline btn-sm" onClick={onClose}>✕ Cerrar</button>
       </div>
 
@@ -2716,10 +3041,34 @@ function AdminVentaManual() {
   const [saving, setSaving] = useState(false);
   const [scanCam, setScanCam] = useState(false);
   const [scanBuffer, setScanBuffer] = useState('');
+  const [cliente, setCliente] = useState(null); // cliente seleccionado {id, nombre}
+  const [busqCliente, setBusqCliente] = useState('');
+  const [resClientes, setResClientes] = useState([]);
+  const [showNuevoCliente, setShowNuevoCliente] = useState(false);
+  const [nuevoCliente, setNuevoCliente] = useState({ nombre: '', telefono: '', email: '' });
   const searchTimer = useRef(null);
+  const clienteTimer = useRef(null);
   const scanInputRef = useRef(null);
 
   useEffect(() => { if (secciones.length && !seccionId) setSeccionId(secciones[0].id); }, [secciones]);
+
+  const buscarCliente = (q) => {
+    setBusqCliente(q);
+    clearTimeout(clienteTimer.current);
+    if (q.length < 2) { setResClientes([]); return; }
+    clienteTimer.current = setTimeout(async () => {
+      try { const r = await api.getUsuarios(q); setResClientes(r || []); } catch {}
+    }, 300);
+  };
+  const crearClienteRapido = async () => {
+    if (!nuevoCliente.nombre) { toast('Poné al menos el nombre', 'error'); return; }
+    try {
+      const u = await api.createUsuario({ ...nuevoCliente, rol: 'cliente', activo: true });
+      setCliente({ id: u.id, nombre: u.nombre });
+      setShowNuevoCliente(false); setNuevoCliente({ nombre: '', telefono: '', email: '' });
+      toast('Cliente creado y asignado');
+    } catch (e) { toast(e.message, 'error'); }
+  };
 
   // Buscar producto por código exacto (pistola USB o cámara) y agregarlo
   const agregarPorCodigo = async (codigo) => {
@@ -2744,11 +3093,21 @@ function AdminVentaManual() {
   };
 
   const agregar = (p) => {
-    if (items.find(i => i.id === p.id)) { setItems(items.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i)); }
+    const stockMax = (p.permitir_sin_stock || p.es_digital || p.es_preventa) ? Infinity : Number(p.stock || 0);
+    const actual = items.find(i => i.id === p.id);
+    const yaLleva = actual ? actual.qty : 0;
+    if (yaLleva + 1 > stockMax) { toast(`Sin stock suficiente de "${p.nombre || p.modelo}" (disponible: ${stockMax})`, 'error'); return; }
+    if (actual) { setItems(items.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i)); }
     else setItems([...items, { ...p, qty: 1, precio_unitario: p.precio_base }]);
     setBusq(''); setResultados([]);
   };
-  const setQty = (id, qty) => setItems(items.map(i => i.id === id ? { ...i, qty: Math.max(1, qty) } : i));
+  const setQty = (id, qty) => setItems(items.map(i => {
+    if (i.id !== id) return i;
+    const stockMax = (i.permitir_sin_stock || i.es_digital || i.es_preventa) ? Infinity : Number(i.stock || 0);
+    let q = Math.max(1, qty);
+    if (q > stockMax) { toast(`Solo hay ${stockMax} en stock de "${i.nombre || i.modelo}"`, 'error'); q = stockMax; }
+    return { ...i, qty: q };
+  }));
   const setPrecio = (id, precio) => setItems(items.map(i => i.id === id ? { ...i, precio_unitario: precio } : i));
   const quitar = (id) => setItems(items.filter(i => i.id !== id));
 
@@ -2760,11 +3119,12 @@ function AdminVentaManual() {
     try {
       await api.createPedido({
         seccion_id: Number(seccionId), tipo: 'pedido', estado: 'entregado', estado_pago: 'pagado',
+        usuario_id: cliente ? cliente.id : undefined,
         metodo_pago: metodoPago, notas: notas || 'Venta de mostrador', subtotal: total, descuento: 0, total,
         items: items.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario, precio_base: i.precio_base }))
       });
-      toast('¡Venta registrada! Stock descontado.');
-      setItems([]); setNotas(''); setScanCam(false);
+      toast(cliente ? `¡Venta registrada a ${cliente.nombre}!` : '¡Venta registrada! Stock descontado.');
+      setItems([]); setNotas(''); setScanCam(false); setCliente(null);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -2784,6 +3144,40 @@ function AdminVentaManual() {
           <option value="tarjeta">Tarjeta</option>
           <option value="qr">QR / Mercado Pago</option>
         </select>
+      </div>
+
+      {/* Cliente (opcional) */}
+      <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        {cliente ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>👤 Cliente: <strong>{cliente.nombre}</strong></span>
+            <button className="btn btn-outline btn-sm" onClick={() => setCliente(null)}>Quitar</button>
+          </div>
+        ) : (
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input placeholder="👤 Asignar a un cliente (opcional): buscá por nombre..." value={busqCliente} onChange={e => buscarCliente(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+              <button className="btn btn-outline btn-sm" onClick={() => setShowNuevoCliente(!showNuevoCliente)}>+ Nuevo cliente</button>
+            </div>
+            {resClientes.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 20, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+                {resClientes.map(u => (
+                  <div key={u.id} onClick={() => { setCliente({ id: u.id, nombre: u.nombre }); setBusqCliente(''); setResClientes([]); }} style={{ padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                    {u.nombre} <span style={{ color: 'var(--text-muted)' }}>{u.telefono || u.email || ''}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {showNuevoCliente && (
+              <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <input placeholder="Nombre *" value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+                <input placeholder="Teléfono" value={nuevoCliente.telefono} onChange={e => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })} style={{ width: 130 }} />
+                <input placeholder="Email" value={nuevoCliente.email} onChange={e => setNuevoCliente({ ...nuevoCliente, email: e.target.value })} style={{ width: 160 }} />
+                <button className="btn btn-primary btn-sm" onClick={crearClienteRapido}>Crear</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ position: 'relative', marginBottom: 16 }}>
@@ -2821,6 +3215,7 @@ function AdminVentaManual() {
         quitar={quitar}
         total={total}
         saving={saving}
+        cliente={cliente}
         onRegistrar={guardar}
       />}
 
@@ -4248,6 +4643,11 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [ajuste, setAjuste] = useState(0); // + recargo, - descuento
   const searchTimer = useRef(null);
 
+  // Parsear datos de envío/facturación (guardados como JSON en el checkout)
+  const parseJSON = (str) => { try { return str ? JSON.parse(str) : null; } catch { return null; } };
+  const datosEnvio = parseJSON(o.datos_envio);
+  const datosFact = parseJSON(o.datos_facturacion);
+
   useEffect(() => {
     (async () => {
       setLoadingItems(true);
@@ -4325,6 +4725,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const logo = design.logo_url || config.logo_url || '';
     const biz = config.nombre_tienda || design.nombre_tienda || 'Tienda';
     const isSmall = format !== 'A4';
+    // Datos de entrega/facturación del checkout (JSON)
+    const _dEnvio = datosEnvio; const _dFact = datosFact;
+    let entregaLinea = `${o.tipo_entrega === 'retiro' ? 'Retiro en local' : 'Envío'}${o.direccion ? ` — ${o.direccion}` : ''}`;
+    if (_dEnvio?.entrega) {
+      if (_dEnvio.entrega.tipo === 'envio') entregaLinea = `Envío a: ${_dEnvio.entrega.calle} ${_dEnvio.entrega.numero}${_dEnvio.entrega.piso ? `, ${_dEnvio.entrega.piso}` : ''}, ${_dEnvio.entrega.localidad} (CP ${_dEnvio.entrega.cp})`;
+      else entregaLinea = 'Retiro en el local';
+    }
+    const contactoLinea = _dEnvio?.contacto ? `${_dEnvio.contacto.nombre || ''}${_dEnvio.contacto.telefono ? ` · ${_dEnvio.contacto.telefono}` : ''}` : '';
+    const factLinea = _dFact ? `Facturación: ${_dFact.razon_social || ''} · ${_dFact.cuit_dni || ''}${_dFact.condicion_iva ? ` · ${_dFact.condicion_iva.replace(/_/g, ' ')}` : ''}` : '';
     const widths = { A4: '210mm', '50mm': '50mm', '58mm': '58mm', '80mm': '80mm', '100mm': '100mm' };
     const fontSize = isSmall ? '10px' : '13px';
     const pagado = o.estado_pago === 'pagado' || o.pagado;
@@ -4362,8 +4771,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
         </div>
       </div>
       <p style="margin:6px 0 2px">${new Date(o.created_at).toLocaleString('es-AR')}</p>
-      <p style="margin:2px 0"><strong>${o.usuario_nombre || 'Cliente'}</strong> ${o.nombre_fantasia ? `(${o.nombre_fantasia})` : ''}${o.usuario_telefono ? ` · ${o.usuario_telefono}` : ''}</p>
-      <p style="margin:2px 0">${o.tipo_entrega === 'retiro' ? 'Retiro en local' : 'Envío'}${o.direccion ? ` — ${o.direccion}` : ''}</p>
+      <p style="margin:2px 0"><strong>${o.usuario_nombre || (_dEnvio?.contacto?.nombre) || 'Cliente'}</strong> ${o.nombre_fantasia ? `(${o.nombre_fantasia})` : ''}${o.usuario_telefono ? ` · ${o.usuario_telefono}` : (_dEnvio?.contacto?.telefono ? ` · ${_dEnvio.contacto.telefono}` : '')}</p>
+      <p style="margin:2px 0">${entregaLinea}</p>
+      ${factLinea ? `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '12px'};color:#333">${factLinea}</p>` : ''}
       <p style="margin:6px 0">
         <span class="badge" style="background:${estadoPagoColor}">${estadoPagoLabel}</span>
         <span style="margin-left:8px">Método: ${o.metodo_pago || '-'}</span>
@@ -4491,6 +4901,32 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           {o.metodo_pago && <p style={{ fontSize: 13 }}>💳 {o.metodo_pago}</p>}
           {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
           {o.cupon_codigo && <p style={{ fontSize: 13 }}>🎟️ Cupón: {o.cupon_codigo}</p>}
+
+          {/* Datos de entrega y facturación del checkout */}
+          {(datosEnvio || datosFact) && (
+            <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, lineHeight: 1.6 }}>
+              {datosEnvio?.contacto && (datosEnvio.contacto.nombre || datosEnvio.contacto.telefono) && (
+                <div style={{ marginBottom: datosEnvio?.entrega ? 8 : 0 }}>
+                  <strong>📇 Contacto:</strong> {datosEnvio.contacto.nombre}{datosEnvio.contacto.telefono ? ` · ${datosEnvio.contacto.telefono}` : ''}{datosEnvio.contacto.email ? ` · ${datosEnvio.contacto.email}` : ''}
+                </div>
+              )}
+              {datosEnvio?.entrega && (
+                <div style={{ marginBottom: datosFact ? 8 : 0 }}>
+                  <strong>{datosEnvio.entrega.tipo === 'envio' ? '📦 Envío a:' : '🏪 Retiro en el local'}</strong>
+                  {datosEnvio.entrega.tipo === 'envio' && (
+                    <span> {datosEnvio.entrega.calle} {datosEnvio.entrega.numero}{datosEnvio.entrega.piso ? `, ${datosEnvio.entrega.piso}` : ''}, {datosEnvio.entrega.localidad} (CP {datosEnvio.entrega.cp})</span>
+                  )}
+                </div>
+              )}
+              {datosFact && (
+                <div style={{ paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+                  <strong>🧾 Facturación:</strong> {datosFact.razon_social} · {datosFact.cuit_dni}
+                  {datosFact.condicion_iva && <span> · {datosFact.condicion_iva.replace(/_/g, ' ')}</span>}
+                  {datosFact.domicilio_fiscal && <div style={{ color: 'var(--text-muted)' }}>Domicilio fiscal: {datosFact.domicilio_fiscal}</div>}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
