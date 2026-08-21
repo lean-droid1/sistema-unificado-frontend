@@ -1517,6 +1517,9 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
   const envioTotal = seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0);
   const totalFinal = subtotalTodo - (seccionesConItems.length === 1 ? descuento : 0) + (entrega.tipo === 'envio' ? envioTotal : 0);
 
+  // El paso de facturación es opcional según config del panel (checkout_factura !== 'off')
+  const facturaActiva = config.checkout_factura !== 'off';
+  const pasos = facturaActiva ? ['Contacto', 'Entrega', 'Facturación', 'Pago', 'Resumen'] : ['Contacto', 'Entrega', 'Pago', 'Resumen'];
   const pasoActual = pasos[paso - 1]; // nombre del paso actual
   const totalPasos = pasos.length;
 
@@ -1545,10 +1548,6 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
     await onConfirm({ contacto, entrega, facturacion: facturaActiva ? facturacion : { necesita: false }, metodoPago, notas });
     setSaving(false);
   };
-
-  // El paso de facturación es opcional según config del panel (checkout_factura !== 'off')
-  const facturaActiva = config.checkout_factura !== 'off';
-  const pasos = facturaActiva ? ['Contacto', 'Entrega', 'Facturación', 'Pago', 'Resumen'] : ['Contacto', 'Entrega', 'Pago', 'Resumen'];
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
@@ -5224,6 +5223,20 @@ function UserModal({ u, onClose }) {
           )}
           {!isNew && (
             <button className="btn btn-outline btn-sm" onClick={async () => { const r = await api.resetPassword(u.id); toast('Contraseña reseteada a 1234'); if (r.telefono) { openWA(`54${r.telefono.replace(/\D/g, '')}`, `Hola ${r.nombre}, tu contraseña fue reseteada. Tu nueva contraseña es: 1234`); } }} style={{ marginRight: 'auto' }}>🔑 Reset pass</button>
+          )}
+          {!isNew && (
+            <button className="btn btn-outline btn-sm" onClick={async () => {
+              const desactivar = f.activo;
+              if (!confirm(desactivar ? `¿Sacarle el acceso a ${u.nombre}? No va a poder entrar, pero se conserva su historial. Podés reactivarlo cuando quieras.` : `¿Reactivar el acceso de ${u.nombre}?`)) return;
+              try { await api.suspenderUsuario(u.id, !desactivar); setF({ ...f, activo: !desactivar }); toast(desactivar ? 'Acceso desactivado' : 'Acceso reactivado'); } catch (e) { toast(e.message, 'error'); }
+            }}>{f.activo ? '🚫 Sacar acceso' : '✅ Dar acceso'}</button>
+          )}
+          {!isNew && (
+            <button className="btn btn-danger btn-sm" onClick={async () => {
+              if (!confirm(`¿ELIMINAR a ${u.nombre} por completo?\n\n⚠️ Esto borra el usuario Y todos sus pedidos/historial. No se puede deshacer.\n\nSi solo querés sacarle el acceso, usá "Sacar acceso" en su lugar.`)) return;
+              if (!confirm('Última confirmación: se borra todo de este cliente. ¿Seguro?')) return;
+              try { await api.deleteUsuario(u.id); toast('Usuario eliminado'); onClose(true); } catch (e) { toast(e.message, 'error'); }
+            }}>🗑️ Eliminar</button>
           )}
           <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={save} disabled={sv}>{sv ? 'Guardando...' : 'Guardar'}</button>
