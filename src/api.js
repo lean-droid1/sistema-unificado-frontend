@@ -137,6 +137,9 @@ export async function deleteUsuario(id) { return f(`/api/usuarios/${id}`, { meth
 // pedidos
 export async function getPedidos(params={}) { const clean = Object.fromEntries(Object.entries(params).filter(([,v]) => v !== null && v !== undefined && v !== '')); const p=new URLSearchParams(clean); return f(`/api/pedidos?${p}`); }
 export async function getPedido(id) { return f(`/api/pedidos/${id}`); }
+export async function getPagos(pedidoId) { return f(`/api/pedidos/${pedidoId}/pagos`); }
+export async function addPago(pedidoId, datos) { return f(`/api/pedidos/${pedidoId}/pagos`, { method: 'POST', body: JSON.stringify(datos) }); }
+export async function deletePago(pedidoId, pagoId) { return f(`/api/pedidos/${pedidoId}/pagos/${pagoId}`, { method: 'DELETE' }); }
 export async function createPedido(data) { return f('/api/pedidos', { method: 'POST', body: JSON.stringify(data) }); }
 export async function createPedidosMulti(pedidos, is_test=false) { return f('/api/pedidos/multi', { method: 'POST', body: JSON.stringify({ pedidos, is_test }) }); }
 export async function updatePedido(id, data) { return f(`/api/pedidos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
