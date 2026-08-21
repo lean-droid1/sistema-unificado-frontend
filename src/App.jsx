@@ -3035,6 +3035,51 @@ function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, 
   );
 }
 
+// Formulario para agregar un pago parcial en la venta de mostrador
+function PagoParcialInput({ total, pagosVenta, onAdd }) {
+  const { config } = useContext(Ctx);
+  const [metodo, setMetodo] = useState('efectivo');
+  const [monto, setMonto] = useState('');
+  const [ajustePct, setAjustePct] = useState(0);
+  let ajustesMetodo = {};
+  try { ajustesMetodo = config.ajustes_metodo ? JSON.parse(config.ajustes_metodo) : {}; } catch {}
+  const pagado = pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0);
+  const saldo = Math.max(0, total - pagado);
+  const onMetodo = (m) => { setMetodo(m); setAjustePct(ajustesMetodo[m] !== undefined ? ajustesMetodo[m] : 0); };
+  const add = () => {
+    const m = Number(monto);
+    if (!(m > 0)) return;
+    const pct = Number(ajustePct) || 0;
+    onAdd({ metodo, monto: m, ajuste_pct: pct, ajuste_monto: Math.round(m * pct / 100) });
+    setMonto(''); setAjustePct(ajustesMetodo[metodo] !== undefined ? ajustesMetodo[metodo] : 0);
+  };
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 6 }}>
+      <div style={{ flex: 1, minWidth: 100 }}>
+        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Método</label>
+        <select value={metodo} onChange={e => onMetodo(e.target.value)} style={{ width: '100%' }}>
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="débito">Débito</option>
+          <option value="crédito">Crédito</option>
+          <option value="mercadopago">MercadoPago</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div style={{ width: 96 }}>
+        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Monto</label>
+        <input type="number" value={monto} onChange={e => setMonto(e.target.value)} placeholder="0" style={{ width: '100%' }} />
+      </div>
+      <div style={{ width: 70 }}>
+        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ajuste %</label>
+        <input type="number" value={ajustePct} onChange={e => setAjustePct(e.target.value)} placeholder="0" style={{ width: '100%' }} title="+ recargo, - descuento" />
+      </div>
+      <button className="btn btn-outline btn-sm" onClick={() => setMonto(String(saldo))}>Saldo</button>
+      <button className="btn btn-primary btn-sm" onClick={add}>+ Pago</button>
+    </div>
+  );
+}
+
 function AdminVentaManual() {
   const { secciones, toast } = useContext(Ctx);
   const [seccionId, setSeccionId] = useState('');
@@ -3052,6 +3097,8 @@ function AdminVentaManual() {
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: '', telefono: '', email: '' });
   const [credsNuevoCliente, setCredsNuevoCliente] = useState(null);
+  const [pagosVenta, setPagosVenta] = useState([]); // pagos parciales de la venta de mostrador
+  const [pagoParcial, setPagoParcial] = useState(false); // si activa, la venta no es "todo pagado"
   const searchTimer = useRef(null);
   const clienteTimer = useRef(null);
   const scanInputRef = useRef(null);
@@ -3149,14 +3196,23 @@ function AdminVentaManual() {
     if (!items.length) { toast('Agregá al menos un producto', 'warning'); return; }
     setSaving(true);
     try {
+      // Estado de pago según los pagos parciales (si se usaron)
+      const totalPag = pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0);
+      let estadoPago = 'pagado';
+      if (pagoParcial && pagosVenta.length) {
+        estadoPago = totalPag >= Number(total) - 0.01 ? 'pagado' : (totalPag > 0 ? 'senado' : 'impago');
+      }
       await api.createPedido({
-        seccion_id: Number(seccionId), tipo: 'pedido', estado: 'entregado', estado_pago: 'pagado',
+        seccion_id: Number(seccionId), tipo: 'pedido', estado: 'entregado', estado_pago: estadoPago,
         usuario_id: cliente ? cliente.id : undefined,
-        metodo_pago: metodoPago, notas: notas || 'Venta de mostrador', subtotal: total, descuento: 0, total,
+        metodo_pago: pagoParcial && pagosVenta.length ? pagosVenta.map(p => p.metodo).join('+') : metodoPago,
+        notas: notas || 'Venta de mostrador', subtotal: total, descuento: 0, total,
+        sena: (pagoParcial && estadoPago !== 'pagado') ? totalPag : 0,
+        pagos: pagoParcial && pagosVenta.length ? pagosVenta : [{ metodo: metodoPago, monto: total, ajuste_pct: 0, ajuste_monto: 0 }],
         items: items.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario, precio_base: i.precio_base }))
       });
       toast(cliente ? `¡Venta registrada a ${cliente.nombre}!` : '¡Venta registrada! Stock descontado.');
-      setItems([]); setNotas(''); setScanCam(false); setCliente(null);
+      setItems([]); setNotas(''); setScanCam(false); setCliente(null); setPagosVenta([]); setPagoParcial(false);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -3285,6 +3341,29 @@ function AdminVentaManual() {
       )}
 
       <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Notas (opcional)" rows={2} style={{ width: '100%', marginBottom: 12 }} />
+
+      {/* Pago parcial / mixto */}
+      <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer', marginBottom: pagoParcial ? 10 : 0 }}>
+          <input type="checkbox" checked={pagoParcial} onChange={e => { setPagoParcial(e.target.checked); if (!e.target.checked) setPagosVenta([]); }} />
+          Pago parcial o en varios métodos (seña, mixto)
+        </label>
+        {pagoParcial && (
+          <div>
+            {pagosVenta.map((p, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border-light)' }}>
+                <span>{p.metodo}{Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><strong>{fmtARS(p.monto)}</strong><button onClick={() => setPagosVenta(pagosVenta.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer' }}>✕</button></span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, margin: '6px 0' }}>
+              <span>Pagado</span><span style={{ color: 'var(--success)' }}>{fmtARS(pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0))}</span>
+            </div>
+            {(() => { const pagado = pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0); const saldo = total - pagado; return saldo > 0.01 ? <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, color: 'var(--danger)', marginBottom: 6 }}><span>Saldo</span><span>{fmtARS(saldo)}</span></div> : <div style={{ fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 6 }}>✓ Cubre el total</div>; })()}
+            <PagoParcialInput total={total} pagosVenta={pagosVenta} onAdd={(p) => setPagosVenta([...pagosVenta, p])} />
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontWeight: 900, fontSize: 22 }}>Total: {fmtARS(total)}</div>
@@ -4689,12 +4768,41 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [searchResults, setSearchResults] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [ajuste, setAjuste] = useState(0); // + recargo, - descuento
+  const [pagos, setPagos] = useState(initOrder.pagos || []);
+  const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', monto: '', ajuste_pct: 0, nota: '' });
   const searchTimer = useRef(null);
 
   // Parsear datos de envío/facturación (guardados como JSON en el checkout)
   const parseJSON = (str) => { try { return str ? JSON.parse(str) : null; } catch { return null; } };
   const datosEnvio = parseJSON(o.datos_envio);
   const datosFact = parseJSON(o.datos_facturacion);
+
+  // Pagos mixtos
+  const totalPagado = pagos.reduce((s, p) => s + Number(p.monto || 0), 0);
+  const saldoPedido = Number(o.total || 0) - totalPagado;
+  const ajustesMetodo = parseJSON(config.ajustes_metodo) || {}; // {efectivo:-5, transferencia:10, ...}
+  const cargarPagos = async () => { try { const p = await api.getPagos(o.id); setPagos(p || []); } catch {} };
+  const agregarPago = async () => {
+    const monto = Number(nuevoPago.monto);
+    if (!(monto > 0)) { toast('Poné un monto válido', 'error'); return; }
+    const ajustePct = Number(nuevoPago.ajuste_pct) || 0;
+    const ajusteMonto = Math.round(monto * ajustePct / 100);
+    try {
+      const r = await api.addPago(o.id, { metodo: nuevoPago.metodo, monto, ajuste_pct: ajustePct, ajuste_monto: ajusteMonto, nota: nuevoPago.nota });
+      await cargarPagos();
+      setO({ ...o, estado_pago: r.estado });
+      setNuevoPago({ metodo: 'efectivo', monto: '', ajuste_pct: 0, nota: '' });
+      toast('Pago registrado');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const quitarPago = async (pagoId) => {
+    try { const r = await api.deletePago(o.id, pagoId); await cargarPagos(); setO({ ...o, estado_pago: r.estado }); } catch (e) { toast(e.message, 'error'); }
+  };
+  // Al elegir método, precargar el ajuste por defecto configurado (editable)
+  const onMetodoPago = (metodo) => {
+    const def = ajustesMetodo[metodo];
+    setNuevoPago({ ...nuevoPago, metodo, ajuste_pct: def !== undefined ? def : 0 });
+  };
 
   useEffect(() => {
     (async () => {
@@ -4788,6 +4896,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const senaMonto = Number(o.sena) || 0;
     const tieneSena = senaMonto > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe');
     const restaAbonar = Math.max(0, Number(editTotal) - senaMonto);
+    // Desglose de pagos mixtos para el remito
+    const listaPagos = pagos || [];
+    const totalPag = listaPagos.reduce((s, p) => s + Number(p.monto || 0), 0);
+    const saldoRem = Math.max(0, Number(editTotal) - totalPag);
+    const pagosHTML = listaPagos.length ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
+      ${listaPagos.map(p => `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${p.metodo}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: $${fmt(p.monto)}</p>`).join('')}
+      <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagado: $${fmt(totalPag)}</p>
+      ${saldoRem > 0.01 ? `<p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(saldoRem)}</p>` : `<p style="margin:2px 0;font-weight:800;color:#16a34a;font-size:${isSmall ? '12px' : '15px'}">✓ PAGADO</p>`}
+    </div>` : '';
     const estadoPagoLabel = o.estado_pago === 'pagado' ? 'PAGADO' : o.estado_pago === 'senado' ? 'SEÑADO' : o.estado_pago === 'debe' ? 'DEBE' : 'IMPAGO';
     const estadoPagoColor = o.estado_pago === 'pagado' ? '#16a34a' : o.estado_pago === 'senado' ? '#d97706' : '#dc2626';
     // URL del pedido para el QR (abre el pedido en el panel)
@@ -4828,10 +4945,10 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       </p>
       <table><thead><tr><th>Producto</th><th style="text-align:center">Cant</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
       <p style="text-align:right;font-weight:800;font-size:${isSmall ? '14px' : '19px'};margin-top:10px">TOTAL: $${fmt(editTotal)}</p>
-      ${tieneSena ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
+      ${listaPagos.length ? pagosHTML : (tieneSena ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
         <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagó (seña): $${fmt(senaMonto)}</p>
         <p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(restaAbonar)}</p>
-      </div>` : ''}
+      </div>` : '')}
       ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px">Notas: ${o.notas}</p>` : ''}
     </body></html>`);
     w.document.close();
@@ -4938,15 +5055,62 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           <div style={{ textAlign: 'right', marginBottom: 12 }}>
             {editing && ajuste !== 0 && <div style={{ fontSize: 12, color: ajuste < 0 ? 'var(--success)' : 'var(--accent)' }}>{ajuste < 0 ? `Descuento: -${fmtARS(Math.abs(ajuste))}` : `Recargo: +${fmtARS(ajuste)}`}</div>}
             <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtARS(editTotal)}</div>
-            {Number(o.sena) > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe') && (
-              <div style={{ marginTop: 6, display: 'inline-block', textAlign: 'right', background: 'var(--bg-hover, rgba(0,0,0,0.04))', borderRadius: 8, padding: '8px 14px' }}>
-                <div style={{ fontSize: 13, color: 'var(--success)' }}>Pagó (seña): {fmtARS(o.sena)}</div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--danger)' }}>Resta abonar: {fmtARS(Math.max(0, Number(editTotal) - Number(o.sena || 0)))}</div>
+          </div>
+
+          {/* PAGOS MIXTOS */}
+          <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>💰 Pagos</div>
+            {pagos.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Sin pagos registrados todavía.</p>
+            ) : (
+              <div style={{ marginBottom: 8 }}>
+                {pagos.map(p => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border-light)' }}>
+                    <span>{p.metodo}{Number(p.ajuste_pct) !== 0 ? <span style={{ color: Number(p.ajuste_pct) < 0 ? 'var(--success)' : 'var(--accent)' }}> ({Number(p.ajuste_pct) > 0 ? '+' : ''}{p.ajuste_pct}%)</span> : ''}{p.nota ? <span style={{ color: 'var(--text-muted)' }}> · {p.nota}</span> : ''}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <strong>{fmtARS(p.monto)}</strong>
+                      <button onClick={() => quitarPago(p.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
-            {o.estado_pago === 'pagado' && <div style={{ marginTop: 4, fontSize: 13, color: 'var(--success)', fontWeight: 700 }}>✓ Pagado completo</div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 4 }}>
+              <span>Pagado</span><strong style={{ color: 'var(--success)' }}>{fmtARS(totalPagado)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 900, marginTop: 2 }}>
+              <span>{saldoPedido > 0.01 ? 'Saldo a pagar' : '✓ Pagado completo'}</span>
+              {saldoPedido > 0.01 && <span style={{ color: 'var(--danger)' }}>{fmtARS(saldoPedido)}</span>}
+            </div>
+
+            {/* Agregar pago */}
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1, minWidth: 110 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Método</label>
+                <select value={nuevoPago.metodo} onChange={e => onMetodoPago(e.target.value)} style={{ width: '100%' }}>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="débito">Débito</option>
+                  <option value="crédito">Crédito</option>
+                  <option value="mercadopago">MercadoPago</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div style={{ width: 100 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Monto</label>
+                <input type="number" value={nuevoPago.monto} onChange={e => setNuevoPago({ ...nuevoPago, monto: e.target.value })} placeholder="0" style={{ width: '100%' }} />
+              </div>
+              <div style={{ width: 78 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ajuste %</label>
+                <input type="number" value={nuevoPago.ajuste_pct} onChange={e => setNuevoPago({ ...nuevoPago, ajuste_pct: e.target.value })} placeholder="0" style={{ width: '100%' }} title="+ recargo, - descuento" />
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={agregarPago}>+ Agregar</button>
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => setNuevoPago({ ...nuevoPago, monto: String(Math.max(0, saldoPedido)) })}>Usar saldo restante ({fmtARS(Math.max(0, saldoPedido))})</button>
+            </div>
+            <small style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginTop: 6 }}>El % ajuste es sobre ese pago: positivo = recargo (ej. transferencia +10), negativo = descuento (ej. efectivo -5). Se precarga el que tengas configurado por método, y lo podés cambiar.</small>
           </div>
-          {o.metodo_pago && <p style={{ fontSize: 13 }}>💳 {o.metodo_pago}</p>}
           {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
           {o.cupon_codigo && <p style={{ fontSize: 13 }}>🎟️ Cupón: {o.cupon_codigo}</p>}
 
@@ -6448,6 +6612,26 @@ function AdminConfig() {
             Ofrecer opción de factura en el checkout
           </label>
           <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Si lo desactivás, el cliente no ve el paso de facturación al comprar. Vos elegís después cuáles pedidos facturar.</small>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+          <label className="form-label" style={{ marginBottom: 4 }}>Recargo/descuento por defecto por método de pago (%)</label>
+          <small style={{ color: 'var(--text-muted)', fontSize: 12, display: 'block', marginBottom: 8 }}>Se precarga al registrar un pago con ese método (lo podés cambiar en cada pago). Positivo = recargo, negativo = descuento. Ej: transferencia 10, efectivo -5.</small>
+          {(() => {
+            let aj = {}; try { aj = c.ajustes_metodo ? JSON.parse(c.ajustes_metodo) : {}; } catch {}
+            const setAj = (metodo, val) => { const nuevo = { ...aj, [metodo]: Number(val) || 0 }; setC({ ...c, ajustes_metodo: JSON.stringify(nuevo) }); };
+            const metodos = ['efectivo', 'transferencia', 'débito', 'crédito', 'mercadopago'];
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {metodos.map(m => (
+                  <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 120, fontSize: 13, textTransform: 'capitalize' }}>{m}</span>
+                    <input type="number" value={aj[m] ?? 0} onChange={e => setAj(m, e.target.value)} style={{ width: 90 }} /> <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         <button className="btn btn-primary" onClick={saveAll} style={{ marginTop: 16, width: '100%' }}>Guardar configuración</button>
