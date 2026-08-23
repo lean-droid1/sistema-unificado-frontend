@@ -60,14 +60,93 @@ const CARD_STYLES = {
   borde: { border: '1.5px solid var(--border)', label: 'Con borde' },
   plano: { border: 'none', label: 'Plano (sin sombra ni borde)' },
 };
-// Temas prediseñados completos (combinan todo)
+// Temas prediseñados COMPLETOS. Cada uno define modo (claro/oscuro) y set completo de colores.
+// mode: 'light' | 'dark' decide la base de fondos/textos. Los vars explícitos pisan la base.
 const THEME_PRESETS = [
-  { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', p: '#4A69E2', s: '#232321', a: '#FFA52F', font: 'Archivo', radius: 'redondeado', shadow: 'suave', card: 'elevado', bg: '#F3F3F3' },
-  { id: 'minimal', name: 'Minimal', desc: 'Limpio y editorial', p: '#18181b', s: '#71717a', a: '#f59e0b', font: 'Inter', radius: 'cuadrado', shadow: 'none', card: 'borde', bg: '#ffffff' },
-  { id: 'tech', name: 'Tech', desc: 'Para electrónica', p: '#0ea5e9', s: '#0c4a6e', a: '#22c55e', font: 'Space Grotesk', radius: 'suave', shadow: 'media', card: 'elevado', bg: '#f8fafc' },
-  { id: 'boutique', name: 'Boutique', desc: 'Elegante con serif', p: '#9d174d', s: '#4a044e', a: '#d4a853', font: 'Playfair Display', radius: 'suave', shadow: 'suave', card: 'elevado', bg: '#fdf4ff' },
-  { id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', p: '#a78bfa', s: '#1e1b4b', a: '#f472b6', font: 'Outfit', radius: 'redondeado', shadow: 'fuerte', card: 'elevado', bg: '#0f0f14' },
-  { id: 'fresh', name: 'Fresh', desc: 'Colorido y amable', p: '#10b981', s: '#065f46', a: '#f59e0b', font: 'Nunito', radius: 'extra', shadow: 'media', card: 'elevado', bg: '#f0fdf4' },
+  {
+    id: 'kicks', name: 'Kicks', desc: 'Moderno · claro', mode: 'light',
+    p: '#4A69E2', s: '#232321', a: '#FFA52F', font: 'Archivo',
+    radius: 'redondeado', shadow: 'suave', card: 'elevado',
+    bg: '#F3F3F3', bgCard: '#ffffff', text: '#232321', textSec: '#626262', border: '#E7E7E3',
+    headerBg: '#ffffff', marqueeBg: '#232321',
+  },
+  {
+    id: 'minimal', name: 'Minimal', desc: 'Editorial · B&N', mode: 'light',
+    p: '#000000', s: '#000000', a: '#000000', font: 'Inter',
+    radius: 'cuadrado', shadow: 'none', card: 'borde',
+    bg: '#ffffff', bgCard: '#ffffff', text: '#111111', textSec: '#666666', border: '#e5e5e5',
+    headerBg: '#ffffff', marqueeBg: '#111111',
+  },
+  {
+    id: 'tech', name: 'Tech', desc: 'Electrónica · claro', mode: 'light',
+    p: '#0284c7', s: '#0c4a6e', a: '#06b6d4', font: 'Space Grotesk',
+    radius: 'suave', shadow: 'media', card: 'elevado',
+    bg: '#eef4f8', bgCard: '#ffffff', text: '#0f172a', textSec: '#475569', border: '#d5e3ee',
+    headerBg: '#0c4a6e', headerText: '#ffffff', marqueeBg: '#06b6d4',
+  },
+  {
+    id: 'boutique', name: 'Boutique', desc: 'Elegante · serif', mode: 'light',
+    p: '#9d174d', s: '#4a044e', a: '#c99a3f', font: 'Playfair Display',
+    radius: 'suave', shadow: 'suave', card: 'elevado',
+    bg: '#fbf7f4', bgCard: '#ffffff', text: '#3d1f2b', textSec: '#7c5866', border: '#ecdcd6',
+    headerBg: '#ffffff', marqueeBg: '#4a044e',
+  },
+  {
+    id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', mode: 'dark',
+    p: '#a78bfa', s: '#c4b5fd', a: '#f472b6', font: 'Outfit',
+    radius: 'redondeado', shadow: 'fuerte', card: 'elevado',
+    bg: '#0f0f14', bgCard: '#1a1a24', text: '#f5f5f7', textSec: '#a1a1aa', border: '#2a2a38',
+    headerBg: '#15151f', marqueeBg: '#a78bfa', marqueeText: '#0f0f14',
+  },
+  {
+    id: 'fresh', name: 'Fresh', desc: 'Colorido · claro', mode: 'light',
+    p: '#059669', s: '#065f46', a: '#f59e0b', font: 'Nunito',
+    radius: 'extra', shadow: 'media', card: 'elevado',
+    bg: '#f0fdf4', bgCard: '#ffffff', text: '#14532d', textSec: '#4d7c5f', border: '#c9ecd5',
+    headerBg: '#059669', headerText: '#ffffff', marqueeBg: '#f59e0b', marqueeText: '#3d2800',
+  },
+  {
+    id: 'sunset', name: 'Sunset', desc: 'Cálido vibrante', mode: 'light',
+    p: '#ea580c', s: '#9a3412', a: '#facc15', font: 'Poppins',
+    radius: 'redondeado', shadow: 'media', card: 'elevado',
+    bg: '#fff7ed', bgCard: '#ffffff', text: '#431407', textSec: '#9a6a4a', border: '#fde3cd',
+    headerBg: '#9a3412', headerText: '#ffffff', marqueeBg: '#facc15', marqueeText: '#431407',
+  },
+  {
+    id: 'midnight', name: 'Midnight', desc: 'Oscuro azulado', mode: 'dark',
+    p: '#38bdf8', s: '#7dd3fc', a: '#34d399', font: 'DM Sans',
+    radius: 'suave', shadow: 'fuerte', card: 'elevado',
+    bg: '#0b1120', bgCard: '#141d2e', text: '#e2e8f0', textSec: '#94a3b8', border: '#243045',
+    headerBg: '#0f1729', marqueeBg: '#38bdf8', marqueeText: '#0b1120',
+  },
+  {
+    id: 'candy', name: 'Candy', desc: 'Rosa juvenil', mode: 'light',
+    p: '#db2777', s: '#9d174d', a: '#a855f7', font: 'Nunito',
+    radius: 'extra', shadow: 'media', card: 'elevado',
+    bg: '#fdf2f8', bgCard: '#ffffff', text: '#500724', textSec: '#a15579', border: '#fbd5e8',
+    headerBg: '#db2777', headerText: '#ffffff', marqueeBg: '#a855f7', marqueeText: '#ffffff',
+  },
+  {
+    id: 'forest', name: 'Forest', desc: 'Verde natural', mode: 'light',
+    p: '#15803d', s: '#14532d', a: '#ca8a04', font: 'Merriweather',
+    radius: 'cuadrado', shadow: 'suave', card: 'borde',
+    bg: '#f7faf5', bgCard: '#ffffff', text: '#1a2e17', textSec: '#5a6b52', border: '#dbe7d3',
+    headerBg: '#14532d', headerText: '#ffffff', marqueeBg: '#ca8a04', marqueeText: '#1a2e17',
+  },
+  {
+    id: 'mono', name: 'Mono Dark', desc: 'Negro minimal', mode: 'dark',
+    p: '#ffffff', s: '#d4d4d8', a: '#fbbf24', font: 'Space Grotesk',
+    radius: 'cuadrado', shadow: 'none', card: 'borde',
+    bg: '#0a0a0a', bgCard: '#171717', text: '#fafafa', textSec: '#a3a3a3', border: '#333333',
+    headerBg: '#0a0a0a', marqueeBg: '#fbbf24', marqueeText: '#0a0a0a',
+  },
+  {
+    id: 'ocean', name: 'Ocean', desc: 'Turquesa fresco', mode: 'light',
+    p: '#0891b2', s: '#155e75', a: '#f97316', font: 'Work Sans',
+    radius: 'redondeado', shadow: 'media', card: 'elevado',
+    bg: '#ecfeff', bgCard: '#ffffff', text: '#083344', textSec: '#3d6b7a', border: '#c5eef5',
+    headerBg: '#155e75', headerText: '#ffffff', marqueeBg: '#f97316', marqueeText: '#ffffff',
+  },
 ];
 // Paletas de color rápidas
 const COLOR_PALETTES = [
@@ -90,22 +169,61 @@ function ensureFont(font) {
   link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@400;500;600;700;800;900&display=swap`;
   document.head.appendChild(link);
 }
+// Bases de modo claro/oscuro. El tema puede pisar cualquiera de estos con sus vars explícitos.
+const MODE_BASE = {
+  light: { bg: '#F3F3F3', bgCard: '#ffffff', text: '#232321', textSec: '#626262', textMuted: '#959595', border: '#E7E7E3', borderLight: '#F3F3F3' },
+  dark: { bg: '#161616', bgCard: '#1f1f1f', text: '#f5f5f5', textSec: '#a3a3a3', textMuted: '#6f6f6f', border: '#2e2e2e', borderLight: '#262626' },
+};
 // Aplicar TODAS las variables de diseño a un root (document o iframe). Sin root = document.
+// Si el tema trae mode, se aplica la base de ese modo primero y luego los overrides.
 function applyDesignVars(des, rootEl) {
   const root = rootEl || document.documentElement;
   if (!des) return;
-  if (des.color_primario) root.style.setProperty('--primary', des.color_primario);
-  if (des.color_secundario) root.style.setProperty('--primary-dark', des.color_secundario);
-  if (des.color_acento) { root.style.setProperty('--warning', des.color_acento); root.style.setProperty('--accent', des.color_acento); }
-  if (des.color_fondo) root.style.setProperty('--bg', des.color_fondo);
-  if (des.color_texto) root.style.setProperty('--text', des.color_texto);
-  if (des.fuente) { ensureFont(des.fuente); root.style.setProperty('--font', `'${des.fuente}', sans-serif`); }
+  const set = (k, v) => v && root.style.setProperty(k, v);
+
+  // 1) Base de modo (si el tema lo define)
+  const preset = THEME_PRESETS.find(t => t.id === des.plantilla);
+  const mode = des.modo_tema || (preset && preset.mode) || null;
+  if (mode && MODE_BASE[mode]) {
+    const b = MODE_BASE[mode];
+    set('--bg', b.bg); set('--bg-card', b.bgCard); set('--text', b.text);
+    set('--text-secondary', b.textSec); set('--text-muted', b.textMuted);
+    set('--border', b.border); set('--border-light', b.borderLight);
+    // toggle clase dark en el root para reglas que dependen de .dark
+    if (root === document.documentElement) { /* el toggle real lo maneja el modo usuario */ }
+  }
+
+  // 2) Overrides explícitos del tema/diseño
+  set('--primary', des.color_primario);
+  set('--primary-dark', des.color_secundario);
+  if (des.color_acento) { set('--warning', des.color_acento); set('--accent', des.color_acento); }
+  set('--bg', des.color_fondo);
+  set('--bg-card', des.color_card);
+  set('--text', des.color_texto);
+  set('--text-secondary', des.color_texto_sec);
+  set('--border', des.color_borde);
+  set('--header-bg', des.color_header);
+  set('--header-text', des.color_header_text);
+  set('--marquee-bg', des.color_marquee);
+  set('--marquee-text', des.color_marquee_text);
+  // primary-light derivado (para focus rings) — usar primario con baja opacidad
+  if (des.color_primario) set('--primary-light', hexToRgba(des.color_primario, 0.14));
+
+  if (des.fuente) { ensureFont(des.fuente); set('--font', `'${des.fuente}', sans-serif`); }
   const rad = RADIUS_STYLES[des.estilo_bordes];
-  if (rad) { root.style.setProperty('--radius', rad.card); root.style.setProperty('--radius-sm', rad.btn); root.style.setProperty('--radius-pill', rad.pill); }
+  if (rad) { set('--radius', rad.card); set('--radius-sm', rad.btn); set('--radius-pill', rad.pill); }
   const sh = SHADOW_STYLES[des.estilo_sombra];
-  if (sh) { root.style.setProperty('--shadow', sh.shadow); root.style.setProperty('--shadow-lg', sh.lg); }
+  if (sh) { set('--shadow', sh.shadow); set('--shadow-lg', sh.lg); }
   const cd = CARD_STYLES[des.estilo_card];
-  if (cd) root.style.setProperty('--card-border', cd.border);
+  if (cd) set('--card-border', cd.border);
+}
+// hex → rgba string
+function hexToRgba(hex, alpha) {
+  if (!hex || hex[0] !== '#') return hex;
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.split('').map(x => x + x).join('');
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 
@@ -361,11 +479,16 @@ export default function App() {
     api.trackSearch(term, data.total);
   }, [globalSearch]);
 
-  // Dark mode
+  // Dark mode — el toggle del usuario. Si hay un tema con modo definido, re-aplicamos
+  // las variables del tema DESPUÉS para que el tema mande sobre la clase .dark.
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('gm_dark', dark);
-  }, [dark]);
+    if (design && (design.plantilla || design.modo_tema)) {
+      // el tema pisa la base del toggle
+      setTimeout(() => applyDesignVars(design), 0);
+    }
+  }, [dark, design]);
 
   // Save cart
   useEffect(() => { localStorage.setItem('gm_cart', JSON.stringify(cart)); }, [cart]);
@@ -2701,13 +2824,7 @@ function AdminPanel() {
     ]},
     { id: 'envios_grp', label: 'Envíos', icon: 'truck', single: 'envios' },
     { id: 'pagos_grp', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
-    { id: 'diseno_grp', label: 'Diseño', icon: 'palette', single: 'diseno' },
-    { id: 'contenido', label: 'Contenido', icon: 'file', items: [
-      { id: 'barras', label: 'Barras de texto' },
-      { id: 'menu', label: 'Menú' },
-      { id: 'paginas', label: 'Páginas' },
-      { id: 'contactos', label: 'Contactos WhatsApp' },
-    ]},
+    { id: 'diseno_grp', label: 'Personalizar tienda', icon: 'palette', single: 'diseno' },
     { id: 'general_grp', label: 'General', icon: 'settings', single: 'general' },
   ];
 
@@ -6253,6 +6370,7 @@ function AdminDiseno() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
+  const [predev, setPredev] = useState('desktop');
   const iframeRef = useRef(null);
 
   useEffect(() => { api.getDesign().then(d => { setDes(d); setDirty(false); }); }, []);
@@ -6293,7 +6411,14 @@ function AdminDiseno() {
   const descartar = () => { setDes({ ...design }); setDirty(false); setTimeout(applyToPreview, 50); };
 
   const aplicarTema = (t) => {
-    set({ plantilla: t.id, color_primario: t.p, color_secundario: t.s, color_acento: t.a, fuente: t.font, estilo_bordes: t.radius, estilo_sombra: t.shadow, estilo_card: t.card, color_fondo: t.bg });
+    set({
+      plantilla: t.id, modo_tema: t.mode,
+      color_primario: t.p, color_secundario: t.s, color_acento: t.a, fuente: t.font,
+      estilo_bordes: t.radius, estilo_sombra: t.shadow, estilo_card: t.card,
+      color_fondo: t.bg, color_card: t.bgCard || '', color_texto: t.text || '', color_texto_sec: t.textSec || '',
+      color_borde: t.border || '', color_header: t.headerBg || '', color_header_text: t.headerText || '',
+      color_marquee: t.marqueeBg || '', color_marquee_text: t.marqueeText || '',
+    });
     ensureFont(t.font);
   };
 
@@ -6481,16 +6606,22 @@ function AdminDiseno() {
         <div className="editor-preview">
           <div className="editor-preview-bar">
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Vista previa en vivo</span>
-            <button className="btn btn-outline btn-sm" onClick={() => setPreviewKey(k => k + 1)} title="Recargar preview"><Ico n="refresh-cw" s={14} /></button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div className="editor-device-btns">
+                <button className={predev === 'desktop' ? 'active' : ''} onClick={() => setPredev('desktop')} title="Escritorio">🖥️</button>
+                <button className={predev === 'mobile' ? 'active' : ''} onClick={() => setPredev('mobile')} title="Celular">📱</button>
+              </div>
+              <button className="btn btn-outline btn-sm" onClick={() => setPreviewKey(k => k + 1)} title="Recargar preview"><Ico n="refresh-cw" s={14} /></button>
+            </div>
           </div>
-          <div className="editor-preview-frame">
+          <div className={`editor-preview-frame ${predev}`}>
             <iframe
               key={previewKey}
               ref={iframeRef}
               src="/?preview=1"
               title="preview"
               onLoad={applyToPreview}
-              style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+              style={predev === 'desktop' ? { width: '100%', height: '100%', border: 'none', background: '#fff' } : { border: 'none', background: '#fff' }}
             />
           </div>
         </div>
