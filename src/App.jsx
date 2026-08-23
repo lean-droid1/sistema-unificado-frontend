@@ -956,20 +956,21 @@ function Header() {
         <div className="mobile-menu" style={{ background: 'var(--bg-card)', padding: '16px 20px' }}>
           {!design.modo_tema && !THEME_PRESETS.find(t => t.id === design.plantilla) && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? <Ico n="sun" s={18} /> : <Ico n="moon" s={18} />} {dark ? 'Modo claro' : 'Modo oscuro'}</button>}
           {user && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setMobMenu(false); nav('favoritos'); }}><span style={{ color: 'var(--danger)', display: 'inline-flex' }}><Ico n="heart" s={18} fill /></span> Favoritos</button>}
-          <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-          {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
-          <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+          {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: 'var(--text)', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
+          <a href="#" style={{ color: 'var(--text)', fontWeight: 600, fontSize: 14 }} onClick={e => { e.preventDefault(); setMobMenu(false); nav('contacto'); }}>Contacto</a>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
           {user ? (
             <>
               {isAdmin && <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('admin'); }}>Panel admin</button>}
               {isAdmin && <button style={{ color: testMode ? 'var(--warning)' : 'var(--text-secondary)', fontWeight: 700 }} onClick={() => setTestMode(!testMode)}>{testMode ? 'Modo prueba: ON' : 'Modo prueba: OFF'}</button>}
-              <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
-              <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
+              <button style={{ color: 'var(--text)' }} onClick={() => { setMobMenu(false); nav('account'); }}>Mi cuenta</button>
+              <button style={{ color: 'var(--text)' }} onClick={() => { setMobMenu(false); handleLogout(); }}>Cerrar sesión</button>
             </>
           ) : (
             <>
-              <button style={{ color: 'var(--primary)', fontWeight: 700 }} onClick={() => { setMobMenu(false); nav('login'); }}>Ingresar</button>
-              <button style={{ color: '#fff' }} onClick={() => { setMobMenu(false); nav('register'); }}>Registrarse</button>
+              <button className="btn btn-primary btn-sm" style={{ marginTop: 4 }} onClick={() => { setMobMenu(false); nav('login'); }}>Ingresar</button>
+              <button className="btn btn-outline btn-sm" onClick={() => { setMobMenu(false); nav('register'); }}>Registrarse</button>
             </>
           )}
         </div>
