@@ -22,6 +22,93 @@ const numOrden = (o) => { const id = String(o?.id ?? '').padStart(4, '0'); retur
 const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${String(num).replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
 const openWA = (num, msg) => window.open(waLink(num, msg), '_blank');
 
+// ─── SISTEMA DE TEMAS / EDITOR VISUAL ───
+// Opciones de fuente (Google Fonts, cargadas dinámicamente)
+const FONT_OPTIONS = [
+  { id: 'Archivo', label: 'Archivo (por defecto)', cat: 'Sans moderna' },
+  { id: 'Inter', label: 'Inter', cat: 'Sans limpia' },
+  { id: 'Poppins', label: 'Poppins', cat: 'Sans redondeada' },
+  { id: 'Roboto', label: 'Roboto', cat: 'Sans clásica' },
+  { id: 'Montserrat', label: 'Montserrat', cat: 'Sans elegante' },
+  { id: 'Open Sans', label: 'Open Sans', cat: 'Sans neutra' },
+  { id: 'Lato', label: 'Lato', cat: 'Sans cálida' },
+  { id: 'Nunito', label: 'Nunito', cat: 'Sans amable' },
+  { id: 'Work Sans', label: 'Work Sans', cat: 'Sans versátil' },
+  { id: 'Space Grotesk', label: 'Space Grotesk', cat: 'Tech' },
+  { id: 'Outfit', label: 'Outfit', cat: 'Geométrica' },
+  { id: 'Playfair Display', label: 'Playfair Display', cat: 'Serif lujo' },
+  { id: 'Merriweather', label: 'Merriweather', cat: 'Serif legible' },
+  { id: 'DM Sans', label: 'DM Sans', cat: 'Sans compacta' },
+];
+// Estilos de esquina (radio) para cards, botones e inputs
+const RADIUS_STYLES = {
+  cuadrado: { card: '4px', btn: '6px', pill: '6px', label: 'Cuadrado' },
+  suave: { card: '12px', btn: '10px', pill: '999px', label: 'Suave' },
+  redondeado: { card: '20px', btn: '14px', pill: '999px', label: 'Redondeado' },
+  extra: { card: '28px', btn: '20px', pill: '999px', label: 'Muy redondeado' },
+};
+// Estilo de sombra de las cards
+const SHADOW_STYLES = {
+  none: { shadow: 'none', lg: 'none', label: 'Sin sombra' },
+  suave: { shadow: '0 2px 8px rgba(0,0,0,0.05)', lg: '0 8px 24px rgba(0,0,0,0.08)', label: 'Suave' },
+  media: { shadow: '0 4px 14px rgba(0,0,0,0.10)', lg: '0 12px 32px rgba(0,0,0,0.14)', label: 'Media' },
+  fuerte: { shadow: '0 8px 24px rgba(0,0,0,0.16)', lg: '0 20px 48px rgba(0,0,0,0.22)', label: 'Fuerte' },
+};
+// Estilo visual de las cards de producto
+const CARD_STYLES = {
+  elevado: { border: 'none', label: 'Elevado (con sombra)' },
+  borde: { border: '1.5px solid var(--border)', label: 'Con borde' },
+  plano: { border: 'none', label: 'Plano (sin sombra ni borde)' },
+};
+// Temas prediseñados completos (combinan todo)
+const THEME_PRESETS = [
+  { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', p: '#4A69E2', s: '#232321', a: '#FFA52F', font: 'Archivo', radius: 'redondeado', shadow: 'suave', card: 'elevado', bg: '#F3F3F3' },
+  { id: 'minimal', name: 'Minimal', desc: 'Limpio y editorial', p: '#18181b', s: '#71717a', a: '#f59e0b', font: 'Inter', radius: 'cuadrado', shadow: 'none', card: 'borde', bg: '#ffffff' },
+  { id: 'tech', name: 'Tech', desc: 'Para electrónica', p: '#0ea5e9', s: '#0c4a6e', a: '#22c55e', font: 'Space Grotesk', radius: 'suave', shadow: 'media', card: 'elevado', bg: '#f8fafc' },
+  { id: 'boutique', name: 'Boutique', desc: 'Elegante con serif', p: '#9d174d', s: '#4a044e', a: '#d4a853', font: 'Playfair Display', radius: 'suave', shadow: 'suave', card: 'elevado', bg: '#fdf4ff' },
+  { id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', p: '#a78bfa', s: '#1e1b4b', a: '#f472b6', font: 'Outfit', radius: 'redondeado', shadow: 'fuerte', card: 'elevado', bg: '#0f0f14' },
+  { id: 'fresh', name: 'Fresh', desc: 'Colorido y amable', p: '#10b981', s: '#065f46', a: '#f59e0b', font: 'Nunito', radius: 'extra', shadow: 'media', card: 'elevado', bg: '#f0fdf4' },
+];
+// Paletas de color rápidas
+const COLOR_PALETTES = [
+  { name: 'Azul Pro', p: '#4A69E2', s: '#232321', a: '#FFA52F' },
+  { name: 'Verde Negocio', p: '#16a34a', s: '#15803d', a: '#eab308' },
+  { name: 'Rojo Audaz', p: '#dc2626', s: '#991b1b', a: '#f97316' },
+  { name: 'Violeta', p: '#7c3aed', s: '#5b21b6', a: '#f472b6' },
+  { name: 'Naranja', p: '#ea580c', s: '#c2410c', a: '#facc15' },
+  { name: 'Turquesa', p: '#0891b2', s: '#155e75', a: '#34d399' },
+  { name: 'Rosa', p: '#db2777', s: '#9d174d', a: '#fbbf24' },
+  { name: 'Negro Gold', p: '#18181b', s: '#27272a', a: '#d4a853' },
+];
+// Cargar una Google Font on-demand (idempotente)
+const loadedFonts = new Set();
+function ensureFont(font) {
+  if (!font || font === 'Archivo' || loadedFonts.has(font)) return;
+  loadedFonts.add(font);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@400;500;600;700;800;900&display=swap`;
+  document.head.appendChild(link);
+}
+// Aplicar TODAS las variables de diseño a un root (document o iframe). Sin root = document.
+function applyDesignVars(des, rootEl) {
+  const root = rootEl || document.documentElement;
+  if (!des) return;
+  if (des.color_primario) root.style.setProperty('--primary', des.color_primario);
+  if (des.color_secundario) root.style.setProperty('--primary-dark', des.color_secundario);
+  if (des.color_acento) { root.style.setProperty('--warning', des.color_acento); root.style.setProperty('--accent', des.color_acento); }
+  if (des.color_fondo) root.style.setProperty('--bg', des.color_fondo);
+  if (des.color_texto) root.style.setProperty('--text', des.color_texto);
+  if (des.fuente) { ensureFont(des.fuente); root.style.setProperty('--font', `'${des.fuente}', sans-serif`); }
+  const rad = RADIUS_STYLES[des.estilo_bordes];
+  if (rad) { root.style.setProperty('--radius', rad.card); root.style.setProperty('--radius-sm', rad.btn); root.style.setProperty('--radius-pill', rad.pill); }
+  const sh = SHADOW_STYLES[des.estilo_sombra];
+  if (sh) { root.style.setProperty('--shadow', sh.shadow); root.style.setProperty('--shadow-lg', sh.lg); }
+  const cd = CARD_STYLES[des.estilo_card];
+  if (cd) root.style.setProperty('--card-border', cd.border);
+}
+
+
 // ─── ICON MAP (Lucide icons) ───
 const ICON_MAP = {
   truck: Truck, shield: Shield, 'credit-card': CreditCard, clock: Clock, star: Star, lock: Lock, zap: Zap, package: Package, heart: Heart, 'thumbs-up': ThumbsUp, 'check-circle': CheckCircle, gift: Gift, headphones: Headphones, phone: Phone, mail: Mail, 'map-pin': MapPin, globe: Globe, award: Award, 'badge-check': BadgeCheck, 'shopping-cart': ShoppingCart, tag: Tag, percent: Percent, 'refresh-cw': RefreshCw, send: Send, eye: Eye, users: Users, wrench: Wrench, wifi: Wifi, battery: Battery, cpu: Cpu, monitor: Monitor, smartphone: Smartphone, camera: Camera, bookmark: Bookmark, bell: Bell, 'message-circle': MessageCircle, 'help-circle': HelpCircle, info: Info, 'alert-circle': AlertCircle
@@ -199,7 +286,10 @@ function useToast() {
 // ═══════════════════════════════════════════════════════════
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState(() => { const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv; });
+  const [page, setPage] = useState(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1') return 'landing';
+    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv;
+  });
   const [loading, setLoading] = useState(true);
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
   const [testMode, setTestMode] = useState(() => localStorage.getItem('gm_test') === 'true');
@@ -331,6 +421,7 @@ export default function App() {
           api.getListas().catch(() => []), api.getPreciosFijos().catch(() => [])
         ]);
         setSecciones(secs); setConfig(cfg); setDesign(des);
+        applyDesignVars(des);
         setMenuItems(menu); setRedesSociales(redes);
         setListas(Array.isArray(lsts) ? lsts : []); setPreciosFijos(Array.isArray(pf) ? pf : []);
         api.getBadges().then(setBadges).catch(() => {});
@@ -6158,143 +6249,250 @@ function AdminRedes() {
 function AdminDiseno() {
   const { toast, design, setDesign } = useContext(Ctx);
   const [des, setDes] = useState({ ...design });
-  useEffect(() => { api.getDesign().then(d => setDes(d)); }, []);
+  const [tab, setTab] = useState('temas');
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
+  const iframeRef = useRef(null);
+
+  useEffect(() => { api.getDesign().then(d => { setDes(d); setDirty(false); }); }, []);
+
+  // Aplicar cambios al iframe de preview en vivo (sin guardar)
+  const applyToPreview = () => {
+    const ifr = iframeRef.current;
+    if (!ifr || !ifr.contentDocument) return;
+    applyDesignVars(des, ifr.contentDocument.documentElement);
+  };
+  useEffect(() => { applyToPreview(); }, [des]);
+
+  const set = (patch) => { setDes(prev => ({ ...prev, ...patch })); setDirty(true); };
 
   const handleFileUpload = async (field, file) => {
     try {
       const reader = new FileReader();
       reader.onload = async (ev) => {
         const r = await api.uploadBase64(ev.target.result, file.name);
-        setDes({ ...des, [field]: r.url });
+        set({ [field]: r.url });
       };
       reader.readAsDataURL(file);
     } catch (e) { toast('Error al subir', 'error'); }
   };
 
   const guardar = async () => {
-    try { await api.updateDesign(des); setDesign(des); toast('Diseño guardado');
-      // Apply colors + font
-      if (des.color_primario) document.documentElement.style.setProperty('--primary', des.color_primario);
-      if (des.color_secundario) document.documentElement.style.setProperty('--primary-dark', des.color_secundario);
-      if (des.color_acento) { document.documentElement.style.setProperty('--warning', des.color_acento); document.documentElement.style.setProperty('--accent', des.color_acento); }
-      if (des.fuente) document.documentElement.style.setProperty('--font', `'${des.fuente}', sans-serif`);
+    setSaving(true);
+    try {
+      await api.updateDesign(des);
+      setDesign(des);
+      applyDesignVars(des); // aplicar a la app real
+      setDirty(false);
+      toast('Diseño aplicado ✓ Ahora lo ven tus clientes');
     } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
   };
 
-  const resetDefaults = () => { setDes({ ...des, color_primario: 'var(--primary)', color_secundario: 'var(--primary-dark)', color_acento: 'var(--warning)', plantilla: 'moderna' }); };
+  const descartar = () => { setDes({ ...design }); setDirty(false); setTimeout(applyToPreview, 50); };
+
+  const aplicarTema = (t) => {
+    set({ plantilla: t.id, color_primario: t.p, color_secundario: t.s, color_acento: t.a, fuente: t.font, estilo_bordes: t.radius, estilo_sombra: t.shadow, estilo_card: t.card, color_fondo: t.bg });
+    ensureFont(t.font);
+  };
+
+  const TABS = [
+    { id: 'temas', label: '🎨 Temas', icon: 'palette' },
+    { id: 'colores', label: '🎯 Colores', icon: 'palette' },
+    { id: 'tipografia', label: '🔤 Tipografía', icon: 'file' },
+    { id: 'estilos', label: '⬜ Estilos', icon: 'box' },
+    { id: 'logo', label: '🖼️ Logo y textos', icon: 'image' },
+  ];
+
+  const swatch = (color) => <div style={{ width: 18, height: 18, borderRadius: '50%', background: color, border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 }} />;
 
   return (
-    <div>
-      <h3 style={{ marginBottom: 12 }}>Diseño y personalización</h3>
-
-      {/* PLANTILLAS */}
-      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <h4 style={{ marginBottom: 12 }}>🎨 Plantillas</h4>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Elegí un estilo visual para tu tienda. Después podés personalizar los colores.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-          {[
-            { id: 'kicks', name: 'Kicks', desc: 'Moderno y audaz', colors: { p: 'var(--primary)', s: 'var(--primary-dark)', a: 'var(--accent)' }, font: 'Archivo' },
-            { id: 'minimal', name: 'Minimal', desc: 'Limpio y elegante', colors: { p: '#18181b', s: '#71717a', a: 'var(--warning)' }, font: 'Inter' },
-            { id: 'tech', name: 'Tech', desc: 'Para electrónica', colors: { p: '#0ea5e9', s: '#0c4a6e', a: '#22c55e' }, font: 'Space Grotesk' },
-            { id: 'classic', name: 'Classic', desc: 'Profesional neutro', colors: { p: 'var(--primary)', s: 'var(--primary-dark)', a: 'var(--warning)' }, font: 'Open Sans' },
-            { id: 'dark', name: 'Dark Pro', desc: 'Oscuro premium', colors: { p: '#a78bfa', s: '#1e1b4b', a: '#f472b6' }, font: 'Outfit' },
-          ].map(t => (
-            <div key={t.id} onClick={() => setDes({ ...des, plantilla: t.id, color_primario: t.colors.p, color_secundario: t.colors.s, color_acento: t.colors.a, fuente: t.font })}
-              className="card" style={{ padding: 12, cursor: 'pointer', border: des.plantilla === t.id ? '2px solid var(--primary)' : '1px solid var(--border)', textAlign: 'center' }}>
-              <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8 }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.colors.p }} />
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.colors.s }} />
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.colors.a }} />
-              </div>
-              <strong style={{ fontSize: 13 }}>{t.name}</strong>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.desc}</div>
-              {des.plantilla === t.id && <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>✓ Activa</div>}
-            </div>
-          ))}
+    <div className="editor-visual">
+      {/* Barra superior */}
+      <div className="editor-topbar">
+        <div>
+          <h3 style={{ fontWeight: 900, fontSize: 18, margin: 0 }}>Personalizar tienda</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Editá y mirá el resultado en vivo. Cuando te guste, aplicá.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {dirty && <button className="btn btn-outline btn-sm" onClick={descartar}>Descartar</button>}
+          <button className="btn btn-primary btn-sm" onClick={guardar} disabled={saving || !dirty}>{saving ? 'Aplicando...' : dirty ? 'Aplicar cambios' : '✓ Aplicado'}</button>
         </div>
       </div>
 
-      {/* PALETAS DE COLORES PREDEFINIDAS */}
-      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <h4 style={{ marginBottom: 12 }}>🎯 Paletas de colores</h4>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aplicá una paleta rápida o editá los colores individuales abajo.</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[
-            { name: 'Azul Pro', p: 'var(--primary)', s: 'var(--primary-dark)', a: 'var(--warning)' },
-            { name: 'Verde Negocio', p: 'var(--success)', s: '#15803d', a: '#eab308' },
-            { name: 'Rojo Audaz', p: '#dc2626', s: '#991b1b', a: '#f97316' },
-            { name: 'Violeta', p: '#7c3aed', s: '#5b21b6', a: '#f472b6' },
-            { name: 'Naranja', p: '#ea580c', s: '#c2410c', a: '#facc15' },
-            { name: 'Turquesa', p: '#0891b2', s: '#155e75', a: '#34d399' },
-            { name: 'Rosa', p: '#db2777', s: '#9d174d', a: '#fbbf24' },
-            { name: 'Negro Gold', p: '#18181b', s: '#27272a', a: '#d4a853' },
-          ].map(pal => (
-            <button key={pal.name} onClick={() => setDes({ ...des, color_primario: pal.p, color_secundario: pal.s, color_acento: pal.a })}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 12 }}>
-              <div style={{ display: 'flex', gap: 2 }}>
-                <div style={{ width: 14, height: 14, borderRadius: '50%', background: pal.p }} />
-                <div style={{ width: 14, height: 14, borderRadius: '50%', background: pal.s }} />
-                <div style={{ width: 14, height: 14, borderRadius: '50%', background: pal.a }} />
+      <div className="editor-body">
+        {/* PANEL IZQUIERDO — controles */}
+        <div className="editor-panel">
+          <div className="editor-tabs">
+            {TABS.map(t => <button key={t.id} className={`editor-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+          </div>
+
+          <div className="editor-controls">
+            {/* TEMAS COMPLETOS */}
+            {tab === 'temas' && (
+              <div>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Elegí un tema completo para arrancar. Cambia colores, fuente y estilos de una. Después ajustás lo que quieras.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {THEME_PRESETS.map(t => (
+                    <div key={t.id} onClick={() => aplicarTema(t)}
+                      style={{ padding: 12, cursor: 'pointer', borderRadius: 12, border: des.plantilla === t.id ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                        {swatch(t.p)}{swatch(t.s)}{swatch(t.a)}
+                      </div>
+                      <strong style={{ fontSize: 13, fontFamily: `'${t.font}', sans-serif` }}>{t.name}</strong>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.desc}</div>
+                      {des.plantilla === t.id && <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4, fontWeight: 700 }}>✓ Activo</div>}
+                    </div>
+                  ))}
+                </div>
               </div>
-              {pal.name}
-            </button>
-          ))}
-        </div>
-      </div>
+            )}
 
-      <div className="card" style={{ padding: 16 }}>
-        <div className="form-group"><label className="form-label">Nombre de la tienda</label><input value={des.nombre_tienda || ''} onChange={e => setDes({ ...des, nombre_tienda: e.target.value })} /></div>
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Logo</label>
-            <input type="file" accept="image/*" onChange={e => { if (e.target.files[0]) handleFileUpload('logo_url', e.target.files[0]); }} />
-            {des.logo_url && <img src={des.logo_url} alt="" style={{ height: 40, marginTop: 8 }} />}
-            <input value={des.logo_url || ''} onChange={e => setDes({ ...des, logo_url: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+            {/* COLORES */}
+            {tab === 'colores' && (
+              <div>
+                <label className="form-label" style={{ marginBottom: 8 }}>Paletas rápidas</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+                  {COLOR_PALETTES.map(pal => (
+                    <button key={pal.name} onClick={() => set({ color_primario: pal.p, color_secundario: pal.s, color_acento: pal.a })}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 12 }}>
+                      <div style={{ display: 'flex', gap: 2 }}>{swatch(pal.p)}{swatch(pal.s)}{swatch(pal.a)}</div>
+                      {pal.name}
+                    </button>
+                  ))}
+                </div>
+                <label className="form-label" style={{ marginBottom: 8 }}>Colores individuales</label>
+                {[
+                  ['color_primario', 'Primario (botones, links)', '#4A69E2'],
+                  ['color_secundario', 'Secundario (títulos oscuros)', '#232321'],
+                  ['color_acento', 'Acento (badges, ofertas)', '#FFA52F'],
+                  ['color_fondo', 'Fondo de la página', '#F3F3F3'],
+                  ['color_texto', 'Texto principal', '#232321'],
+                ].map(([k, lbl, def]) => (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <input type="color" value={des[k] || def} onChange={e => set({ [k]: e.target.value })} style={{ width: 44, height: 36, padding: 2, borderRadius: 8, cursor: 'pointer' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{lbl}</div>
+                      <input value={des[k] || def} onChange={e => set({ [k]: e.target.value })} style={{ fontSize: 12, padding: '4px 8px', width: 120 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* TIPOGRAFÍA */}
+            {tab === 'tipografia' && (
+              <div>
+                <label className="form-label" style={{ marginBottom: 8 }}>Fuente de la tienda</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {FONT_OPTIONS.map(f => (
+                    <button key={f.id} onClick={() => { ensureFont(f.id); set({ fuente: f.id }); }}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, border: des.fuente === f.id || (!des.fuente && f.id === 'Archivo') ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left' }}>
+                      <span style={{ fontFamily: `'${f.id}', sans-serif`, fontSize: 17, fontWeight: 700 }}>{f.label}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{f.cat}</span>
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>Cada fuente se carga de Google Fonts. El preview de la derecha te muestra cómo queda.</p>
+              </div>
+            )}
+
+            {/* ESTILOS (bordes, sombras, cards) */}
+            {tab === 'estilos' && (
+              <div>
+                <label className="form-label" style={{ marginBottom: 8 }}>Esquinas (bordes redondeados)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+                  {Object.entries(RADIUS_STYLES).map(([k, v]) => (
+                    <button key={k} onClick={() => set({ estilo_bordes: k })}
+                      style={{ padding: 12, borderRadius: v.card, border: (des.estilo_bordes || 'redondeado') === k ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer' }}>
+                      <div style={{ width: '100%', height: 28, background: 'var(--primary-light)', borderRadius: v.card, marginBottom: 6 }} />
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{v.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <label className="form-label" style={{ marginBottom: 8 }}>Sombra de las tarjetas</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+                  {Object.entries(SHADOW_STYLES).map(([k, v]) => (
+                    <button key={k} onClick={() => set({ estilo_sombra: k })}
+                      style={{ padding: 12, borderRadius: 10, border: (des.estilo_sombra || 'suave') === k ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer' }}>
+                      <div style={{ width: '100%', height: 28, background: '#fff', borderRadius: 8, marginBottom: 6, boxShadow: v.shadow }} />
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{v.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <label className="form-label" style={{ marginBottom: 8 }}>Estilo de las tarjetas de producto</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {Object.entries(CARD_STYLES).map(([k, v]) => (
+                    <button key={k} onClick={() => set({ estilo_card: k })}
+                      style={{ padding: '10px 14px', borderRadius: 10, border: (des.estilo_card || 'elevado') === k ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left', fontSize: 13, fontWeight: 600 }}>
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* LOGO Y TEXTOS */}
+            {tab === 'logo' && (
+              <div>
+                <div className="form-group"><label className="form-label">Nombre de la tienda</label><input value={des.nombre_tienda || ''} onChange={e => set({ nombre_tienda: e.target.value })} /></div>
+                <div className="form-group">
+                  <label className="form-label">Logo</label>
+                  <input type="file" accept="image/*" onChange={e => { if (e.target.files[0]) handleFileUpload('logo_url', e.target.files[0]); }} />
+                  {des.logo_url && <img src={des.logo_url} alt="" style={{ height: 40, marginTop: 8 }} />}
+                  <input value={des.logo_url || ''} onChange={e => set({ logo_url: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Favicon</label>
+                  <input type="file" accept="image/*" onChange={e => { if (e.target.files[0]) handleFileUpload('favicon_url', e.target.files[0]); }} />
+                  {des.favicon_url && <img src={des.favicon_url} alt="" style={{ height: 24, marginTop: 8 }} />}
+                  <input value={des.favicon_url || ''} onChange={e => set({ favicon_url: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+                </div>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+                  <h4 style={{ marginBottom: 8, fontSize: 14 }}>📝 Textos de la landing</h4>
+                  <div className="form-group"><label className="form-label">Título del hero</label><input value={des.hero_titulo || ''} onChange={e => set({ hero_titulo: e.target.value })} placeholder="Tu título principal" /></div>
+                  <div className="form-group"><label className="form-label">Subtítulo del hero</label><input value={des.hero_subtitulo || ''} onChange={e => set({ hero_subtitulo: e.target.value })} placeholder="Descripción corta" /></div>
+                  <div className="form-group"><label className="form-label">Texto del footer</label><input value={des.footer_texto || ''} onChange={e => set({ footer_texto: e.target.value })} /></div>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+                  <h4 style={{ marginBottom: 8, fontSize: 14 }}>💬 WhatsApp flotante</h4>
+                  <div className="form-group"><label className="form-label">Número (con código país, sin +)</label><input value={des.whatsapp_numero || ''} onChange={e => set({ whatsapp_numero: e.target.value })} placeholder="5491100000000" /></div>
+                  <div className="form-group"><label className="form-label">Mensaje inicial</label><input value={des.whatsapp_mensaje || ''} onChange={e => set({ whatsapp_mensaje: e.target.value })} placeholder="Hola, quiero consultar..." /></div>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+                  <h4 style={{ marginBottom: 8, fontSize: 14 }}>🛡️ Tarjetas de confianza</h4>
+                  {[1, 2, 3].map(n => (
+                    <div key={n} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div style={{ width: 150 }}><IconPicker label={`Ícono ${n}`} value={des[`confianza_${n}_icono`] || ''} onChange={v => set({ [`confianza_${n}_icono`]: v })} /></div>
+                      <input value={des[`confianza_${n}_titulo`] || ''} onChange={e => set({ [`confianza_${n}_titulo`]: e.target.value })} style={{ flex: 1, minWidth: 110 }} placeholder="Título" />
+                      <input value={des[`confianza_${n}_sub`] || ''} onChange={e => set({ [`confianza_${n}_sub`]: e.target.value })} style={{ flex: 1, minWidth: 110 }} placeholder="Subtítulo" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <div className="form-group">
-            <label className="form-label">Favicon</label>
-            <input type="file" accept="image/*" onChange={e => { if (e.target.files[0]) handleFileUpload('favicon_url', e.target.files[0]); }} />
-            {des.favicon_url && <img src={des.favicon_url} alt="" style={{ height: 24, marginTop: 8 }} />}
-            <input value={des.favicon_url || ''} onChange={e => setDes({ ...des, favicon_url: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+        </div>
+
+        {/* PANEL DERECHO — preview en vivo */}
+        <div className="editor-preview">
+          <div className="editor-preview-bar">
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Vista previa en vivo</span>
+            <button className="btn btn-outline btn-sm" onClick={() => setPreviewKey(k => k + 1)} title="Recargar preview"><Ico n="refresh-cw" s={14} /></button>
           </div>
-        </div>
-        <div className="form-row">
-          <div className="form-group"><label className="form-label">Color primario</label><input type="color" value={des.color_primario || 'var(--primary)'} onChange={e => setDes({ ...des, color_primario: e.target.value })} /></div>
-          <div className="form-group"><label className="form-label">Color secundario</label><input type="color" value={des.color_secundario || 'var(--primary-dark)'} onChange={e => setDes({ ...des, color_secundario: e.target.value })} /></div>
-          <div className="form-group"><label className="form-label">Color acento</label><input type="color" value={des.color_acento || 'var(--warning)'} onChange={e => setDes({ ...des, color_acento: e.target.value })} /></div>
-        </div>
-        <div className="form-group"><label className="form-label">Texto del footer</label><input value={des.footer_texto || ''} onChange={e => setDes({ ...des, footer_texto: e.target.value })} /></div>
-
-        {/* Editable texts */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-          <h4 style={{ marginBottom: 8 }}>📝 Textos de la Landing</h4>
-          <div className="form-group"><label className="form-label">Título del hero</label><input value={des.hero_titulo || ''} onChange={e => setDes({ ...des, hero_titulo: e.target.value })} placeholder="Tu título principal" /></div>
-          <div className="form-group"><label className="form-label">Subtítulo del hero</label><input value={des.hero_subtitulo || ''} onChange={e => setDes({ ...des, hero_subtitulo: e.target.value })} placeholder="Descripción corta de tu tienda" /></div>
-          <div className="form-group"><label className="form-label">Texto del banner superior (marquee)</label><input value={des.promo_banner || ''} onChange={e => setDes({ ...des, promo_banner: e.target.value })} placeholder="Se usa si no hay badges. Ej: Envíos a todo el país" /></div>
-        </div>
-
-        {/* WhatsApp */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-          <h4 style={{ marginBottom: 8 }}>💬 WhatsApp flotante</h4>
-          <div className="form-group"><label className="form-label">Número (con código país, sin +)</label><input value={des.whatsapp_numero || ''} onChange={e => setDes({ ...des, whatsapp_numero: e.target.value })} placeholder="5491100000000" /></div>
-          <div className="form-group"><label className="form-label">Mensaje inicial</label><input value={des.whatsapp_mensaje || ''} onChange={e => setDes({ ...des, whatsapp_mensaje: e.target.value })} placeholder="Hola, quiero consultar..." /></div>
-        </div>
-
-        {/* Tarjetas de confianza */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-          <h4 style={{ marginBottom: 8 }}>🛡️ Tarjetas de confianza (hero)</h4>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Se muestran al lado del buscador en la landing.</p>
-          {[1, 2, 3].map(n => (
-            <div key={n} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ width: 160 }}><IconPicker label={`Ícono ${n}`} value={des[`confianza_${n}_icono`] || ''} onChange={v => setDes({ ...des, [`confianza_${n}_icono`]: v })} /></div>
-              <input value={des[`confianza_${n}_titulo`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_titulo`]: e.target.value })} style={{ flex: 1, minWidth: 120 }} placeholder="Título" />
-              <input value={des[`confianza_${n}_sub`] || ''} onChange={e => setDes({ ...des, [`confianza_${n}_sub`]: e.target.value })} style={{ flex: 1, minWidth: 120 }} placeholder="Subtítulo" />
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={guardar}>Guardar diseño</button>
-          <button className="btn btn-outline" onClick={resetDefaults}>🔄 Reset colores</button>
+          <div className="editor-preview-frame">
+            <iframe
+              key={previewKey}
+              ref={iframeRef}
+              src="/?preview=1"
+              title="preview"
+              onLoad={applyToPreview}
+              style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+            />
+          </div>
         </div>
       </div>
     </div>
