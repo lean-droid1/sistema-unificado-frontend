@@ -1165,7 +1165,7 @@ function Landing() {
         </div>
       )}
 
-      {/* ── OFERTAS DESTACADAS ── productos con precio_oferta */}
+      {/* ── OFERTAS DESTACADAS ── carrusel horizontal */}
       {!globalResults && (() => {
         const ofertas = [];
         for (const s of secciones) {
@@ -1181,14 +1181,14 @@ function Landing() {
                 <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>OFERTAS</span>
               </h2>
             </div>
-            <div className="product-grid">
-              {ofertas.slice(0, 8).map(p => <ProductCard key={`of-${p.id}`} p={p} secId={p._secId} />)}
+            <div className="carousel-track">
+              {ofertas.slice(0, 12).map(p => <div className="carousel-item" key={`of-${p.id}`}><ProductCard p={p} secId={p._secId} /></div>)}
             </div>
           </div>
         );
       })()}
 
-      {/* ── NOVEDADES ── productos más nuevos */}
+      {/* ── NOVEDADES ── carrusel horizontal */}
       {!globalResults && novedades.length > 0 && (
         <div style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -1197,13 +1197,13 @@ function Landing() {
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>Lo último que sumamos</span>
             </h2>
           </div>
-          <div className="product-grid">
-            {novedades.slice(0, 8).map(p => <ProductCard key={`nov-${p.id}`} p={p} secId={p.seccion_id} />)}
+          <div className="carousel-track">
+            {novedades.slice(0, 12).map(p => <div className="carousel-item" key={`nov-${p.id}`}><ProductCard p={p} secId={p.seccion_id} /></div>)}
           </div>
         </div>
       )}
 
-      {/* ── PRODUCTS PER SECTION ── */}
+      {/* ── PRODUCTS PER SECTION ── carruseles horizontales */}
       {!globalResults && secciones.map(s => {
         const prods = secProds[s.id] || [];
         if (!prods.length) return null;
@@ -1216,8 +1216,8 @@ function Landing() {
                 Ver todos →
               </button>
             </div>
-            <div className="product-grid">
-              {prods.slice(0, 8).map(p => <ProductCard key={p.id} p={p} secId={s.id} />)}
+            <div className="carousel-track">
+              {prods.slice(0, 12).map(p => <div className="carousel-item" key={p.id}><ProductCard p={p} secId={s.id} /></div>)}
             </div>
           </div>
         );
@@ -6076,6 +6076,27 @@ function AdminMetodosPago() {
         <div className="form-group"><label className="form-label">Descuento (%)</label><input type="number" value={descuentoPct} onChange={e => setDescuentoPct(e.target.value)} placeholder="Ej: 10 (vacío = sin descuento)" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Se muestra el precio con este descuento en el detalle del producto.</small></div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={form.activo !== false} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
       </div><div className="modal-footer"><button className="btn btn-outline" onClick={() => setShow(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div></div></div>)}
+
+      {/* Ajustes recargo/descuento por defecto al registrar pagos */}
+      <div style={{ marginTop: 24, paddingTop: 16, borderTop: '2px solid var(--border)' }}>
+        <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Recargo / descuento por defecto (%)</h4>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Se precarga al registrar un pago con ese método (lo podés cambiar en cada pago). Positivo = recargo, negativo = descuento.</p>
+        {(() => {
+          let aj = {}; try { aj = config.ajustes_metodo ? JSON.parse(config.ajustes_metodo) : {}; } catch {}
+          const setAj = async (metodo, val) => { const nuevo = { ...aj, [metodo]: Number(val) || 0 }; const newCfg = { ...config, ajustes_metodo: JSON.stringify(nuevo) }; try { await api.updateConfig({ ajustes_metodo: JSON.stringify(nuevo) }); setConfig(newCfg); } catch {} };
+          const metodos = ['efectivo', 'transferencia', 'débito', 'crédito', 'mercadopago'];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {metodos.map(m => (
+                <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 120, fontSize: 13, textTransform: 'capitalize' }}>{m}</span>
+                  <input type="number" defaultValue={aj[m] ?? 0} onBlur={e => setAj(m, e.target.value)} style={{ width: 90 }} /> <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 }
@@ -6708,8 +6729,6 @@ function AdminConfig() {
           <div className="form-group"><label className="form-label">Info de envíos (para clientes)</label><textarea value={c.info_envios || ''} onChange={e => setC({ ...c, info_envios: e.target.value })} rows={3} /></div>
         </div>
 
-        {/* Los descuentos por método de pago se configuran ahora en la sección "Métodos de pago" */}
-
         {/* Dolar blue manual fallback */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
           <div className="form-group"><label className="form-label">Dólar blue manual (fallback si la API falla)</label><input type="number" value={c.dolar_blue || ''} onChange={e => setC({ ...c, dolar_blue: e.target.value })} placeholder="Se busca automáticamente de dolarapi.com" /></div>
@@ -6721,26 +6740,6 @@ function AdminConfig() {
             Ofrecer opción de factura en el checkout
           </label>
           <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Si lo desactivás, el cliente no ve el paso de facturación al comprar. Vos elegís después cuáles pedidos facturar.</small>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-          <label className="form-label" style={{ marginBottom: 4 }}>Recargo/descuento por defecto por método de pago (%)</label>
-          <small style={{ color: 'var(--text-muted)', fontSize: 12, display: 'block', marginBottom: 8 }}>Se precarga al registrar un pago con ese método (lo podés cambiar en cada pago). Positivo = recargo, negativo = descuento. Ej: transferencia 10, efectivo -5.</small>
-          {(() => {
-            let aj = {}; try { aj = c.ajustes_metodo ? JSON.parse(c.ajustes_metodo) : {}; } catch {}
-            const setAj = (metodo, val) => { const nuevo = { ...aj, [metodo]: Number(val) || 0 }; setC({ ...c, ajustes_metodo: JSON.stringify(nuevo) }); };
-            const metodos = ['efectivo', 'transferencia', 'débito', 'crédito', 'mercadopago'];
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {metodos.map(m => (
-                  <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 120, fontSize: 13, textTransform: 'capitalize' }}>{m}</span>
-                    <input type="number" value={aj[m] ?? 0} onChange={e => setAj(m, e.target.value)} style={{ width: 90 }} /> <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
         </div>
 
         <button className="btn btn-primary" onClick={saveAll} style={{ marginTop: 16, width: '100%' }}>Guardar configuración</button>
