@@ -485,19 +485,15 @@ export default function App() {
 
   // Dark mode — el tema puede forzar el modo. Si design tiene modo_tema/plantilla con modo,
   // ese manda sobre el toggle del usuario. Si no, vale el toggle manual.
-  const themeMode = (() => {
-    if (design.modo_tema) return design.modo_tema;
-    const preset = THEME_PRESETS.find(t => t.id === design.plantilla);
-    return preset ? preset.mode : null;
-  })();
+  const themeMode = design.modo_tema || (THEME_PRESETS.find(t => t.id === design.plantilla)?.mode) || null;
   const effectiveDark = themeMode ? (themeMode === 'dark') : dark;
+  // clave estable de las variables de diseño relevantes (evita re-correr el efecto en cada render)
+  const designKey = [design.plantilla, design.modo_tema, design.color_primario, design.color_secundario, design.color_acento, design.color_fondo, design.color_card, design.color_texto, design.color_header, design.color_marquee, design.fuente, design.estilo_bordes, design.estilo_sombra, design.estilo_card].join('|');
   useEffect(() => {
     document.documentElement.classList.toggle('dark', effectiveDark);
     localStorage.setItem('gm_dark', dark);
-    if (design && (design.plantilla || design.modo_tema)) {
-      setTimeout(() => applyDesignVars(design), 0);
-    }
-  }, [effectiveDark, dark, design]);
+    applyDesignVars(design);
+  }, [effectiveDark, dark, designKey]);
 
   // Save cart
   useEffect(() => { localStorage.setItem('gm_cart', JSON.stringify(cart)); }, [cart]);
