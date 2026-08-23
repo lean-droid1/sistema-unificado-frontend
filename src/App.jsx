@@ -2790,7 +2790,7 @@ function AdminPanel() {
     productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos',
     usuarios: 'usuarios',
     envios: 'config', metodos_pago: 'config',
-    diseno: 'config', barras: 'config', menu: 'config', paginas: 'config', contactos: 'config',
+    diseno: 'config',
     general: 'config',
   };
 
@@ -2932,14 +2932,10 @@ function AdminPanel() {
         {adminTab === 'reportes' && <AdminReportes />}
         {adminTab === 'caja' && <AdminCaja />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
-        {adminTab === 'menu' && <AdminMenu />}
         {adminTab === 'envios' && <AdminEnviosCustom />}
         {adminTab === 'diseno' && <AdminDisenoHub />}
         {adminTab === 'general' && <AdminGeneralHub />}
         {adminTab === 'analytics' && <AdminAnalytics />}
-        {adminTab === 'barras' && <AdminBarras />}
-        {adminTab === 'contactos' && <AdminContactos />}
-        {adminTab === 'paginas' && <AdminPaginas />}
         {adminTab === 'leads' && <AdminLeads />}
       </div>
     </div>
@@ -2948,24 +2944,34 @@ function AdminPanel() {
 
 // ── Hub de Diseño: sub-pestañas internas (Colores/Logo, Slider, Banners, Badges, Pop-ups, Redes, Novedades) ──
 function AdminDisenoHub() {
-  const [sub, setSub] = useState('tema');
+  const [sub, setSub] = useState('editor');
   const subs = [
-    { id: 'tema', label: 'Colores y logo' },
-    { id: 'slider', label: 'Slider' },
-    { id: 'badges', label: 'Badges' },
-    { id: 'popups', label: 'Pop-ups' },
-    { id: 'redes', label: 'Redes sociales' },
+    { id: 'editor', label: '🎨 Tema y estilos' },
+    { id: 'slider', label: '🖼️ Slider / Banners' },
+    { id: 'barras', label: '📢 Barras de texto' },
+    { id: 'orden', label: '↕️ Orden de secciones' },
+    { id: 'menu', label: '☰ Menú' },
+    { id: 'paginas', label: '📄 Páginas' },
+    { id: 'badges', label: '🏷️ Badges' },
+    { id: 'popups', label: '💬 Pop-ups' },
+    { id: 'redes', label: '📱 Redes sociales' },
+    { id: 'contactos', label: '📞 Contactos WhatsApp' },
   ];
   return (
     <div>
-      <div className="admin-subtabs">
+      <div className="admin-subtabs" style={{ flexWrap: 'wrap' }}>
         {subs.map(s => <button key={s.id} className={`admin-subtab ${sub === s.id ? 'active' : ''}`} onClick={() => setSub(s.id)}>{s.label}</button>)}
       </div>
-      {sub === 'tema' && <AdminDiseno />}
+      {sub === 'editor' && <AdminDiseno />}
       {sub === 'slider' && <AdminSlider />}
+      {sub === 'barras' && <AdminBarras />}
+      {sub === 'orden' && <AdminOrdenSecciones />}
+      {sub === 'menu' && <AdminMenu />}
+      {sub === 'paginas' && <AdminPaginas />}
       {sub === 'badges' && <AdminBadges />}
       {sub === 'popups' && <AdminPopups />}
       {sub === 'redes' && <AdminRedes />}
+      {sub === 'contactos' && <AdminContactos />}
     </div>
   );
 }
@@ -6203,6 +6209,47 @@ function AdminPaginas() {
 }
 
 // ─── DRAG & DROP REORDER ───
+// ─── ADMIN: Orden de secciones (drag & drop) ───
+function AdminOrdenSecciones() {
+  const { secciones, setSecciones, toast } = useContext(Ctx);
+  const [items, setItems] = useState([]);
+  useEffect(() => { setItems([...secciones].sort((a, b) => (a.orden || 0) - (b.orden || 0))); }, [secciones]);
+  const saveOrder = async (re) => {
+    setSecciones(re);
+    for (const s of re) { await api.updateSeccion(s.id, { ...s }).catch(() => {}); }
+    toast('Orden guardado');
+  };
+  const dnd = useDnDReorder(items, setItems, saveOrder);
+  const toggleVisible = async (s) => {
+    const nv = s.visible === false ? true : false;
+    const upd = items.map(x => x.id === s.id ? { ...x, visible: nv } : x);
+    setItems(upd); setSecciones(upd);
+    await api.updateSeccion(s.id, { ...s, visible: nv }).catch(() => {});
+  };
+  return (
+    <div style={{ maxWidth: 620 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 18, marginBottom: 4 }}>Orden de las secciones</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Arrastrá para cambiar el orden en que aparecen las secciones (tiendas) en la barra del menú y en la landing. Podés ocultar una sin borrarla.</p>
+      {items.map((s, i) => (
+        <div key={s.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()}
+          className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 12, opacity: s.visible === false ? 0.5 : 1 }}>
+          <span style={{ opacity: 0.35, fontSize: 18 }}>⠿</span>
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: s.color || 'var(--primary)', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <strong style={{ fontSize: 14 }}>{s.nombre}</strong>
+            {s.requiere_aprobacion && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>🔒 con aprobación</span>}
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{i + 1}</span>
+          <button className="btn btn-outline btn-sm" onClick={() => toggleVisible(s)} title={s.visible === false ? 'Mostrar' : 'Ocultar'}>
+            <Ico n={s.visible === false ? 'eye-off' : 'eye'} s={15} />
+          </button>
+        </div>
+      ))}
+      {items.length === 0 && <div className="empty-state"><p>No hay secciones todavía.</p></div>}
+    </div>
+  );
+}
+
 function useDnDReorder(items, setItems, onSave) {
   const drag = useRef(null); const over = useRef(null);
   const start = (i) => { drag.current = i; };
@@ -7030,13 +7077,10 @@ function AdminConfig() {
     <div>
       <h3 style={{ marginBottom: 12 }}>Configuración general</h3>
       <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <div className="form-group"><label className="form-label">Nombre del negocio</label><input value={c.nombre_negocio || ''} onChange={e => setC({ ...c, nombre_negocio: e.target.value })} /></div>
-        <div className="form-group"><label className="form-label">WhatsApp (sin +)</label><input value={c.whatsapp || ''} onChange={e => setC({ ...c, whatsapp: e.target.value })} placeholder="5491100000000" /></div>
-        <div className="form-group"><label className="form-label">WhatsApp flotante (si es diferente)</label><input value={c.whatsapp_flotante || ''} onChange={e => setC({ ...c, whatsapp_flotante: e.target.value })} placeholder="5491100000000" /></div>
-        <div className="form-group"><label className="form-label">Logo</label>
-          <input type="file" accept="image/*" onChange={e => { if (e.target.files[0]) handleLogoUpload(e.target.files[0]); }} />
-          {c.logo && <img src={c.logo} alt="" style={{ height: 50, marginTop: 8 }} />}
+        <div style={{ background: 'var(--border-light)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-secondary)' }}>
+          ℹ️ El nombre, logo, favicon y WhatsApp de la tienda ahora se editan desde <strong>Personalizar tienda</strong> (con vista previa). Acá quedan solo los ajustes internos del negocio.
         </div>
+        <div className="form-group"><label className="form-label">Nombre del negocio (interno, para remitos)</label><input value={c.nombre_negocio || ''} onChange={e => setC({ ...c, nombre_negocio: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">Lista para vitrina (mayorista sin login)</label>
           <select value={c.vitrina_lista || ''} onChange={e => setC({ ...c, vitrina_lista: e.target.value })}>
             <option value="">Sin vitrina</option>{listas.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
