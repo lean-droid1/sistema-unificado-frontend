@@ -405,7 +405,11 @@ function useToast() {
 export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1') return 'landing';
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('preview') === '1') return 'landing';
+      if (params.get('contacto') === '1') return 'contacto';
+    }
     const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv;
   });
   const [loading, setLoading] = useState(true);
@@ -479,16 +483,21 @@ export default function App() {
     api.trackSearch(term, data.total);
   }, [globalSearch]);
 
-  // Dark mode — el toggle del usuario. Si hay un tema con modo definido, re-aplicamos
-  // las variables del tema DESPUÉS para que el tema mande sobre la clase .dark.
+  // Dark mode — el tema puede forzar el modo. Si design tiene modo_tema/plantilla con modo,
+  // ese manda sobre el toggle del usuario. Si no, vale el toggle manual.
+  const themeMode = (() => {
+    if (design.modo_tema) return design.modo_tema;
+    const preset = THEME_PRESETS.find(t => t.id === design.plantilla);
+    return preset ? preset.mode : null;
+  })();
+  const effectiveDark = themeMode ? (themeMode === 'dark') : dark;
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('dark', effectiveDark);
     localStorage.setItem('gm_dark', dark);
     if (design && (design.plantilla || design.modo_tema)) {
-      // el tema pisa la base del toggle
       setTimeout(() => applyDesignVars(design), 0);
     }
-  }, [dark, design]);
+  }, [effectiveDark, dark, design]);
 
   // Save cart
   useEffect(() => { localStorage.setItem('gm_cart', JSON.stringify(cart)); }, [cart]);
@@ -723,6 +732,7 @@ export default function App() {
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
       case 'forgot': return <ForgotPasswordPage />;
       case 'info': return <InfoPage />;
+      case 'contacto': return <ContactoPage />;
       case 'favoritos': return user ? <FavoritosPage /> : <LoginPage />;
       case 'maintenance': return <MaintenancePage />;
       default: return <Landing />;
@@ -731,7 +741,7 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className={`app${dark ? ' dark' : ''}`}>
+      <div className={`app${effectiveDark ? ' dark' : ''}`}>
         <Header />
         <main className="main-content">{renderPage()}</main>
         <Footer />
@@ -895,7 +905,7 @@ function Header() {
           </div>
         )}
         <div className="header-right">
-          <button className="icon-btn desktop-only" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>
+          {!design.modo_tema && !THEME_PRESETS.find(t => t.id === design.plantilla) && <button className="icon-btn desktop-only" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>}
           {user && <button className="icon-btn desktop-only" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
           <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
             <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
@@ -944,7 +954,7 @@ function Header() {
       {/* MOBILE MENU */}
       {mobMenu && (
         <div className="mobile-menu" style={{ background: 'var(--bg-card)', padding: '16px 20px' }}>
-          <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? <Ico n="sun" s={18} /> : <Ico n="moon" s={18} />} {dark ? 'Modo claro' : 'Modo oscuro'}</button>
+          {!design.modo_tema && !THEME_PRESETS.find(t => t.id === design.plantilla) && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? <Ico n="sun" s={18} /> : <Ico n="moon" s={18} />} {dark ? 'Modo claro' : 'Modo oscuro'}</button>}
           {user && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setMobMenu(false); nav('favoritos'); }}><span style={{ color: 'var(--danger)', display: 'inline-flex' }}><Ico n="heart" s={18} fill /></span> Favoritos</button>}
           <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
           {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: '#fff', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
@@ -972,7 +982,7 @@ function Header() {
 // FOOTER
 // ═══════════════════════════════════════════════════════════
 function Footer() {
-  const { design, redesSociales, nav } = useContext(Ctx);
+  const { design, redesSociales, nav, secciones } = useContext(Ctx);
   const activas = redesSociales.filter(r => r.activo && r.url);
   const [infoPags, setInfoPags] = useState([]);
   useEffect(() => { api.getPaginas().then(setInfoPags).catch(() => {}); }, []);
@@ -984,23 +994,53 @@ function Footer() {
     whatsapp_grupo: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
   };
   return (
-    <footer className="footer" style={{ background: 'var(--bg-card)', padding: '48px 24px 32px' }}>
-      <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', textTransform: 'uppercase', marginBottom: 16 }}>
-          {design.nombre_tienda || 'MI TIENDA'}
+    <footer className="footer" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: '40px 24px 28px', marginTop: 40 }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        {/* Grid de columnas */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 28, marginBottom: 28 }}>
+          {/* Marca */}
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+              {design.nombre_tienda || 'MI TIENDA'}
+            </div>
+            {design.footer_desc && <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{design.footer_desc}</p>}
+          </div>
+          {/* Navegación */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Tienda</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <a href="#" onClick={e => { e.preventDefault(); nav('landing'); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>Inicio</a>
+              {secciones.filter(s => s.visible !== false).slice(0, 4).map(s => (
+                <a key={s.id} href="#" onClick={e => { e.preventDefault(); nav('section', s.id); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{s.nombre}</a>
+              ))}
+            </div>
+          </div>
+          {/* Info / páginas */}
+          {infoPags.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Información</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {infoPags.map(p => <a key={p.id} href="#" onClick={e => { e.preventDefault(); nav('info'); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
+              </div>
+            </div>
+          )}
+          {/* Contacto */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Contacto</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <a href="#" onClick={e => { e.preventDefault(); nav('contacto'); }} style={{ color: 'var(--primary)', fontSize: 13, fontWeight: 700 }}>Ver toda mi info →</a>
+              {design.whatsapp_numero && <a href={waLink(design.whatsapp_numero, design.whatsapp_mensaje || 'Hola!')} target="_blank" rel="noopener" style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>WhatsApp</a>}
+              {design.email_contacto && <a href={`mailto:${design.email_contacto}`} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{design.email_contacto}</a>}
+            </div>
+          </div>
         </div>
+        {/* Redes */}
         {activas.length > 0 && (
-          <div className="footer-social" style={{ marginBottom: 20 }}>
-            {activas.map(r => <a key={r.id} href={r.url} target="_blank" rel="noopener" style={{ color: 'rgba(255,255,255,0.6)' }}>{labels[r.tipo] || '🔗'} {r.tipo.replace('_', ' ')}</a>)}
+          <div className="footer-social" style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 20, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+            {activas.map(r => <a key={r.id} href={r.url} target="_blank" rel="noopener" style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>{labels[r.tipo] || '🔗'} <span style={{ textTransform: 'capitalize' }}>{r.tipo.replace('_', ' ')}</span></a>)}
           </div>
         )}
-        {infoPags.length > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
-            {infoPags.map(p => <a key={p.id} href="#" onClick={e => { e.preventDefault(); nav('info'); }} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
-          </div>
-        )}
-        <div style={{ width: 40, height: 3, background: 'var(--primary)', margin: '0 auto 16px', borderRadius: 2 }} />
-        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>{design.footer_texto || '© 2026 — Todos los derechos reservados'}</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>{design.footer_texto || `© ${new Date().getFullYear()} ${design.nombre_tienda || ''} — Todos los derechos reservados`}</p>
       </div>
     </footer>
   );
@@ -1137,6 +1177,108 @@ function MaintenancePage() {
 // ═══════════════════════════════════════════════════════════
 // INFO PAGE (renders paginas_info content)
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// PÁGINA DE CONTACTO — toda la info + compartir + QR
+// ═══════════════════════════════════════════════════════════
+function ContactoPage() {
+  const { nav, design, redesSociales, secciones, config, toast } = useContext(Ctx);
+  const activas = redesSociales.filter(r => r.activo && r.url);
+  const urlContacto = typeof window !== 'undefined' ? `${window.location.origin}/?contacto=1` : '';
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(urlContacto)}`;
+  const nombre = design.nombre_tienda || config.nombre_negocio || 'Mi tienda';
+
+  const compartir = async () => {
+    const texto = `📍 ${nombre}\n${design.contacto_desc || ''}\n${urlContacto}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: nombre, text: texto, url: urlContacto }); } catch {}
+    } else {
+      try { await navigator.clipboard.writeText(urlContacto); toast('Link copiado ✓'); } catch {}
+    }
+  };
+  const copiarLink = async () => { try { await navigator.clipboard.writeText(urlContacto); toast('Link copiado ✓'); } catch {} };
+
+  const redLabels = {
+    facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok',
+    whatsapp_canal: 'Canal de WhatsApp', whatsapp_grupo: 'Grupo de WhatsApp', youtube: 'YouTube',
+  };
+
+  const items = [];
+  if (design.whatsapp_numero) items.push({ icon: '💬', label: 'WhatsApp', value: design.whatsapp_numero, href: waLink(design.whatsapp_numero, design.whatsapp_mensaje || 'Hola!') });
+  if (design.email_contacto) items.push({ icon: '✉️', label: 'Email', value: design.email_contacto, href: `mailto:${design.email_contacto}` });
+  if (design.telefono_contacto) items.push({ icon: '📞', label: 'Teléfono', value: design.telefono_contacto, href: `tel:${design.telefono_contacto}` });
+  if (design.direccion) items.push({ icon: '📍', label: 'Dirección', value: design.direccion, href: `https://maps.google.com/?q=${encodeURIComponent(design.direccion)}` });
+  if (design.horario) items.push({ icon: '🕐', label: 'Horario', value: design.horario, href: null });
+
+  return (
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 20px' }}>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
+
+      <div className="card" style={{ padding: 32, borderRadius: 20, textAlign: 'center', marginBottom: 20 }}>
+        {design.logo_url && <img src={design.logo_url} alt="" style={{ height: 72, borderRadius: 16, marginBottom: 16 }} />}
+        <h1 style={{ fontWeight: 900, fontSize: 26, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>{nombre}</h1>
+        {design.contacto_desc && <p style={{ color: 'var(--text-secondary)', fontSize: 15, marginBottom: 4 }}>{design.contacto_desc}</p>}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={compartir}>📤 Compartir mi info</button>
+          <button className="btn btn-outline" onClick={copiarLink}>🔗 Copiar link</button>
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="card" style={{ padding: 8, borderRadius: 16, marginBottom: 20 }}>
+          {items.map((it, i) => {
+            const inner = (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: i < items.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                <span style={{ fontSize: 22 }}>{it.icon}</span>
+                <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{it.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-word' }}>{it.value}</div>
+                </div>
+                {it.href && <span style={{ color: 'var(--primary)', fontSize: 18 }}>→</span>}
+              </div>
+            );
+            return it.href
+              ? <a key={i} href={it.href} target="_blank" rel="noopener" style={{ display: 'block', textDecoration: 'none' }}>{inner}</a>
+              : <div key={i}>{inner}</div>;
+          })}
+        </div>
+      )}
+
+      {activas.length > 0 && (
+        <div className="card" style={{ padding: 20, borderRadius: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14, textAlign: 'center' }}>Seguime en redes</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+            {activas.map(r => (
+              <a key={r.id} href={r.url} target="_blank" rel="noopener" className="btn btn-outline" style={{ justifyContent: 'center', textTransform: 'capitalize' }}>
+                {redLabels[r.tipo] || r.tipo.replace('_', ' ')}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {secciones.filter(s => s.visible !== false).length > 0 && (
+        <div className="card" style={{ padding: 20, borderRadius: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14, textAlign: 'center' }}>Nuestras tiendas</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {secciones.filter(s => s.visible !== false).map(s => (
+              <button key={s.id} className="btn btn-outline" onClick={() => nav('section', s.id)} style={{ justifyContent: 'space-between' }}>
+                <span>{s.nombre}</span><span>→</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 24, borderRadius: 16, textAlign: 'center' }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Código QR de mi tienda</div>
+        <img src={qrUrl} alt="QR" style={{ width: 200, height: 200, borderRadius: 12, background: '#fff', padding: 8 }} />
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>Escaneá o imprimí este QR. Lleva directo a toda tu info de contacto.</p>
+        <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }} onClick={() => window.open(qrUrl, '_blank')}>Descargar QR</button>
+      </div>
+    </div>
+  );
+}
+
 function InfoPage() {
   const { nav, selectedProduct: pageData } = useContext(Ctx);
   const [paginas, setPaginas] = useState([]);
@@ -6628,6 +6770,16 @@ function AdminDiseno() {
                   <div className="form-group"><label className="form-label">Título del hero</label><input value={des.hero_titulo || ''} onChange={e => set({ hero_titulo: e.target.value })} placeholder="Tu título principal" /></div>
                   <div className="form-group"><label className="form-label">Subtítulo del hero</label><input value={des.hero_subtitulo || ''} onChange={e => set({ hero_subtitulo: e.target.value })} placeholder="Descripción corta" /></div>
                   <div className="form-group"><label className="form-label">Texto del footer</label><input value={des.footer_texto || ''} onChange={e => set({ footer_texto: e.target.value })} /></div>
+                  <div className="form-group"><label className="form-label">Descripción del footer (opcional)</label><input value={des.footer_desc || ''} onChange={e => set({ footer_desc: e.target.value })} placeholder="Frase corta bajo el nombre" /></div>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+                  <h4 style={{ marginBottom: 8, fontSize: 14 }}>📇 Página de contacto</h4>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Estos datos arman tu página de contacto (link + QR para compartir/imprimir).</p>
+                  <div className="form-group"><label className="form-label">Descripción / rubro</label><input value={des.contacto_desc || ''} onChange={e => set({ contacto_desc: e.target.value })} placeholder="Ej: Todo para el técnico" /></div>
+                  <div className="form-group"><label className="form-label">Email de contacto</label><input value={des.email_contacto || ''} onChange={e => set({ email_contacto: e.target.value })} placeholder="hola@mitienda.com" /></div>
+                  <div className="form-group"><label className="form-label">Teléfono</label><input value={des.telefono_contacto || ''} onChange={e => set({ telefono_contacto: e.target.value })} placeholder="+54 11 ..." /></div>
+                  <div className="form-group"><label className="form-label">Dirección</label><input value={des.direccion || ''} onChange={e => set({ direccion: e.target.value })} placeholder="Calle 123, Ciudad" /></div>
+                  <div className="form-group"><label className="form-label">Horario</label><input value={des.horario || ''} onChange={e => set({ horario: e.target.value })} placeholder="Lun a Vie 9-18hs" /></div>
                 </div>
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
                   <h4 style={{ marginBottom: 8, fontSize: 14 }}>💬 WhatsApp flotante</h4>
@@ -7081,6 +7233,7 @@ function AdminConfig() {
           ℹ️ El nombre, logo, favicon y WhatsApp de la tienda ahora se editan desde <strong>Personalizar tienda</strong> (con vista previa). Acá quedan solo los ajustes internos del negocio.
         </div>
         <div className="form-group"><label className="form-label">Nombre del negocio (interno, para remitos)</label><input value={c.nombre_negocio || ''} onChange={e => setC({ ...c, nombre_negocio: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">📧 Email para avisos de venta</label><input type="email" value={c.email_ventas || ''} onChange={e => setC({ ...c, email_ventas: e.target.value })} placeholder="tucorreo@gmail.com" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Te llega un mail cada vez que entra una venta online, con link directo a la orden. En el celular la app de mail te avisa.</small></div>
         <div className="form-group"><label className="form-label">Lista para vitrina (mayorista sin login)</label>
           <select value={c.vitrina_lista || ''} onChange={e => setC({ ...c, vitrina_lista: e.target.value })}>
             <option value="">Sin vitrina</option>{listas.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
