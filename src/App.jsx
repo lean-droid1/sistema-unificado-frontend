@@ -2569,8 +2569,10 @@ function AdminPanel() {
   // Mapa tab → permiso requerido
   const tabPerm = {
     dashboard: 'stats',
-    pedidos: 'pedidos', presupuestos: 'pedidos', leads: 'stats', reglas_compra: 'pedidos',
-    cupones: 'config', promociones: 'config', carritos: 'stats', reportes: 'stats', venta_manual: 'pedidos', ordenes_compra: 'pedidos',
+    pedidos: 'pedidos', presupuestos: 'pedidos', reglas_compra: 'pedidos',
+    venta_manual: 'pedidos', ordenes_compra: 'pedidos', caja: 'stats',
+    cupones: 'config', promociones: 'config', carritos: 'stats', reportes: 'stats',
+    leads: 'stats', analytics: 'config',
     productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos',
     usuarios: 'usuarios',
     envios: 'config', metodos_pago: 'config',
@@ -2586,14 +2588,10 @@ function AdminPanel() {
     { id: 'ventas', label: 'Ventas', icon: 'receipt', items: [
       { id: 'pedidos', label: 'Pedidos' },
       { id: 'presupuestos', label: 'Presupuestos' },
-      { id: 'venta_manual', label: 'Agregar venta' },
+      { id: 'venta_manual', label: 'Punto de venta' },
+      { id: 'caja', label: 'Caja / Arqueo' },
       { id: 'ordenes_compra', label: 'Órdenes de compra' },
       { id: 'reglas_compra', label: 'Reglas de compra' },
-      { id: 'cupones', label: 'Cupones' },
-      { id: 'promociones', label: 'Promociones' },
-      { id: 'carritos', label: 'Carritos abandonados' },
-      { id: 'reportes', label: 'Reportes' },
-      { id: 'leads', label: 'Leads WhatsApp' },
     ]},
     { id: 'catalogo', label: 'Catálogo', icon: 'box', items: [
       { id: 'productos', label: 'Productos' },
@@ -2602,8 +2600,16 @@ function AdminPanel() {
       { id: 'notif_stock', label: 'Avisos de stock' },
     ]},
     { id: 'clientes', label: 'Clientes', icon: 'users', single: 'usuarios' },
+    { id: 'marketing_grp', label: 'Marketing', icon: 'megaphone', items: [
+      { id: 'cupones', label: 'Cupones' },
+      { id: 'promociones', label: 'Promociones' },
+      { id: 'carritos', label: 'Carritos abandonados' },
+      { id: 'leads', label: 'Leads WhatsApp' },
+      { id: 'reportes', label: 'Reportes' },
+      { id: 'analytics', label: 'Analytics / Pixels' },
+    ]},
     { id: 'envios_grp', label: 'Envíos', icon: 'truck', single: 'envios' },
-    { id: 'pagos', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
+    { id: 'pagos_grp', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
     { id: 'diseno_grp', label: 'Diseño', icon: 'palette', single: 'diseno' },
     { id: 'contenido', label: 'Contenido', icon: 'file', items: [
       { id: 'barras', label: 'Barras de texto' },
@@ -2716,11 +2722,13 @@ function AdminPanel() {
         {adminTab === 'promociones' && <AdminPromociones />}
         {adminTab === 'carritos' && <AdminCarritosAbandonados />}
         {adminTab === 'reportes' && <AdminReportes />}
+        {adminTab === 'caja' && <AdminCaja />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
         {adminTab === 'menu' && <AdminMenu />}
         {adminTab === 'envios' && <AdminEnviosCustom />}
         {adminTab === 'diseno' && <AdminDisenoHub />}
         {adminTab === 'general' && <AdminGeneralHub />}
+        {adminTab === 'analytics' && <AdminAnalytics />}
         {adminTab === 'barras' && <AdminBarras />}
         {adminTab === 'contactos' && <AdminContactos />}
         {adminTab === 'paginas' && <AdminPaginas />}
@@ -2808,11 +2816,9 @@ function AdminGeneralHub() {
       <div className="admin-subtabs">
         <button className={`admin-subtab ${sub === 'config' ? 'active' : ''}`} onClick={() => setSub('config')}>Datos del negocio</button>
         <button className={`admin-subtab ${sub === 'tiendas' ? 'active' : ''}`} onClick={() => setSub('tiendas')}>Tiendas / Puntos de venta</button>
-        <button className={`admin-subtab ${sub === 'analytics' ? 'active' : ''}`} onClick={() => setSub('analytics')}>Marketing / Analytics</button>
       </div>
       {sub === 'config' && <AdminConfig />}
       {sub === 'tiendas' && <AdminTiendas />}
-      {sub === 'analytics' && <AdminAnalytics />}
     </div>
   );
 }
@@ -3039,43 +3045,47 @@ function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, 
 function PagoParcialInput({ total, pagosVenta, onAdd }) {
   const { config } = useContext(Ctx);
   const [metodo, setMetodo] = useState('efectivo');
-  const [monto, setMonto] = useState('');
+  const [cuentaComo, setCuentaComo] = useState('');
   const [ajustePct, setAjustePct] = useState(0);
   let ajustesMetodo = {};
   try { ajustesMetodo = config.ajustes_metodo ? JSON.parse(config.ajustes_metodo) : {}; } catch {}
-  const pagado = pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0);
-  const saldo = Math.max(0, total - pagado);
+  const saldado = pagosVenta.reduce((s, p) => s + Number(p.cuenta_como || 0), 0);
+  const saldo = Math.max(0, total - saldado);
+  const previewRec = Math.round((Number(cuentaComo) || 0) * (1 + (Number(ajustePct) || 0) / 100));
   const onMetodo = (m) => { setMetodo(m); setAjustePct(ajustesMetodo[m] !== undefined ? ajustesMetodo[m] : 0); };
   const add = () => {
-    const m = Number(monto);
-    if (!(m > 0)) return;
+    const cta = Number(cuentaComo);
+    if (!(cta > 0)) return;
     const pct = Number(ajustePct) || 0;
-    onAdd({ metodo, monto: m, ajuste_pct: pct, ajuste_monto: Math.round(m * pct / 100) });
-    setMonto(''); setAjustePct(ajustesMetodo[metodo] !== undefined ? ajustesMetodo[metodo] : 0);
+    const rec = Math.round(cta * (1 + pct / 100));
+    onAdd({ metodo, recibido: rec, cuenta_como: cta, ajuste_pct: pct });
+    setCuentaComo(''); setAjustePct(ajustesMetodo[metodo] !== undefined ? ajustesMetodo[metodo] : 0);
   };
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 6 }}>
-      <div style={{ flex: 1, minWidth: 100 }}>
-        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Método</label>
-        <select value={metodo} onChange={e => onMetodo(e.target.value)} style={{ width: '100%' }}>
-          <option value="efectivo">Efectivo</option>
-          <option value="transferencia">Transferencia</option>
-          <option value="débito">Débito</option>
-          <option value="crédito">Crédito</option>
-          <option value="mercadopago">MercadoPago</option>
-          <option value="otro">Otro</option>
-        </select>
+    <div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 6 }}>
+        <div style={{ flex: 1, minWidth: 100 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Método</label>
+          <select value={metodo} onChange={e => onMetodo(e.target.value)} style={{ width: '100%' }}>
+            <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="débito">Débito</option><option value="crédito">Crédito</option><option value="mercadopago">MercadoPago</option><option value="otro">Otro</option>
+          </select>
+        </div>
+        <div style={{ width: 110 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Salda</label>
+          <input type="number" value={cuentaComo} onChange={e => setCuentaComo(e.target.value)} placeholder="0" style={{ width: '100%' }} />
+        </div>
+        <div style={{ width: 68 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ajuste %</label>
+          <input type="number" value={ajustePct} onChange={e => setAjustePct(e.target.value)} placeholder="0" style={{ width: '100%' }} title="+ recargo, - descuento" />
+        </div>
+        <button className="btn btn-outline btn-sm" onClick={() => setCuentaComo(String(saldo))}>Resto</button>
+        <button className="btn btn-primary btn-sm" onClick={add}>+ Pago</button>
       </div>
-      <div style={{ width: 96 }}>
-        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Monto</label>
-        <input type="number" value={monto} onChange={e => setMonto(e.target.value)} placeholder="0" style={{ width: '100%' }} />
-      </div>
-      <div style={{ width: 70 }}>
-        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ajuste %</label>
-        <input type="number" value={ajustePct} onChange={e => setAjustePct(e.target.value)} placeholder="0" style={{ width: '100%' }} title="+ recargo, - descuento" />
-      </div>
-      <button className="btn btn-outline btn-sm" onClick={() => setMonto(String(saldo))}>Saldo</button>
-      <button className="btn btn-primary btn-sm" onClick={add}>+ Pago</button>
+      {Number(cuentaComo) > 0 && (
+        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+          Cobrale <strong style={{ color: 'var(--text)' }}>{fmtARS(previewRec)}</strong> en {metodo}{previewRec !== Number(cuentaComo) ? (previewRec < Number(cuentaComo) ? ` (descuento ${fmtARS(Number(cuentaComo) - previewRec)})` : ` (recargo ${fmtARS(previewRec - Number(cuentaComo))})`) : ''}
+        </div>
+      )}
     </div>
   );
 }
@@ -3196,19 +3206,19 @@ function AdminVentaManual() {
     if (!items.length) { toast('Agregá al menos un producto', 'warning'); return; }
     setSaving(true);
     try {
-      // Estado de pago según los pagos parciales (si se usaron)
-      const totalPag = pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0);
+      // Estado de pago según los pagos parciales (por cuenta_como = lo saldado)
+      const totalSald = pagosVenta.reduce((s, p) => s + Number(p.cuenta_como || 0), 0);
       let estadoPago = 'pagado';
       if (pagoParcial && pagosVenta.length) {
-        estadoPago = totalPag >= Number(total) - 0.01 ? 'pagado' : (totalPag > 0 ? 'senado' : 'impago');
+        estadoPago = totalSald >= Number(total) - 0.01 ? 'pagado' : (totalSald > 0 ? 'senado' : 'impago');
       }
       await api.createPedido({
         seccion_id: Number(seccionId), tipo: 'pedido', estado: 'entregado', estado_pago: estadoPago,
         usuario_id: cliente ? cliente.id : undefined,
         metodo_pago: pagoParcial && pagosVenta.length ? pagosVenta.map(p => p.metodo).join('+') : metodoPago,
         notas: notas || 'Venta de mostrador', subtotal: total, descuento: 0, total,
-        sena: (pagoParcial && estadoPago !== 'pagado') ? totalPag : 0,
-        pagos: pagoParcial && pagosVenta.length ? pagosVenta : [{ metodo: metodoPago, monto: total, ajuste_pct: 0, ajuste_monto: 0 }],
+        sena: (pagoParcial && estadoPago !== 'pagado') ? totalSald : 0,
+        pagos: pagoParcial && pagosVenta.length ? pagosVenta : [{ metodo: metodoPago, recibido: total, cuenta_como: total, ajuste_pct: 0 }],
         items: items.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario, precio_base: i.precio_base }))
       });
       toast(cliente ? `¡Venta registrada a ${cliente.nombre}!` : '¡Venta registrada! Stock descontado.');
@@ -3219,7 +3229,7 @@ function AdminVentaManual() {
 
   return (
     <div style={{ maxWidth: 800 }}>
-      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Agregar venta</h3>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Punto de venta</h3>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Venta de mostrador: buscá productos, ajustá cantidad y precio, y registrá. Descuenta stock y queda como pedido entregado y pagado. (Próximamente: escanear con la cámara.)</p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -3289,9 +3299,16 @@ function AdminVentaManual() {
         {resultados.length > 0 && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
             {resultados.map(p => (
-              <div key={p.id} onClick={() => agregar(p)} style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)' }}>
-                <span>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></span>
-                <span style={{ fontWeight: 700 }}>{fmtARS(p.precio_base)} <span style={{ fontSize: 11, color: p.stock > 0 ? 'var(--success)' : 'var(--danger)' }}>stock: {p.stock}</span></span>
+              <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
+                {p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📦</div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></div>
+                  {p.seccion_nombre && <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: p.seccion_color || '#888', display: 'inline-block' }}></span>{p.seccion_nombre}</div>}
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontWeight: 700 }}>{fmtARS(p.precio_base)}</div>
+                  <div style={{ fontSize: 11, color: p.stock > 0 ? 'var(--success)' : 'var(--danger)' }}>stock: {p.stock}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -3350,16 +3367,18 @@ function AdminVentaManual() {
         </label>
         {pagoParcial && (
           <div>
-            {pagosVenta.map((p, idx) => (
+            {pagosVenta.map((p, idx) => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border-light)' }}>
-                <span>{p.metodo}{Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><strong>{fmtARS(p.monto)}</strong><button onClick={() => setPagosVenta(pagosVenta.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer' }}>✕</button></span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, margin: '6px 0' }}>
-              <span>Pagado</span><span style={{ color: 'var(--success)' }}>{fmtARS(pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0))}</span>
+                <span style={{ textTransform: 'capitalize' }}>{p.metodo}{Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'right' }}>
+                  <span><strong>{fmtARS(p.recibido)}</strong>{Math.abs(dif) > 0.01 && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>salda {fmtARS(p.cuenta_como)}</span>}</span>
+                  <button onClick={() => setPagosVenta(pagosVenta.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer' }}>✕</button>
+                </span>
+              </div>); })}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, margin: '6px 0 2px' }}>
+              <span>Recibido (plata real)</span><span style={{ color: 'var(--success)' }}>{fmtARS(pagosVenta.reduce((s, p) => s + Number(p.recibido || 0), 0))}</span>
             </div>
-            {(() => { const pagado = pagosVenta.reduce((s, p) => s + Number(p.monto || 0), 0); const saldo = total - pagado; return saldo > 0.01 ? <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, color: 'var(--danger)', marginBottom: 6 }}><span>Saldo</span><span>{fmtARS(saldo)}</span></div> : <div style={{ fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 6 }}>✓ Cubre el total</div>; })()}
+            {(() => { const saldado = pagosVenta.reduce((s, p) => s + Number(p.cuenta_como || 0), 0); const saldo = total - saldado; return saldo > 0.01 ? <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, color: 'var(--danger)', marginBottom: 6 }}><span>Falta saldar</span><span>{fmtARS(saldo)}</span></div> : <div style={{ fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 6 }}>✓ Cubre el total</div>; })()}
             <PagoParcialInput total={total} pagosVenta={pagosVenta} onAdd={(p) => setPagosVenta([...pagosVenta, p])} />
           </div>
         )}
@@ -3487,7 +3506,7 @@ function OrdenCompraModal({ secciones, onClose, onSaved, toast }) {
             <input placeholder="🔍 Buscar producto..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
             {resultados.length > 0 && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
-                {resultados.map(p => <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)' }}>{p.nombre || p.modelo}</div>)}
+                {resultados.map(p => <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }}>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} /> : <span style={{ fontSize: 16 }}>📦</span>}<span style={{ flex: 1 }}>{p.nombre || p.modelo}{p.seccion_nombre && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> · {p.seccion_nombre}</span>}</span></div>)}
               </div>
             )}
           </div>
@@ -4769,7 +4788,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [allUsers, setAllUsers] = useState([]);
   const [ajuste, setAjuste] = useState(0); // + recargo, - descuento
   const [pagos, setPagos] = useState(initOrder.pagos || []);
-  const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', monto: '', ajuste_pct: 0, nota: '' });
+  const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
   const searchTimer = useRef(null);
 
   // Parsear datos de envío/facturación (guardados como JSON en el checkout)
@@ -4777,28 +4796,29 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const datosEnvio = parseJSON(o.datos_envio);
   const datosFact = parseJSON(o.datos_facturacion);
 
-  // Pagos mixtos
-  const totalPagado = pagos.reduce((s, p) => s + Number(p.monto || 0), 0);
-  const saldoPedido = Number(o.total || 0) - totalPagado;
-  const ajustesMetodo = parseJSON(config.ajustes_metodo) || {}; // {efectivo:-5, transferencia:10, ...}
+  // Pagos mixtos: cuenta_como = lo que tacha de la deuda, recibido = plata real
+  const totalSaldado = pagos.reduce((s, p) => s + Number(p.cuenta_como || 0), 0);
+  const totalRecibido = pagos.reduce((s, p) => s + Number(p.recibido || 0), 0);
+  const saldoPedido = Number(o.total || 0) - totalSaldado;
+  const ajustesMetodo = parseJSON(config.ajustes_metodo) || {};
+  const previewRecibido = (() => { const cta = Number(nuevoPago.cuenta_como) || 0; const pct = Number(nuevoPago.ajuste_pct) || 0; return Math.round(cta * (1 + pct / 100)); })();
   const cargarPagos = async () => { try { const p = await api.getPagos(o.id); setPagos(p || []); } catch {} };
   const agregarPago = async () => {
-    const monto = Number(nuevoPago.monto);
-    if (!(monto > 0)) { toast('Poné un monto válido', 'error'); return; }
+    const cuentaComo = Number(nuevoPago.cuenta_como);
+    if (!(cuentaComo > 0)) { toast('Poné cuánto salda este pago', 'error'); return; }
     const ajustePct = Number(nuevoPago.ajuste_pct) || 0;
-    const ajusteMonto = Math.round(monto * ajustePct / 100);
+    const recibido = Math.round(cuentaComo * (1 + ajustePct / 100));
     try {
-      const r = await api.addPago(o.id, { metodo: nuevoPago.metodo, monto, ajuste_pct: ajustePct, ajuste_monto: ajusteMonto, nota: nuevoPago.nota });
+      const r = await api.addPago(o.id, { metodo: nuevoPago.metodo, recibido, cuenta_como: cuentaComo, ajuste_pct: ajustePct, nota: nuevoPago.nota });
       await cargarPagos();
       setO({ ...o, estado_pago: r.estado });
-      setNuevoPago({ metodo: 'efectivo', monto: '', ajuste_pct: 0, nota: '' });
+      setNuevoPago({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
       toast('Pago registrado');
     } catch (e) { toast(e.message, 'error'); }
   };
   const quitarPago = async (pagoId) => {
     try { const r = await api.deletePago(o.id, pagoId); await cargarPagos(); setO({ ...o, estado_pago: r.estado }); } catch (e) { toast(e.message, 'error'); }
   };
-  // Al elegir método, precargar el ajuste por defecto configurado (editable)
   const onMetodoPago = (metodo) => {
     const def = ajustesMetodo[metodo];
     setNuevoPago({ ...nuevoPago, metodo, ajuste_pct: def !== undefined ? def : 0 });
@@ -4898,11 +4918,12 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const restaAbonar = Math.max(0, Number(editTotal) - senaMonto);
     // Desglose de pagos mixtos para el remito
     const listaPagos = pagos || [];
-    const totalPag = listaPagos.reduce((s, p) => s + Number(p.monto || 0), 0);
-    const saldoRem = Math.max(0, Number(editTotal) - totalPag);
+    const totalSald = listaPagos.reduce((s, p) => s + Number(p.cuenta_como || 0), 0);
+    const totalRec = listaPagos.reduce((s, p) => s + Number(p.recibido || 0), 0);
+    const saldoRem = Math.max(0, Number(editTotal) - totalSald);
     const pagosHTML = listaPagos.length ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
-      ${listaPagos.map(p => `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${p.metodo}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: $${fmt(p.monto)}</p>`).join('')}
-      <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagado: $${fmt(totalPag)}</p>
+      ${listaPagos.map(p => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${p.metodo}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: $${fmt(p.recibido)}${Math.abs(dif) > 0.01 ? ` <span style="color:#888">(${dif > 0 ? 'desc. $' + fmt(dif) : 'rec. $' + fmt(-dif)})</span>` : ''}</p>`; }).join('')}
+      <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagado: $${fmt(totalRec)}</p>
       ${saldoRem > 0.01 ? `<p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(saldoRem)}</p>` : `<p style="margin:2px 0;font-weight:800;color:#16a34a;font-size:${isSmall ? '12px' : '15px'}">✓ PAGADO</p>`}
     </div>` : '';
     const estadoPagoLabel = o.estado_pago === 'pagado' ? 'PAGADO' : o.estado_pago === 'senado' ? 'SEÑADO' : o.estado_pago === 'debe' ? 'DEBE' : 'IMPAGO';
@@ -4994,23 +5015,28 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               {allUsers.filter(u => u.rol !== 'admin').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.nombre_fantasia ? `(${u.nombre_fantasia})` : ''}</option>)}
             </select>
           </div>
-          {/* Estado de PAGO */}
+          {/* Estado de PAGO (se calcula solo de los pagos cargados abajo) */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <label style={{ fontSize: 13, fontWeight: 600 }}>Pago:</label>
-            <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
-              <option value="impago">Impago</option>
-              <option value="senado">Señado</option>
-              <option value="pagado">Pagado</option>
-              <option value="debe">Debe</option>
-            </select>
-            {(o.estado_pago === 'senado' || o.estado_pago === 'debe') && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Seña $</span>
-                <input type="number" defaultValue={o.sena || 0} onBlur={async e => { try { await api.updatePedido(o.id, { sena: Number(e.target.value) || 0 }); const full = await api.getPedido(o.id); setO(full); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 100 }} />
-                {o.total > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>resta {fmtARS(Math.max(0, Number(o.total) - Number(o.sena || 0)))}</span>}
-              </div>
+            {pagos.length > 0 ? (
+              <>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {saldoPedido > 0.01 ? `saldado ${fmtARS(totalSaldado)} · falta ${fmtARS(saldoPedido)}` : `pagado completo`}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', padding: '3px 10px', borderRadius: 6, background: o.estado_pago === 'pagado' ? 'var(--success)' : o.estado_pago === 'senado' ? 'var(--accent)' : o.estado_pago === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{o.estado_pago || 'impago'}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(se calcula de los pagos ↓)</span>
+              </>
+            ) : (
+              <>
+                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
+                  <option value="impago">Impago</option>
+                  <option value="senado">Señado</option>
+                  <option value="pagado">Pagado</option>
+                  <option value="debe">Debe</option>
+                </select>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', padding: '3px 10px', borderRadius: 6, background: o.estado_pago === 'pagado' ? 'var(--success)' : o.estado_pago === 'senado' ? 'var(--accent)' : o.estado_pago === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{o.estado_pago || 'impago'}</span>
+              </>
             )}
-            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', padding: '3px 10px', borderRadius: 6, background: o.estado_pago === 'pagado' ? 'var(--success)' : o.estado_pago === 'senado' ? 'var(--accent)' : o.estado_pago === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{o.estado_pago || 'impago'}</span>
           </div>
 
           {/* Items */}
@@ -5038,7 +5064,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <input placeholder="Buscar producto para agregar..." value={addSearch} onChange={e => setAddSearch(e.target.value)} />
               {searchResults.length > 0 && (
                 <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', maxHeight: 150, overflowY: 'auto', marginTop: 4 }}>
-                  {searchResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)' }} onClick={() => addItem(p)}>{p.nombre || p.modelo} — {p.categoria} — ${fmt(p.precio_base)}</div>)}
+                  {searchResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }} onClick={() => addItem(p)}>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} /> : <span>📦</span>}<span style={{ flex: 1 }}>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''} — ${fmt(p.precio_base)}</span></div>)}
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
@@ -5064,52 +5090,54 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Sin pagos registrados todavía.</p>
             ) : (
               <div style={{ marginBottom: 8 }}>
-                {pagos.map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border-light)' }}>
-                    <span>{p.metodo}{Number(p.ajuste_pct) !== 0 ? <span style={{ color: Number(p.ajuste_pct) < 0 ? 'var(--success)' : 'var(--accent)' }}> ({Number(p.ajuste_pct) > 0 ? '+' : ''}{p.ajuste_pct}%)</span> : ''}{p.nota ? <span style={{ color: 'var(--text-muted)' }}> · {p.nota}</span> : ''}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong>{fmtARS(p.monto)}</strong>
+                {pagos.map(p => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '5px 0', borderBottom: '1px solid var(--border-light)' }}>
+                    <span style={{ textTransform: 'capitalize' }}>{p.metodo}{Number(p.ajuste_pct) !== 0 ? <span style={{ color: Number(p.ajuste_pct) < 0 ? 'var(--success)' : 'var(--accent)' }}> ({Number(p.ajuste_pct) > 0 ? '+' : ''}{p.ajuste_pct}%)</span> : ''}{p.nota ? <span style={{ color: 'var(--text-muted)' }}> · {p.nota}</span> : ''}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'right' }}>
+                      <span><strong>{fmtARS(p.recibido)}</strong>{Math.abs(dif) > 0.01 && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>salda {fmtARS(p.cuenta_como)}{dif > 0 ? ` (desc. ${fmtARS(dif)})` : ` (rec. ${fmtARS(-dif)})`}</span>}</span>
                       <button onClick={() => quitarPago(p.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
                     </span>
-                  </div>
-                ))}
+                  </div>); })}
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 4 }}>
-              <span>Pagado</span><strong style={{ color: 'var(--success)' }}>{fmtARS(totalPagado)}</strong>
+              <span>Recibido (plata real)</span><strong style={{ color: 'var(--success)' }}>{fmtARS(totalRecibido)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 2 }}>
+              <span>Saldado de la deuda</span><span>{fmtARS(totalSaldado)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 900, marginTop: 2 }}>
-              <span>{saldoPedido > 0.01 ? 'Saldo a pagar' : '✓ Pagado completo'}</span>
+              <span>{saldoPedido > 0.01 ? 'Falta saldar' : '✓ Pagado completo'}</span>
               {saldoPedido > 0.01 && <span style={{ color: 'var(--danger)' }}>{fmtARS(saldoPedido)}</span>}
             </div>
-
             {/* Agregar pago */}
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div style={{ flex: 1, minWidth: 110 }}>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Método</label>
                 <select value={nuevoPago.metodo} onChange={e => onMetodoPago(e.target.value)} style={{ width: '100%' }}>
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="débito">Débito</option>
-                  <option value="crédito">Crédito</option>
-                  <option value="mercadopago">MercadoPago</option>
-                  <option value="otro">Otro</option>
+                  <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="débito">Débito</option><option value="crédito">Crédito</option><option value="mercadopago">MercadoPago</option><option value="otro">Otro</option>
                 </select>
               </div>
-              <div style={{ width: 100 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Monto</label>
-                <input type="number" value={nuevoPago.monto} onChange={e => setNuevoPago({ ...nuevoPago, monto: e.target.value })} placeholder="0" style={{ width: '100%' }} />
+              <div style={{ width: 110 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Salda de la deuda</label>
+                <input type="number" value={nuevoPago.cuenta_como} onChange={e => setNuevoPago({ ...nuevoPago, cuenta_como: e.target.value })} placeholder="0" style={{ width: '100%' }} />
               </div>
-              <div style={{ width: 78 }}>
+              <div style={{ width: 72 }}>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ajuste %</label>
                 <input type="number" value={nuevoPago.ajuste_pct} onChange={e => setNuevoPago({ ...nuevoPago, ajuste_pct: e.target.value })} placeholder="0" style={{ width: '100%' }} title="+ recargo, - descuento" />
               </div>
               <button className="btn btn-primary btn-sm" onClick={agregarPago}>+ Agregar</button>
             </div>
+            {Number(nuevoPago.cuenta_como) > 0 && (
+              <div style={{ marginTop: 6, fontSize: 13, background: 'var(--border-light)', padding: '6px 10px', borderRadius: 6 }}>
+                Cobrale <strong>{fmtARS(previewRecibido)}</strong> en {nuevoPago.metodo} → salda {fmtARS(Number(nuevoPago.cuenta_como))} de la deuda
+                {previewRecibido !== Number(nuevoPago.cuenta_como) && <span style={{ color: 'var(--text-muted)' }}> ({previewRecibido < Number(nuevoPago.cuenta_como) ? `descuento ${fmtARS(Number(nuevoPago.cuenta_como) - previewRecibido)}` : `recargo ${fmtARS(previewRecibido - Number(nuevoPago.cuenta_como))}`})</span>}
+              </div>
+            )}
             <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setNuevoPago({ ...nuevoPago, monto: String(Math.max(0, saldoPedido)) })}>Usar saldo restante ({fmtARS(Math.max(0, saldoPedido))})</button>
+              <button className="btn btn-outline btn-sm" onClick={() => setNuevoPago({ ...nuevoPago, cuenta_como: String(Math.max(0, saldoPedido)) })}>Saldar lo que falta ({fmtARS(Math.max(0, saldoPedido))})</button>
             </div>
-            <small style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginTop: 6 }}>El % ajuste es sobre ese pago: positivo = recargo (ej. transferencia +10), negativo = descuento (ej. efectivo -5). Se precarga el que tengas configurado por método, y lo podés cambiar.</small>
+            <small style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginTop: 6 }}>Poné cuánto SALDA este pago de la deuda y el % (negativo = descuento, positivo = recargo). El sistema te dice cuánto cobrarle.</small>
           </div>
           {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
           {o.cupon_codigo && <p style={{ fontSize: 13 }}>🎟️ Cupón: {o.cupon_codigo}</p>}
@@ -5524,6 +5552,87 @@ function AdminNotifStock() {
   );
 }
 
+function AdminCaja() {
+  const { toast } = useContext(Ctx);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const [periodo, setPeriodo] = useState('dia');
+  const [desde, setDesde] = useState(hoy);
+  const [hasta, setHasta] = useState(hoy);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const rangoDe = (per) => {
+    const now = new Date(); let d = new Date(now);
+    if (per === 'dia') d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    else if (per === 'semana') { const day = now.getDay() || 7; d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1); }
+    else if (per === 'mes') d = new Date(now.getFullYear(), now.getMonth(), 1);
+    else if (per === 'anio') d = new Date(now.getFullYear(), 0, 1);
+    return d.toISOString().slice(0, 10);
+  };
+  const setPer = (per) => { setPeriodo(per); if (per !== 'custom') { setDesde(rangoDe(per)); setHasta(hoy); } };
+  const cargar = async () => {
+    setLoading(true);
+    try { const r = await api.getCaja(desde ? `${desde}T00:00:00` : '', hasta ? `${hasta}T23:59:59` : ''); setData(r); }
+    catch (e) { toast(e.message, 'error'); }
+    setLoading(false);
+  };
+  useEffect(() => { cargar(); }, [desde, hasta]);
+  const totalRecibido = Number(data?.total_recibido || 0);
+  const descuentos = Number(data?.descuentos || 0);
+  const recargos = Number(data?.recargos || 0);
+  const totalVendido = Number(data?.total_saldado || 0);
+  return (
+    <div style={{ maxWidth: 700 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Caja / Arqueo</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Plata real cobrada (online + mostrador). Para cerrar la caja del día.</p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {[['dia','Hoy'],['semana','Esta semana'],['mes','Este mes'],['anio','Este año'],['custom','Personalizado']].map(([id,lbl]) => (
+          <button key={id} className={`btn btn-sm ${periodo === id ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPer(id)}>{lbl}</button>
+        ))}
+      </div>
+      {periodo === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div><label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Desde</label><input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></div>
+          <div><label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hasta</label><input type="date" value={hasta} onChange={e => setHasta(e.target.value)} /></div>
+        </div>
+      )}
+      {loading ? <p>Cargando...</p> : data && (
+        <>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 12, textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total real cobrado (lo que entró)</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--success)' }}>{fmtARS(totalRecibido)}</div>
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Cobrado por método (plata real)</div>
+            {(!data.porMetodo || !data.porMetodo.length) ? <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin cobros en este período.</p> : data.porMetodo.map(m => (
+              <div key={m.metodo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '6px 0', borderBottom: '1px solid var(--border-light)', textTransform: 'capitalize' }}>
+                <span>{m.metodo}</span><strong>{fmtARS(m.recibido)}</strong>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Ajustes del período</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '4px 0' }}>
+              <span>Descuentos otorgados</span><strong style={{ color: 'var(--success)' }}>-{fmtARS(descuentos)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '4px 0' }}>
+              <span>Recargos cobrados</span><strong style={{ color: 'var(--accent)' }}>+{fmtARS(recargos)}</strong>
+            </div>
+          </div>
+          <div style={{ background: 'var(--border-light)', borderRadius: 12, padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '3px 0' }}>
+              <span>Total vendido (deuda saldada)</span><span>{fmtARS(totalVendido)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, padding: '3px 0', borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 8 }}>
+              <span>En caja (plata real)</span><span style={{ color: 'var(--success)' }}>{fmtARS(totalRecibido)}</span>
+            </div>
+            <small style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginTop: 8 }}>La diferencia entre "vendido" y "en caja" son los descuentos que otorgaste. Al contar la plata física, tiene que darte el total "en caja".</small>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminReportes() {
   const { adminSeccion, toast } = useContext(Ctx);
   const [rep, setRep] = useState(null);
@@ -5743,7 +5852,7 @@ function AdminCupones() {
               </div>
               <div className="form-group"><label className="form-label">Productos (buscar)</label>
                 <input placeholder="Buscar productos..." value={prodSearch} onChange={e => searchProds(e.target.value)} />
-                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 150, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)' }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}>{p.nombre || p.modelo} — {p.categoria}</div>)}</div>}
+                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 150, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)' }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span>📦</span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
                 {selProds.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>{selProds.map(p => <span key={p.id} style={{ background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontSize: 12, cursor: 'pointer' }} onClick={() => setSelProds(selProds.filter(sp => sp.id !== p.id))}>{p.nombre || p.modelo} ✕</span>)}</div>}
               </div>
             </div>
@@ -5823,7 +5932,7 @@ function AdminPromociones() {
               </div>
               <div className="form-group"><label className="form-label">Productos (buscar)</label>
                 <input placeholder="Buscar..." value={prodSearch} onChange={e => searchProds(e.target.value)} />
-                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 120, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '4px 8px', cursor: 'pointer', fontSize: 13 }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}>{p.nombre || p.modelo} — {p.categoria}</div>)}</div>}
+                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 120, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '4px 8px', cursor: 'pointer', fontSize: 13 }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span>📦</span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
                 {selProds.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>{selProds.map(p => <span key={p.id} style={{ background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontSize: 12, cursor: 'pointer' }} onClick={() => setSelProds(selProds.filter(sp => sp.id !== p.id))}>{p.nombre || p.modelo} ✕</span>)}</div>}
               </div>
             </div>

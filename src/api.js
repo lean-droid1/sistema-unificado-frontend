@@ -250,6 +250,7 @@ export async function getPreventa(seccion_id) { return f(`/api/productos/prevent
 export async function recibirPreventa(id, cantidad) { return f(`/api/productos/${id}/recibir-preventa`, { method: 'POST', body: JSON.stringify(cantidad !== undefined ? { cantidad } : {}) }); }
 export async function getReservadoReal(id) { return f(`/api/productos/${id}/reservado-real`); }
 export async function getReportes(desde, hasta, seccion_id) { const q = new URLSearchParams(); if (desde) q.set('desde', desde); if (hasta) q.set('hasta', hasta); if (seccion_id && seccion_id !== 'all') q.set('seccion_id', seccion_id); return f(`/api/reportes?${q.toString()}`); }
+export async function getCaja(desde, hasta) { const q = new URLSearchParams(); if (desde) q.set('desde', desde); if (hasta) q.set('hasta', hasta); return f(`/api/caja?${q.toString()}`); }
 export async function getRelacionados(id) { return f(`/api/productos/relacionados/${id}`); }
 export async function getCuentaCorriente(id) { return f(`/api/usuarios/${id}/cuenta`); }
 export async function addMovimientoCuenta(id, tipo, monto, concepto) { return f(`/api/usuarios/${id}/cuenta`, { method: 'POST', body: JSON.stringify({ tipo, monto, concepto }) }); }
