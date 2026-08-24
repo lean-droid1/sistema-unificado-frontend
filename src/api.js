@@ -2,9 +2,27 @@ const BASE = import.meta.env.VITE_API_URL || '';
 let token = localStorage.getItem('gm_token') || null;
 let refreshPromise = null;
 
+// Multi-tenant: detecta el slug de la tienda según el subdominio.
+// cliente.comerciapp.com.ar → 'cliente'. Dominios propios o localhost/vercel → sin slug (el server usa default o el tenant del usuario).
+function getTenantSlug() {
+  try {
+    const host = window.location.hostname;
+    // localhost / IP / vercel preview → sin slug
+    if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.endsWith('.vercel.app')) return '';
+    const parts = host.split('.');
+    // subdominio de comerciapp.com.ar: cliente.comerciapp.com.ar (4 partes) → parts[0]
+    if (host.includes('comerciapp.com.ar') && parts.length >= 4 && parts[0] !== 'www') return parts[0];
+    // dominio propio del cliente → mandamos el host completo, el server lo resuelve por dominio_propio
+    if (!host.includes('comerciapp.com.ar')) return host;
+    return '';
+  } catch { return ''; }
+}
+const TENANT_SLUG = getTenantSlug();
+
 async function f(url, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (TENANT_SLUG) headers['X-Tenant'] = TENANT_SLUG;
   if (opts.body instanceof FormData) delete headers['Content-Type'];
   const r = await fetch(`${BASE}${url}`, { ...opts, headers });
   if (r.status === 401 && token && !url.includes('/login') && !url.includes('/refresh-token')) {
@@ -70,7 +88,7 @@ export async function getStockBajo() { return f('/api/stock-bajo'); }
 // upload
 export async function uploadImagen(file) {
   const fd = new FormData(); fd.append('imagen', file);
-  const headers = {}; if (token) headers['Authorization'] = `Bearer ${token}`;
+  const headers = {}; if (token) headers['Authorization'] = `Bearer ${token}`; if (TENANT_SLUG) headers['X-Tenant'] = TENANT_SLUG;
   const r = await fetch(`${BASE}/api/upload`, { method: 'POST', headers, body: fd });
   if (!r.ok) { const err = await r.json().catch(() => ({ error: r.statusText })); throw new Error(err.error || 'Error al subir imagen'); }
   return r.json();
