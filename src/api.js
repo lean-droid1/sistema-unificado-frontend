@@ -67,6 +67,7 @@ export async function setMaintenanceMode(activo, mensaje, countdown) { return f(
 
 // config
 export async function getConfig() { return f('/api/config'); }
+export async function getMiPlan() { return f('/api/mi-plan'); }
 export async function updateConfig(config) { return f('/api/config', { method: 'PUT', body: JSON.stringify(config) }); }
 
 // listas
