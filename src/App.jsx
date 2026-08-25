@@ -421,6 +421,7 @@ export default function App() {
   const [secciones, setSecciones] = useState([]);
   const [config, setConfig] = useState({});
   const [design, setDesign] = useState({});
+  const [miPlan, setMiPlan] = useState({ plan: 'full', estado: 'activo', features: null });
 
   // Update browser title + favicon when design changes
   useEffect(() => {
@@ -543,12 +544,14 @@ export default function App() {
     initDone.current = true;
     (async () => {
       try {
-        const [secs, cfg, des, menu, redes, lsts, pf] = await Promise.all([
+        const [secs, cfg, des, menu, redes, lsts, pf, plan] = await Promise.all([
           api.getSecciones(), api.getConfig(), api.getDesign().catch(() => ({})),
           api.getMenu().catch(() => []), api.getRedesSociales().catch(() => []),
-          api.getListas().catch(() => []), api.getPreciosFijos().catch(() => [])
+          api.getListas().catch(() => []), api.getPreciosFijos().catch(() => []),
+          api.getMiPlan().catch(() => ({ plan: 'full', estado: 'activo', features: null }))
         ]);
         setSecciones(secs); setConfig(cfg); setDesign(des);
+        if (plan) setMiPlan(plan);
         applyDesignVars(des);
         setMenuItems(menu); setRedesSociales(redes);
         setListas(Array.isArray(lsts) ? lsts : []); setPreciosFijos(Array.isArray(pf) ? pf : []);
@@ -710,7 +713,7 @@ export default function App() {
     secciones, setSecciones, config, setConfig, design, setDesign,
     seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, cart, setCart, menuItems, setMenuItems,
     redesSociales, setRedesSociales, badges, setBadges, barras, setBarras, listas, setListas,
-    preciosFijos, setPreciosFijos, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
+    preciosFijos, setPreciosFijos, miPlan, setMiPlan, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
     testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); },
@@ -2989,7 +2992,7 @@ function AccountPanel() {
 // ADMIN PANEL (with sidebar!)
 // ═══════════════════════════════════════════════════════════
 function AdminPanel() {
-  const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user } = useContext(Ctx);
+  const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user, miPlan } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({}); // acordeón: qué grupos están expandidos
 
@@ -3051,10 +3054,30 @@ function AdminPanel() {
     ...(user?.es_owner ? [{ id: 'plataforma_grp', label: 'Plataforma (dueño)', icon: 'store', single: 'owner_tenants' }] : []),
   ];
 
-  // Filtrar por permisos
+  // Mapa tab → feature del plan (si la feature está off, se oculta la sección). El dueño (es_owner) ve todo.
+  const tabFeature = {
+    presupuestos: 'presupuestos',
+    venta_manual: 'pdv',        // pdv 'no' oculta; 'buscador'/'lector' muestra
+    caja: 'caja',
+    ordenes_compra: 'ordenes_compra',
+    cupones: 'marketing', promociones: 'marketing', carritos: 'marketing', leads: 'marketing',
+    reportes: 'reportes', analytics: 'analytics',
+    listas: 'listas_precio',
+  };
+  const feats = miPlan?.features || null;
+  const planPermite = (tabId) => {
+    if (user?.es_owner) return true;         // el dueño siempre ve todo
+    if (!feats) return true;                 // si no cargó el plan, no ocultar (fail-open)
+    const f = tabFeature[tabId];
+    if (!f) return true;                     // tab sin feature asociada = siempre visible
+    const v = feats[f];
+    return !(v === false || v === 'no' || v === undefined || v === null);
+  };
+
+  // Filtrar por permisos Y por plan
   const treeFiltered = nav_tree.map(g => {
-    if (g.single) return puede(tabPerm[g.single]) ? g : null;
-    const items = g.items.filter(it => puede(tabPerm[it.id]));
+    if (g.single) return (puede(tabPerm[g.single]) && planPermite(g.single)) ? g : null;
+    const items = g.items.filter(it => puede(tabPerm[it.id]) && planPermite(it.id));
     return items.length ? { ...g, items } : null;
   }).filter(Boolean);
 
@@ -3763,7 +3786,8 @@ function PagoParcialInput({ total, pagosVenta, onAdd }) {
 }
 
 function AdminVentaManual() {
-  const { secciones, toast } = useContext(Ctx);
+  const { secciones, toast, miPlan, user } = useContext(Ctx);
+  const pdvLector = user?.es_owner || (miPlan?.features?.pdv === 'lector') || !miPlan?.features; // lector de código solo Full
   const [seccionId, setSeccionId] = useState('');
   const [items, setItems] = useState([]);
   const [busq, setBusq] = useState('');
@@ -3987,7 +4011,8 @@ function AdminVentaManual() {
         )}
       </div>
 
-      {/* Escáner: pistola USB (input) + cámara */}
+      {/* Escáner: pistola USB (input) + cámara — solo plan con lector de código (Full) */}
+      {pdvLector && (
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           ref={scanInputRef}
@@ -3999,6 +4024,7 @@ function AdminVentaManual() {
         />
         <button className="btn btn-primary btn-sm" onClick={() => setScanCam(true)}>📸 Escanear con cámara (modo venta rápida)</button>
       </div>
+      )}
       {scanCam && <CamScanner
         onScan={(code) => { agregarPorCodigo(code); }}
         onClose={() => setScanCam(false)}
