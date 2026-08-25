@@ -3270,6 +3270,53 @@ function AdminAnalytics() {
   );
 }
 
+function PreciosModal({ onClose, onSaved }) {
+  const { toast } = useContext(Ctx);
+  const [precios, setPrecios] = useState({ basic: '', pro: '', full: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getPlanPrecios().then(p => { setPrecios({ basic: p.basic ?? '', pro: p.pro ?? '', full: p.full ?? '' }); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  const guardar = async () => {
+    setSaving(true);
+    try { await api.updatePlanPrecios(precios); toast('Precios actualizados'); onSaved(); }
+    catch (e) { toast(e.message, 'error'); setSaving(false); }
+  };
+
+  const Campo = ({ label, plan, color }) => (
+    <div>
+      <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4, color }}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 15, color: 'var(--text-muted)' }}>$</span>
+        <input type="number" value={precios[plan]} onChange={e => setPrecios(p => ({ ...p, [plan]: e.target.value }))} placeholder="0" style={{ flex: 1 }} />
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mes</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="modal-header"><h3>Precios de los planes</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {loading ? <div style={{ color: 'var(--text-muted)' }}>Cargando...</div> : (
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Precio mensual de cada plan. Se usa para calcular tu facturación y se mostrará en el sitio.</p>
+              <Campo label="Basic — Vender" plan="basic" color="#6b7280" />
+              <Campo label="Pro — Crecer" plan="pro" color="#2563eb" />
+              <Campo label="Full — Escalar" plan="full" color="#7c3aed" />
+              <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar precios'}</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OwnerStats({ stats }) {
   const money = (n) => '$' + (n || 0).toLocaleString('es-AR');
   const nombreMes = (ym) => { const [y, m] = ym.split('-'); return ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][parseInt(m) - 1] + ' ' + y.slice(2); };
@@ -3369,6 +3416,7 @@ function AdminOwner() {
   const [editando, setEditando] = useState(null);
   const [creds, setCreds] = useState(null); // credenciales recién creadas
   const [stats, setStats] = useState(null);
+  const [showPrecios, setShowPrecios] = useState(false);
 
   const PLANES = [
     { id: 'basic', label: 'Basic - Vender' },
@@ -3401,7 +3449,10 @@ function AdminOwner() {
           <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Plataforma</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Administrá las tiendas de tus clientes. {tenants.length} {tenants.length === 1 ? 'tienda' : 'tiendas'}.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-outline" onClick={() => setShowPrecios(true)}>Editar precios</button>
+          <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
+        </div>
       </div>
 
       {stats && <OwnerStats stats={stats} />}
@@ -3446,6 +3497,7 @@ function AdminOwner() {
       {showCrear && <TenantCrearModal onClose={() => setShowCrear(false)} onCreated={(c) => { setCreds(c); setShowCrear(false); cargar(); }} planes={PLANES} />}
       {creds && <TenantCredsModal creds={creds} onClose={() => setCreds(null)} />}
       {editando && <TenantEditarModal tenant={editando} planes={PLANES} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); cargar(); }} onDeleted={() => { setEditando(null); cargar(); }} />}
+      {showPrecios && <PreciosModal onClose={() => setShowPrecios(false)} onSaved={() => { setShowPrecios(false); cargar(); }} />}
     </div>
   );
 }
