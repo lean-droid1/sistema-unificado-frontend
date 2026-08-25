@@ -293,3 +293,11 @@ export function trackSearch(query, resultCount) { trackEvent('search', { search_
 // Missing exports
 export function trackSectionView(sec) { trackEvent("view_section", { section_name: sec?.nombre }); }
 export async function resetPrecios(seccionId) { return f(`/api/precios/reset/${seccionId}`, { method: "POST" }); }
+
+// ── PANEL DUEÑO: administración de tenants (solo owner) ──
+export async function getTenants() { return f('/api/tenants'); }
+export async function getTenant(id) { return f(`/api/tenants/${id}`); }
+export async function createTenant(data) { return f('/api/tenants', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateTenant(id, data) { return f(`/api/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function setTenantEstado(id, estado) { return f(`/api/tenants/${id}/estado`, { method: 'POST', body: JSON.stringify({ estado }) }); }
+export async function deleteTenant(id) { return f(`/api/tenants/${id}`, { method: 'DELETE' }); }

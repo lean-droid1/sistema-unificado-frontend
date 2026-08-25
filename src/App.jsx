@@ -2996,7 +2996,10 @@ function AdminPanel() {
   // Permisos: admin ve todo; subadmin solo lo que tenga.
   const esAdmin = user?.rol === 'admin';
   const misPermisos = esAdmin ? null : String(user?.permisos || '').split(',').filter(Boolean);
-  const puede = (perm) => esAdmin || (misPermisos || []).includes(perm);
+  const puede = (perm) => {
+    if (perm === '__owner__') return !!user?.es_owner;
+    return esAdmin || (misPermisos || []).includes(perm);
+  };
 
   // Mapa tab → permiso requerido
   const tabPerm = {
@@ -3010,6 +3013,7 @@ function AdminPanel() {
     envios: 'config', metodos_pago: 'config',
     diseno: 'config',
     general: 'config',
+    owner_tenants: '__owner__',
   };
 
   // ── ESTRUCTURA JERÁRQUICA (acordeón) ──
@@ -3044,6 +3048,7 @@ function AdminPanel() {
     { id: 'pagos_grp', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
     { id: 'diseno_grp', label: 'Personalizar tienda', icon: 'palette', single: 'diseno' },
     { id: 'general_grp', label: 'General', icon: 'settings', single: 'general' },
+    ...(user?.es_owner ? [{ id: 'plataforma_grp', label: 'Plataforma (dueño)', icon: 'store', single: 'owner_tenants' }] : []),
   ];
 
   // Filtrar por permisos
@@ -3153,6 +3158,7 @@ function AdminPanel() {
         {adminTab === 'envios' && <AdminEnviosCustom />}
         {adminTab === 'diseno' && <AdminDisenoHub />}
         {adminTab === 'general' && <AdminGeneralHub />}
+        {adminTab === 'owner_tenants' && user?.es_owner && <AdminOwner />}
         {adminTab === 'analytics' && <AdminAnalytics />}
         {adminTab === 'leads' && <AdminLeads />}
       </div>
@@ -3237,6 +3243,240 @@ function AdminAnalytics() {
       </div>
 
       <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+    </div>
+  );
+}
+
+function AdminOwner() {
+  const { toast } = useContext(Ctx);
+  const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCrear, setShowCrear] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [creds, setCreds] = useState(null); // credenciales recién creadas
+
+  const PLANES = [
+    { id: 'basic', label: 'Basic - Vender' },
+    { id: 'pro', label: 'Pro - Crecer' },
+    { id: 'full', label: 'Full - Escalar' },
+  ];
+  const ESTADOS = { trial: { t: 'Prueba', c: '#f59e0b' }, activo: { t: 'Activo', c: '#16a34a' }, suspendido: { t: 'Suspendido', c: '#dc2626' }, vencido: { t: 'Vencido', c: '#6b7280' } };
+
+  const cargar = () => { setLoading(true); api.getTenants().then(d => { setTenants(d || []); setLoading(false); }).catch(e => { toast(e.message, 'error'); setLoading(false); }); };
+  useEffect(() => { cargar(); }, []);
+
+  const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  const diasRestantes = (f) => { if (!f) return null; const d = Math.ceil((new Date(f) - new Date()) / 86400000); return d; };
+
+  const cambiarEstado = async (t, estado) => {
+    try { await api.setTenantEstado(t.id, estado); toast(`Tienda ${estado==='activo'?'activada':'suspendida'}`); cargar(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  const dominioTienda = (t) => t.dominio_propio ? t.dominio_propio : `${t.slug}.comerciapp.com.ar`;
+
+  return (
+    <div style={{ maxWidth: 1000 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Plataforma</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Administrá las tiendas de tus clientes. {tenants.length} {tenants.length === 1 ? 'tienda' : 'tiendas'}.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
+      </div>
+
+      {loading ? <div style={{ padding: 20, color: 'var(--text-muted)' }}>Cargando...</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {tenants.map(t => {
+            const est = ESTADOS[t.estado] || { t: t.estado, c: '#6b7280' };
+            const dias = diasRestantes(t.fecha_fin_trial);
+            return (
+              <div key={t.id} className="card" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, fontSize: 16 }}>{t.nombre}</span>
+                      {t.id === 1 && <span style={{ fontSize: 11, background: 'var(--primary)', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>Vos</span>}
+                      <span style={{ fontSize: 11, background: est.c, color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>{est.t}</span>
+                      <span style={{ fontSize: 11, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 10, fontWeight: 700, textTransform: 'uppercase' }}>{t.plan}</span>
+                    </div>
+                    <a href={`https://${dominioTienda(t)}`} target="_blank" rel="noopener" style={{ fontSize: 13, color: 'var(--primary)', textDecoration: 'none', display: 'inline-block', marginTop: 4 }}>{dominioTienda(t)} ↗</a>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <span>{t.productos} productos</span>
+                      <span>{t.pedidos} pedidos</span>
+                      <span>{t.clientes} clientes</span>
+                      {t.estado === 'trial' && dias !== null && <span style={{ color: dias <= 3 ? '#dc2626' : '#f59e0b', fontWeight: 700 }}>{dias > 0 ? `${dias} días de prueba` : 'Prueba vencida'}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button className="btn btn-outline" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditando(t)}>Editar</button>
+                    {t.id !== 1 && (t.estado === 'suspendido'
+                      ? <button className="btn" style={{ fontSize: 12, padding: '6px 12px', background: '#16a34a', color: '#fff' }} onClick={() => cambiarEstado(t, 'activo')}>Activar</button>
+                      : <button className="btn" style={{ fontSize: 12, padding: '6px 12px', background: '#dc2626', color: '#fff' }} onClick={() => cambiarEstado(t, 'suspendido')}>Suspender</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showCrear && <TenantCrearModal onClose={() => setShowCrear(false)} onCreated={(c) => { setCreds(c); setShowCrear(false); cargar(); }} planes={PLANES} />}
+      {creds && <TenantCredsModal creds={creds} onClose={() => setCreds(null)} />}
+      {editando && <TenantEditarModal tenant={editando} planes={PLANES} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); cargar(); }} onDeleted={() => { setEditando(null); cargar(); }} />}
+    </div>
+  );
+}
+
+function TenantCrearModal({ onClose, onCreated, planes }) {
+  const { toast } = useContext(Ctx);
+  const [f, setF] = useState({ nombre: '', slug: '', plan: 'full', admin_usuario: 'admin', admin_password: '', dias_trial: 15 });
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const slugAuto = (nombre) => nombre.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+
+  const crear = async () => {
+    if (!f.nombre.trim()) return toast('Poné un nombre', 'error');
+    const slug = (f.slug || slugAuto(f.nombre)).toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (!slug) return toast('Slug inválido', 'error');
+    setSaving(true);
+    try {
+      const r = await api.createTenant({ ...f, slug });
+      onCreated(r);
+    } catch (e) { toast(e.message, 'error'); setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <div className="modal-header"><h3>Nueva tienda</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre de la tienda</label>
+            <input value={f.nombre} onChange={e => { set('nombre', e.target.value); if (!f.slug) set('slug', slugAuto(e.target.value)); }} placeholder="Ej: Kiosco Don José" />
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Dirección web (subdominio)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input value={f.slug} onChange={e => set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="kioscodonjose" style={{ flex: 1 }} />
+              <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>.comerciapp.com.ar</span>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Plan</label>
+            <select value={f.plan} onChange={e => set('plan', e.target.value)}>
+              {planes.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Usuario admin</label>
+              <input value={f.admin_usuario} onChange={e => set('admin_usuario', e.target.value)} placeholder="admin" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Contraseña</label>
+              <input value={f.admin_password} onChange={e => set('admin_password', e.target.value)} placeholder="(auto si vacío)" />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Días de prueba gratis</label>
+            <input type="number" value={f.dias_trial} onChange={e => set('dias_trial', parseInt(e.target.value) || 0)} />
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>0 = activa directo. 15 = prueba de 15 días.</p>
+          </div>
+          <button className="btn btn-primary" onClick={crear} disabled={saving}>{saving ? 'Creando...' : 'Crear tienda'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TenantCredsModal({ creds, onClose }) {
+  const { toast } = useContext(Ctx);
+  const dominio = `${creds.slug}.comerciapp.com.ar`;
+  const texto = `Tu tienda está lista!\n\nLink: https://${dominio}\nUsuario: ${creds.admin_usuario}\nContraseña: ${creds.admin_password}\n\nEntrá y personalizala.`;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <div className="modal-header"><h3>Tienda creada ✓</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20 }}>
+          <p style={{ fontSize: 14, marginBottom: 16 }}>Guardá estos datos y pasáselos al cliente. La contraseña no se vuelve a mostrar.</p>
+          <div className="card" style={{ padding: 14, marginBottom: 16, fontSize: 14 }}>
+            <div style={{ marginBottom: 8 }}><strong>Link:</strong> <a href={`https://${dominio}`} target="_blank" rel="noopener" style={{ color: 'var(--primary)' }}>{dominio}</a></div>
+            <div style={{ marginBottom: 8 }}><strong>Usuario:</strong> {creds.admin_usuario}</div>
+            <div><strong>Contraseña:</strong> <code style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{creds.admin_password}</code></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { navigator.clipboard?.writeText(texto); toast('Copiado'); }}>Copiar datos</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={onClose}>Listo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TenantEditarModal({ tenant, planes, onClose, onSaved, onDeleted }) {
+  const { toast } = useContext(Ctx);
+  const [f, setF] = useState({ nombre: tenant.nombre || '', plan: tenant.plan || 'full', estado: tenant.estado || 'activo', dominio_propio: tenant.dominio_propio || '', notas: tenant.notas || '' });
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState('');
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+  const guardar = async () => {
+    setSaving(true);
+    try { await api.updateTenant(tenant.id, f); toast('Guardado'); onSaved(); }
+    catch (e) { toast(e.message, 'error'); setSaving(false); }
+  };
+  const borrar = async () => {
+    if (confirmDel !== tenant.slug) return toast('Escribí el slug para confirmar', 'error');
+    try { await api.deleteTenant(tenant.id); toast('Tienda eliminada'); onDeleted(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <div className="modal-header"><h3>Editar {tenant.nombre}</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre</label>
+            <input value={f.nombre} onChange={e => set('nombre', e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Plan</label>
+              <select value={f.plan} onChange={e => set('plan', e.target.value)}>{planes.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Estado</label>
+              <select value={f.estado} onChange={e => set('estado', e.target.value)} disabled={tenant.id === 1}>
+                <option value="trial">Prueba</option><option value="activo">Activo</option><option value="suspendido">Suspendido</option><option value="vencido">Vencido</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Dominio propio (opcional)</label>
+            <input value={f.dominio_propio} onChange={e => set('dominio_propio', e.target.value)} placeholder="mitienda.com" />
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Notas internas</label>
+            <textarea value={f.notas} onChange={e => set('notas', e.target.value)} rows={2} placeholder="Ej: paga por transferencia el 5 de cada mes" />
+          </div>
+          <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+
+          {tenant.id !== 1 && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
+              <p style={{ fontSize: 13, color: '#dc2626', fontWeight: 700, marginBottom: 8 }}>Zona peligrosa</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Borrar la tienda elimina TODOS sus datos (productos, pedidos, clientes). No se puede deshacer. Escribí <code style={{ background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 3 }}>{tenant.slug}</code> para confirmar.</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={confirmDel} onChange={e => setConfirmDel(e.target.value)} placeholder={tenant.slug} style={{ flex: 1 }} />
+                <button className="btn" style={{ background: '#dc2626', color: '#fff' }} onClick={borrar} disabled={confirmDel !== tenant.slug}>Borrar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
