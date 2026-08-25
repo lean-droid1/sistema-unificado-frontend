@@ -6,6 +6,16 @@ let refreshPromise = null;
 // cliente.comerciapp.com.ar → 'cliente'. Dominios propios o localhost/vercel → sin slug (el server usa default o el tenant del usuario).
 function getTenantSlug() {
   try {
+    // Override manual para probar sin dominio: ?tienda=slug (queda guardado en la sesión)
+    const params = new URLSearchParams(window.location.search);
+    const override = params.get('tienda');
+    if (override !== null) {
+      if (override === '') sessionStorage.removeItem('tenant_override');
+      else sessionStorage.setItem('tenant_override', override);
+    }
+    const saved = sessionStorage.getItem('tenant_override');
+    if (saved) return saved;
+
     const host = window.location.hostname;
     // localhost / IP / vercel preview → sin slug
     if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.endsWith('.vercel.app')) return '';
@@ -297,6 +307,7 @@ export async function resetPrecios(seccionId) { return f(`/api/precios/reset/${s
 
 // ── PANEL DUEÑO: administración de tenants (solo owner) ──
 export async function getTenants() { return f('/api/tenants'); }
+export async function getPlataformaStats() { return f('/api/plataforma/stats'); }
 export async function getTenant(id) { return f(`/api/tenants/${id}`); }
 export async function createTenant(data) { return f('/api/tenants', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateTenant(id, data) { return f(`/api/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
