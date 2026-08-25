@@ -3270,6 +3270,97 @@ function AdminAnalytics() {
   );
 }
 
+function OwnerStats({ stats }) {
+  const money = (n) => '$' + (n || 0).toLocaleString('es-AR');
+  const nombreMes = (ym) => { const [y, m] = ym.split('-'); return ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][parseInt(m) - 1] + ' ' + y.slice(2); };
+  const e = stats.por_estado || {};
+  const p = stats.por_plan || {};
+  const precios = stats.precios || {};
+
+  const Card = ({ label, valor, sub, color }) => (
+    <div className="card" style={{ padding: 16, flex: 1, minWidth: 150 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 900, color: color || 'var(--text-primary)', lineHeight: 1 }}>{valor}</div>
+      {sub && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+
+  const maxMes = Math.max(1, ...(stats.nuevas_por_mes || []).map(m => m.nuevas));
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      {/* Fila de números grandes */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <Card label="Facturación mensual" valor={money(stats.facturacion_mensual)} sub="tiendas activas que pagan" color="#16a34a" />
+        <Card label="Tiendas totales" valor={stats.total_tiendas} sub={`${e.activo || 0} activas · ${e.trial || 0} en prueba`} />
+        <Card label="En prueba" valor={e.trial || 0} sub="pruebas activas" color="#f59e0b" />
+        <Card label="Suspendidas" valor={e.suspendido || 0} sub="sin acceso" color={e.suspendido ? '#dc2626' : undefined} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {/* Ingresos por plan */}
+        <div className="card" style={{ padding: 16, flex: 1, minWidth: 260 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Tiendas por plan</div>
+          {['basic', 'pro', 'full'].map(pl => {
+            const cant = p[pl] || 0;
+            const label = { basic: 'Basic', pro: 'Pro', full: 'Full' }[pl];
+            const col = { basic: '#6b7280', pro: '#2563eb', full: '#7c3aed' }[pl];
+            return (
+              <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, width: 44, fontWeight: 700, color: col }}>{label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, width: 24 }}>{cant}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>× {money(precios[pl])} = <strong style={{ color: 'var(--text-secondary)' }}>{money(cant * (precios[pl] || 0))}</strong></span>
+              </div>
+            );
+          })}
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+            Potencial total (si todas pagaran): <strong style={{ color: 'var(--text-secondary)' }}>{money((p.basic || 0) * (precios.basic || 0) + (p.pro || 0) * (precios.pro || 0) + (p.full || 0) * (precios.full || 0))}</strong>
+          </div>
+        </div>
+
+        {/* Próximos vencimientos de prueba */}
+        <div className="card" style={{ padding: 16, flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Pruebas por vencer</div>
+          {(stats.proximos_trials || []).length === 0
+            ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ninguna prueba vence en los próximos 7 días.</div>
+            : stats.proximos_trials.map(t => (
+              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                <span>Tienda #{t.id}</span>
+                <span style={{ fontWeight: 700, color: t.dias <= 2 ? '#dc2626' : '#f59e0b' }}>{t.dias > 0 ? `en ${t.dias} día${t.dias === 1 ? '' : 's'}` : 'vencida'}</span>
+              </div>
+            ))}
+        </div>
+
+        {/* Tiendas nuevas por mes */}
+        <div className="card" style={{ padding: 16, flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Tiendas nuevas por mes</div>
+          {(stats.nuevas_por_mes || []).length === 0
+            ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Todavía no hay altas registradas.</div>
+            : stats.nuevas_por_mes.map(m => (
+              <div key={m.mes} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 11, width: 50, color: 'var(--text-muted)' }}>{nombreMes(m.mes)}</span>
+                <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 4, height: 16, overflow: 'hidden' }}>
+                  <div style={{ width: `${(m.nuevas / maxMes) * 100}%`, background: 'var(--primary)', height: '100%', borderRadius: 4 }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, width: 20, textAlign: 'right' }}>{m.nuevas}</span>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Uso total de la plataforma */}
+      {stats.uso_total && (
+        <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap', padding: '0 4px' }}>
+          <span>Uso total de la plataforma:</span>
+          <span><strong style={{ color: 'var(--text-secondary)' }}>{(stats.uso_total.productos || 0).toLocaleString('es-AR')}</strong> productos</span>
+          <span><strong style={{ color: 'var(--text-secondary)' }}>{(stats.uso_total.pedidos || 0).toLocaleString('es-AR')}</strong> pedidos</span>
+          <span><strong style={{ color: 'var(--text-secondary)' }}>{(stats.uso_total.clientes || 0).toLocaleString('es-AR')}</strong> clientes finales</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminOwner() {
   const { toast } = useContext(Ctx);
   const [tenants, setTenants] = useState([]);
@@ -3277,6 +3368,7 @@ function AdminOwner() {
   const [showCrear, setShowCrear] = useState(false);
   const [editando, setEditando] = useState(null);
   const [creds, setCreds] = useState(null); // credenciales recién creadas
+  const [stats, setStats] = useState(null);
 
   const PLANES = [
     { id: 'basic', label: 'Basic - Vender' },
@@ -3285,7 +3377,11 @@ function AdminOwner() {
   ];
   const ESTADOS = { trial: { t: 'Prueba', c: '#f59e0b' }, activo: { t: 'Activo', c: '#16a34a' }, suspendido: { t: 'Suspendido', c: '#dc2626' }, vencido: { t: 'Vencido', c: '#6b7280' } };
 
-  const cargar = () => { setLoading(true); api.getTenants().then(d => { setTenants(d || []); setLoading(false); }).catch(e => { toast(e.message, 'error'); setLoading(false); }); };
+  const cargar = () => {
+    setLoading(true);
+    api.getTenants().then(d => { setTenants(d || []); setLoading(false); }).catch(e => { toast(e.message, 'error'); setLoading(false); });
+    api.getPlataformaStats().then(setStats).catch(() => {});
+  };
   useEffect(() => { cargar(); }, []);
 
   const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -3299,7 +3395,7 @@ function AdminOwner() {
   const dominioTienda = (t) => t.dominio_propio ? t.dominio_propio : `${t.slug}.comerciapp.com.ar`;
 
   return (
-    <div style={{ maxWidth: 1000 }}>
+    <div style={{ maxWidth: 1100 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Plataforma</h2>
@@ -3307,6 +3403,8 @@ function AdminOwner() {
         </div>
         <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
       </div>
+
+      {stats && <OwnerStats stats={stats} />}
 
       {loading ? <div style={{ padding: 20, color: 'var(--text-muted)' }}>Cargando...</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
