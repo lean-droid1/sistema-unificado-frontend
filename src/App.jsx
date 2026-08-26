@@ -3655,6 +3655,123 @@ function AdminAnalytics() {
   );
 }
 
+function CobrosModal({ onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { api.getCobros().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false)); }, []);
+  const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-AR');
+  const fmtF = (f) => f ? new Date(f).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="modal-header"><h3>Cobros</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20 }}>
+          {loading ? <div style={{ color: 'var(--text-muted)' }}>Cargando...</div> : data && (
+            <>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cobrado este mes</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#16a34a' }}>{fmt(data.mes_total)}</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pagos este mes</div>
+                  <div style={{ fontSize: 24, fontWeight: 900 }}>{data.mes_cant}</div>
+                </div>
+              </div>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Últimos pagos</h4>
+              {(!data.ultimos || data.ultimos.length === 0)
+                ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Todavía no registraste pagos. Entrá a una tienda y tocá "💰 Pagos" para registrar el primero.</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {data.ultimos.map(p => (
+                      <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 13 }}>
+                        <div><strong>{p.tienda || 'Tienda #' + p.tenant_id}</strong> <span style={{ color: 'var(--text-muted)' }}>· {fmtF(p.pagado_en)}{p.periodo ? ' · ' + p.periodo : ''}</span></div>
+                        <div style={{ fontWeight: 700, color: '#16a34a' }}>{fmt(p.monto)}</div>
+                      </div>
+                    ))}
+                  </div>}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PagosTenantModal({ tenant, onClose }) {
+  const { toast } = useContext(Ctx);
+  const [pagos, setPagos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ monto: '', metodo: 'Efectivo', periodo: '', notas: '', proximo_venc: '' });
+  const [saving, setSaving] = useState(false);
+
+  const cargar = () => { api.getPagosTenant(tenant.id).then(d => { setPagos(d || []); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { cargar(); }, []);
+
+  const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-AR');
+  const fmtF = (f) => f ? new Date(f).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+
+  const registrar = async () => {
+    if (!form.monto || parseFloat(form.monto) <= 0) { toast('Poné un monto', 'error'); return; }
+    setSaving(true);
+    try {
+      await api.registrarPago({ tenant_id: tenant.id, ...form, proximo_venc: form.proximo_venc || null });
+      toast('Pago registrado'); setForm({ monto: '', metodo: 'Efectivo', periodo: '', notas: '', proximo_venc: '' }); cargar();
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+  const borrar = async (id) => { try { await api.deletePagoSuscripcion(id); toast('Pago eliminado'); cargar(); } catch (e) { toast(e.message, 'error'); } };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="modal-header"><h3>Pagos · {tenant.nombre}</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20 }}>
+          {/* Formulario nuevo pago */}
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Registrar pago</h4>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Monto *</label>
+                <input type="number" inputMode="numeric" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="45000" style={{ width: '100%' }} />
+              </div>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Método</label>
+                <select value={form.metodo} onChange={e => setForm(f => ({ ...f, metodo: e.target.value }))} style={{ width: '100%' }}>
+                  <option>Efectivo</option><option>Transferencia</option><option>Mercado Pago</option><option>Otro</option>
+                </select>
+              </div>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Período</label>
+                <input value={form.periodo} onChange={e => setForm(f => ({ ...f, periodo: e.target.value }))} placeholder="Ago 2026" style={{ width: '100%' }} />
+              </div>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Próximo vencimiento</label>
+                <input type="date" value={form.proximo_venc} onChange={e => setForm(f => ({ ...f, proximo_venc: e.target.value }))} style={{ width: '100%' }} />
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ marginTop: 12, width: '100%' }} onClick={registrar} disabled={saving}>{saving ? 'Guardando...' : 'Registrar pago'}</button>
+          </div>
+          {/* Historial */}
+          <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Historial</h4>
+          {loading ? <div style={{ color: 'var(--text-muted)' }}>Cargando...</div>
+            : pagos.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Sin pagos todavía.</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {pagos.map(p => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 13 }}>
+                    <div>
+                      <strong style={{ color: '#16a34a' }}>{fmt(p.monto)}</strong> <span style={{ color: 'var(--text-muted)' }}>· {fmtF(p.pagado_en)}{p.metodo ? ' · ' + p.metodo : ''}{p.periodo ? ' · ' + p.periodo : ''}</span>
+                      {p.proximo_venc && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Próx. venc: {fmtF(p.proximo_venc)}</div>}
+                    </div>
+                    <button onClick={() => borrar(p.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 16 }}>🗑</button>
+                  </div>
+                ))}
+              </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OfertaModal({ onClose, onSaved }) {
   const { toast } = useContext(Ctx);
   const [oferta, setOferta] = useState({ descuento_pct: '', meses: '' });
@@ -3872,6 +3989,8 @@ function AdminOwner() {
   const [stats, setStats] = useState(null);
   const [showPrecios, setShowPrecios] = useState(false);
   const [showOferta, setShowOferta] = useState(false);
+  const [showCobros, setShowCobros] = useState(false);
+  const [pagoTenant, setPagoTenant] = useState(null); // tienda para registrar pago / ver historial
 
   const PLANES = [
     { id: 'basic', label: 'Basic - Vender' },
@@ -3905,6 +4024,7 @@ function AdminOwner() {
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Administrá las tiendas de tus clientes. {tenants.length} {tenants.length === 1 ? 'tienda' : 'tiendas'}.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-outline" onClick={() => setShowCobros(true)}>💰 Cobros</button>
           <button className="btn btn-outline" onClick={() => setShowPrecios(true)}>Editar precios</button>
           <button className="btn btn-outline" onClick={() => setShowOferta(true)}>Editar oferta</button>
           <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
@@ -3938,6 +4058,7 @@ function AdminOwner() {
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button className="btn btn-outline" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditando(t)}>Editar</button>
+                    {t.id !== 1 && <button className="btn btn-outline" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setPagoTenant(t)}>💰 Pagos</button>}
                     {t.id !== 1 && (t.estado === 'suspendido'
                       ? <button className="btn" style={{ fontSize: 12, padding: '6px 12px', background: '#16a34a', color: '#fff' }} onClick={() => cambiarEstado(t, 'activo')}>Activar</button>
                       : <button className="btn" style={{ fontSize: 12, padding: '6px 12px', background: '#dc2626', color: '#fff' }} onClick={() => cambiarEstado(t, 'suspendido')}>Suspender</button>
@@ -3955,6 +4076,8 @@ function AdminOwner() {
       {editando && <TenantEditarModal tenant={editando} planes={PLANES} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); cargar(); }} onDeleted={() => { setEditando(null); cargar(); }} />}
       {showPrecios && <PreciosModal onClose={() => setShowPrecios(false)} onSaved={() => { setShowPrecios(false); cargar(); }} />}
       {showOferta && <OfertaModal onClose={() => setShowOferta(false)} onSaved={() => { setShowOferta(false); cargar(); }} />}
+      {showCobros && <CobrosModal onClose={() => setShowCobros(false)} />}
+      {pagoTenant && <PagosTenantModal tenant={pagoTenant} onClose={() => setPagoTenant(null)} />}
     </div>
   );
 }
@@ -5327,7 +5450,7 @@ function AdminProductos() {
                   <button className="btn btn-outline btn-sm" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} style={{ padding: '2px 6px' }} title="Variantes"><Ico n="shuffle" s={15} /></button>
                   <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.duplicarProducto(p.id); toast('Producto duplicado'); load(); } catch (e) { toast(e.message, 'error'); } }} style={{ padding: '2px 6px', marginLeft: 4 }} title="Duplicar"><Ico n="copy" s={15} /></button>
                   <button className="btn btn-outline btn-sm" onClick={() => setEditProd(p)} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="edit" s={15} /></button>
-                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteProducto(p.id); load(); }} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="trash" s={15} /></button>
+                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; try { await api.deleteProducto(p.id); toast('Producto eliminado'); load(); } catch (e) { toast(e.message, 'error'); } }} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="trash" s={15} /></button>
                 </td>
               </tr>
               {expandVars === p.id && (
@@ -5405,9 +5528,20 @@ function MultiImageUpload({ productoId }) {
   const [imgs, setImgs] = useState([]);
   const [uploading, setUploading] = useState(false);
   useEffect(() => { api.getProductoImagenes(productoId).then(setImgs).catch(() => {}); }, [productoId]);
-  const upload = async (file) => {
+  // Sube varios archivos EN SERIE (uno tras otro) para que no se pisen y queden en orden.
+  const uploadFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter(f => f && f.type && f.type.startsWith('image/'));
+    if (!files.length) return;
     setUploading(true);
-    try { const r = await api.uploadImagen(file); await api.addProductoImagen(productoId, r.url, imgs.length); const updated = await api.getProductoImagenes(productoId); setImgs(updated); } catch { toast('Error al subir', 'error'); }
+    let orden = imgs.length;
+    for (const file of files) {
+      try {
+        const r = await api.uploadImagen(file);
+        await api.addProductoImagen(productoId, r.url, orden);
+        orden++;
+      } catch { toast(`Error al subir ${file.name || 'una imagen'}`, 'error'); }
+    }
+    try { const updated = await api.getProductoImagenes(productoId); setImgs(updated); } catch {}
     setUploading(false);
   };
 
@@ -5432,20 +5566,41 @@ function MultiImageUpload({ productoId }) {
       </body></html>`);
     w.document.close();
   };
-  const remove = async (id) => { await api.deleteProductoImagen(id); setImgs(imgs.filter(i => i.id !== id)); };
+  const remove = async (id) => { try { await api.deleteProductoImagen(id); setImgs(imgs.filter(i => i.id !== id)); } catch (e) { toast(e.message, 'error'); } };
+  // Reordenar: mover una imagen a la izquierda o derecha y persistir el nuevo orden
+  const mover = async (idx, dir) => {
+    const nuevo = idx + dir;
+    if (nuevo < 0 || nuevo >= imgs.length) return;
+    const arr = [...imgs];
+    [arr[idx], arr[nuevo]] = [arr[nuevo], arr[idx]];
+    setImgs(arr);
+    try { await api.ordenarProductoImagenes(productoId, arr.map(i => i.id)); } catch (e) { toast('No se pudo guardar el orden', 'error'); }
+  };
+  const [dragOver, setDragOver] = useState(false);
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <h4 style={{ marginBottom: 8, fontSize: 14 }}>📸 Galería de imágenes ({imgs.length})</h4>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        {imgs.map(img => (
-          <div key={img.id} style={{ position: 'relative', width: 80, height: 80 }}>
-            <img src={img.url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Arrastrá varias imágenes a la zona de abajo. Podés reordenarlas con ← → y eliminar con ✕. La primera es la principal.</p>
+      <div
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files); }}
+        style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, padding: 8, borderRadius: 10, border: dragOver ? '2px dashed var(--primary)' : '2px dashed transparent', background: dragOver ? 'var(--bg-secondary)' : 'transparent', transition: 'all .15s' }}
+      >
+        {imgs.map((img, idx) => (
+          <div key={img.id} style={{ position: 'relative', width: 80 }}>
+            <img src={img.url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: idx === 0 ? '2px solid var(--primary)' : '1px solid var(--border)' }} />
+            {idx === 0 && <span style={{ position: 'absolute', top: 2, left: 2, background: 'var(--primary)', color: '#fff', fontSize: 9, padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>Principal</span>}
             <button onClick={() => remove(img.id)} style={{ position: 'absolute', top: -6, right: -6, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, fontSize: 11, cursor: 'pointer' }}>✕</button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 2 }}>
+              <button onClick={() => mover(idx, -1)} disabled={idx === 0} style={{ border: 'none', background: 'var(--bg-secondary)', borderRadius: 4, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1, fontSize: 12, padding: '0 6px' }}>←</button>
+              <button onClick={() => mover(idx, 1)} disabled={idx === imgs.length - 1} style={{ border: 'none', background: 'var(--bg-secondary)', borderRadius: 4, cursor: idx === imgs.length - 1 ? 'default' : 'pointer', opacity: idx === imgs.length - 1 ? 0.3 : 1, fontSize: 12, padding: '0 6px' }}>→</button>
+            </div>
           </div>
         ))}
         <label style={{ width: 80, height: 80, border: '2px dashed var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 24, color: 'var(--text-muted)' }}>
           {uploading ? '...' : '+'}
-          <input type="file" accept="image/*" multiple onChange={e => { Array.from(e.target.files).forEach(upload); }} style={{ display: 'none' }} />
+          <input type="file" accept="image/*" multiple onChange={e => { uploadFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
         </label>
       </div>
     </div>
@@ -5466,7 +5621,7 @@ function VariantesEditor({ productoId }) {
   const saveVar = async (v) => {
     try { await api.updateVariante(v.id, { nombre: v.nombre, valor: v.valor, stock: Number(v.stock) || 0, precio_extra: Number(v.precio_extra) || 0 }); } catch (e) { toast(e.message, 'error'); }
   };
-  const remove = async (id) => { await api.deleteVariante(id); setVars(vars.filter(v => v.id !== id)); };
+  const remove = async (id) => { try { await api.deleteVariante(id); setVars(vars.filter(v => v.id !== id)); } catch (e) { toast(e.message, 'error'); } };
   const nombresUsados = [...new Set(vars.map(v => v.nombre).filter(Boolean))];
   const dlId = `varnames-${productoId}`;
   return (
@@ -5475,18 +5630,18 @@ function VariantesEditor({ productoId }) {
       <datalist id={dlId}>{nombresUsados.map(n => <option key={n} value={n} />)}</datalist>
       {vars.map(v => (
         <div key={v.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-          <input value={v.nombre} list={dlId} onChange={e => setLocal(v.id, 'nombre', e.target.value)} onBlur={() => saveVar(v)} placeholder="Nombre" style={{ width: 110, fontSize: 13 }} />
-          <input value={v.valor} onChange={e => setLocal(v.id, 'valor', e.target.value)} onBlur={() => saveVar(v)} placeholder="Valor" style={{ width: 110, fontSize: 13 }} />
-          <input type="number" value={v.stock} onChange={e => setLocal(v.id, 'stock', e.target.value)} onBlur={() => saveVar(v)} placeholder="Stock" style={{ width: 70, fontSize: 13 }} />
-          <input type="number" value={v.precio_extra} onChange={e => setLocal(v.id, 'precio_extra', e.target.value)} onBlur={() => saveVar(v)} placeholder="+$" style={{ width: 70, fontSize: 13 }} />
+          <input value={v.nombre} list={dlId} onChange={e => setLocal(v.id, 'nombre', e.target.value)} onBlur={() => saveVar(v)} placeholder="Nombre" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
+          <input value={v.valor} onChange={e => setLocal(v.id, 'valor', e.target.value)} onBlur={() => saveVar(v)} placeholder="Valor" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
+          <input type="number" value={v.stock} onChange={e => setLocal(v.id, 'stock', e.target.value)} onBlur={() => saveVar(v)} placeholder="Stock" style={{ flex: '0 1 80px', minWidth: 70, fontSize: 13 }} />
+          <input type="number" value={v.precio_extra} onChange={e => setLocal(v.id, 'precio_extra', e.target.value)} onBlur={() => saveVar(v)} placeholder="+$" style={{ flex: '0 1 80px', minWidth: 70, fontSize: 13 }} />
           <button onClick={() => remove(v.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <input placeholder="Nombre (ej: Color)" list={dlId} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ width: 120 }} />
-        <input placeholder="Valor (ej: Rojo)" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ width: 120 }} />
-        <input type="number" placeholder="Stock" value={form.stock || ''} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ width: 70 }} />
-        <input type="number" placeholder="+$" value={form.precio_extra || ''} onChange={e => setForm({ ...form, precio_extra: Number(e.target.value) })} style={{ width: 70 }} />
+        <input placeholder="Nombre (ej: Color)" list={dlId} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
+        <input placeholder="Valor (ej: Rojo)" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
+        <input type="number" placeholder="Stock" value={form.stock || ''} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ flex: '0 1 80px', minWidth: 70 }} />
+        <input type="number" placeholder="+$" value={form.precio_extra || ''} onChange={e => setForm({ ...form, precio_extra: Number(e.target.value) })} style={{ flex: '0 1 80px', minWidth: 70 }} />
         <button className="btn btn-primary btn-sm" onClick={add}>+ Agregar</button>
       </div>
     </div>
@@ -5603,13 +5758,6 @@ function ProductModal({ product, onClose }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock || false} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir compra sin stock</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
-          </div>
-          {/* Peso y dimensiones (para Andreani) */}
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Peso (kg)</label><input type="number" step="0.01" value={f.peso || ''} onChange={e => setF({ ...f, peso: Number(e.target.value) })} placeholder="0.5" /></div>
-            <div className="form-group"><label className="form-label">Alto (cm)</label><input type="number" value={f.alto || ''} onChange={e => setF({ ...f, alto: Number(e.target.value) })} /></div>
-            <div className="form-group"><label className="form-label">Ancho (cm)</label><input type="number" value={f.ancho || ''} onChange={e => setF({ ...f, ancho: Number(e.target.value) })} /></div>
-            <div className="form-group"><label className="form-label">Largo (cm)</label><input type="number" value={f.largo || ''} onChange={e => setF({ ...f, largo: Number(e.target.value) })} /></div>
           </div>
           {/* Image upload (principal) */}
           <div className="form-group">
@@ -6765,7 +6913,7 @@ function AdminListas() {
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="btn btn-outline btn-sm" onClick={() => setEditLista(l)}><Ico n="edit" s={15} /></button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; await api.deleteLista(l.id); refresh(); }}><Ico n="trash" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; try { await api.deleteLista(l.id); toast('Eliminado'); refresh(); } catch (e) { toast(e.message, 'error'); } }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
@@ -7372,7 +7520,7 @@ function AdminBadges() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: '⭐', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran debajo de los productos como indicadores de confianza. Arrastrá ⠿ para reordenar, tocá el ojo para activar/desactivar.</p>
-      {bgs.map((b, i) => (<div key={b.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', opacity: b.visible ? 1 : 0.5 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ opacity: 0.35 }}>⠿</span><RenderIcon value={b.icono} size={16} /><strong>{b.texto}</strong><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({secNames(b.secciones_ids)})</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => toggleVisible(b)} title={b.visible ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.visible ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar badge?')) return; await api.deleteBadge(b.id); reload(); }}><Ico n="trash" s={15} /></button></div></div></div>))}
+      {bgs.map((b, i) => (<div key={b.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', opacity: b.visible ? 1 : 0.5 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ opacity: 0.35 }}>⠿</span><RenderIcon value={b.icono} size={16} /><strong>{b.texto}</strong><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({secNames(b.secciones_ids)})</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => toggleVisible(b)} title={b.visible ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.visible ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar badge?')) return; try { await api.deleteBadge(b.id); toast('Eliminado'); reload(); } catch (e) { toast(e.message, 'error'); } }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} badge</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
         <div className="form-row"><div className="form-group"><IconPicker label="Icono" value={form.icono} onChange={v => setForm({ ...form, icono: v })} /></div><div className="form-group" style={{ flex: 1 }}><label className="form-label">Texto</label><input value={form.texto} onChange={e => setForm({ ...form, texto: e.target.value })} /></div></div>
         <div className="form-group"><label className="form-label">Secciones donde mostrar</label>
@@ -7857,7 +8005,7 @@ function AdminContactos() {
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(c)} style={{ padding: '2px 8px' }}>{c.activo ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button>
               <button className="btn btn-outline btn-sm" onClick={() => { setEdit(c); setForm({ ...empty, ...c }); setShow(true); }}><Ico n="edit" s={15} /></button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar contacto?')) return; await api.deleteContacto(c.id); load(); }}><Ico n="trash" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar contacto?')) return; try { await api.deleteContacto(c.id); toast('Eliminado'); load(); } catch (e) { toast(e.message, 'error'); } }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
@@ -7910,7 +8058,7 @@ function AdminLeads() {
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button className="btn btn-success btn-sm" onClick={() => escribir(l)} style={{ background: '#25D366', whiteSpace: 'nowrap' }}><Ico n="message" s={14} /> Escribir</button>
-                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar lead?')) return; await api.deleteLead(l.id); load(); }}><Ico n="trash" s={15} /></button>
+                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar lead?')) return; try { await api.deleteLead(l.id); toast('Eliminado'); load(); } catch (e) { toast(e.message, 'error'); } }}><Ico n="trash" s={15} /></button>
                 </div>
               </div>
             </div>
@@ -7957,7 +8105,7 @@ function AdminBarras() {
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="btn btn-outline btn-sm" onClick={() => toggleActivo(b)} title={b.activo ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.activo ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button>
               <button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm({ ...emptyForm, ...b }); setShow(true); }}><Ico n="edit" s={15} /></button>
-              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar barra?')) return; await api.deleteBarra(b.id); load(); refreshPublic(); }}><Ico n="trash" s={15} /></button>
+              <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar barra?')) return; try { await api.deleteBarra(b.id); toast('Eliminado'); load(); refreshPublic(); } catch (e) { toast(e.message, 'error'); } }}><Ico n="trash" s={15} /></button>
             </div>
           </div>
         </div>
