@@ -721,9 +721,9 @@ export default function App() {
       return false;
     } catch { return false; }
   })();
-  // Mostrar el sitio ComerciApp (landing, login o registro de tienda) cuando estás en la raíz sin sesión.
-  // Incluye login/forgot/crear-tienda para que tengan branding ComerciApp (no el layout de la tienda).
-  const showComerciappSite = esComerciappRoot && !user;
+  // Sitio ComerciApp en la raíz: sin sesión = landing/login/registro; con sesión de DUEÑO = panel de plataforma.
+  const esOwner = !!user?.es_owner;
+  const showComerciappSite = esComerciappRoot && (!user || esOwner);
 
   // Context value
   const ctx = {
@@ -749,7 +749,7 @@ export default function App() {
       case 'cart': return <CartPage />;
       case 'login': return <LoginPage />;
       case 'register': return <RegisterPage />;
-      case 'admin': return isAdmin ? <AdminPanel /> : <Landing />;
+      case 'admin': return isAdmin ? (['suspendido','vencido'].includes(miPlan?.estado) && !user?.es_owner ? <CuentaBloqueada estado={miPlan.estado} /> : <AdminPanel />) : <Landing />;
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
       case 'forgot': return <ForgotPasswordPage />;
       case 'info': return <InfoPage />;
@@ -764,11 +764,13 @@ export default function App() {
     <Ctx.Provider value={ctx}>
       {showComerciappSite ? (
         <div className={`app${effectiveDark ? ' dark' : ''}`}>
-          {page === 'crear-tienda'
-            ? <CrearTiendaPage onListo={() => nav('login')} onVolver={() => nav('landing')} />
-            : (page === 'login' || page === 'forgot')
-              ? <ComerciappLoginPage forgot={page === 'forgot'} onVolver={() => nav('landing')} onForgot={() => nav('forgot')} onLogin={() => nav('login')} />
-              : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}
+          {esOwner
+            ? <PanelPlataforma onLogout={handleLogout} />
+            : page === 'crear-tienda'
+              ? <CrearTiendaPage onListo={() => nav('login')} onVolver={() => nav('landing')} />
+              : (page === 'login' || page === 'forgot')
+                ? <ComerciappLoginPage forgot={page === 'forgot'} onVolver={() => nav('landing')} onForgot={() => nav('forgot')} onLogin={() => nav('login')} />
+                : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}
           <ToastContainer />
         </div>
       ) : (
@@ -3347,6 +3349,31 @@ function AccountPanel() {
 // ═══════════════════════════════════════════════════════════
 // ADMIN PANEL (with sidebar!)
 // ═══════════════════════════════════════════════════════════
+function CuentaBloqueada({ estado }) {
+  const { handleLogout, config } = useContext(Ctx);
+  const wa = (config?.whatsapp || '').replace(/[^0-9]/g, '');
+  const esVencido = estado === 'vencido';
+  const msg = encodeURIComponent('Hola, quiero reactivar mi tienda en ComerciApp.');
+  return (
+    <div style={{ maxWidth: 480, margin: '48px auto', padding: '0 16px' }}>
+      <div className="card" style={{ padding: 36, textAlign: 'center' }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>{esVencido ? '⏰' : '🔒'}</div>
+        <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>{esVencido ? 'Tu prueba terminó' : 'Tu cuenta está suspendida'}</h2>
+        <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: '0 0 22px', lineHeight: 1.5 }}>
+          {esVencido
+            ? 'Se terminó tu período de prueba gratuito. Para seguir usando tu tienda y no perder tus datos, activá un plan.'
+            : 'Tu tienda está suspendida temporalmente. Regularizá tu suscripción para volver a activarla.'}
+          <br /><br />Tus datos están guardados y seguros.
+        </p>
+        {wa
+          ? <a className="btn btn-primary" style={{ width: '100%', marginBottom: 10 }} href={`https://wa.me/${wa}?text=${msg}`} target="_blank" rel="noopener noreferrer">Activar mi plan por WhatsApp</a>
+          : <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10 }}>Contactá al administrador para reactivar tu cuenta.</div>}
+        <button className="btn btn-outline" style={{ width: '100%' }} onClick={handleLogout}>Cerrar sesión</button>
+      </div>
+    </div>
+  );
+}
+
 function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user, miPlan } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -3407,7 +3434,6 @@ function AdminPanel() {
     { id: 'pagos_grp', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
     { id: 'diseno_grp', label: 'Personalizar tienda', icon: 'palette', single: 'diseno' },
     { id: 'general_grp', label: 'General', icon: 'settings', single: 'general' },
-    ...(user?.es_owner ? [{ id: 'plataforma_grp', label: 'Plataforma (dueño)', icon: 'store', single: 'owner_tenants' }] : []),
   ];
 
   // Mapa tab → feature del plan (si la feature está off, se oculta la sección). El dueño (es_owner) ve todo.
@@ -3762,6 +3788,26 @@ function OwnerStats({ stats }) {
           <span><strong style={{ color: 'var(--text-secondary)' }}>{(stats.uso_total.clientes || 0).toLocaleString('es-AR')}</strong> clientes finales</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function PanelPlataforma({ onLogout }) {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontWeight: 900, fontSize: 20 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 999, padding: '2px 10px' }}>Panel de dueño</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a className="btn btn-sm btn-outline" href={typeof window !== 'undefined' ? window.location.pathname : '/'} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); try { const u = new URL(window.location.href); u.searchParams.delete('comerciapp'); window.location.href = u.pathname + u.search; } catch { window.location.href = '/'; } }}>Ir a mi tienda ↗</a>
+          <button className="btn btn-sm btn-outline" onClick={onLogout}>Cerrar sesión</button>
+        </div>
+      </nav>
+      <div style={{ padding: '24px 16px' }}>
+        <AdminOwner />
+      </div>
     </div>
   );
 }
