@@ -707,6 +707,24 @@ export default function App() {
 
   const isAdmin = user && ['admin','subadmin'].includes(user.rol);
 
+  // ¿Estamos en la raíz de ComerciApp (el sitio del servicio, no una tienda)?
+  // Es la raíz si: host = comerciapp.com.ar (sin subdominio) o ?comerciapp=1 (para probar sin dominio).
+  const esComerciappRoot = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('comerciapp') === '1') return true;
+      const host = window.location.hostname;
+      const parts = host.split('.');
+      // comerciapp.com.ar exacto o www.comerciapp.com.ar = raíz (4+ partes con subdominio ≠ www = tienda)
+      if (host === 'comerciapp.com.ar' || host === 'www.comerciapp.com.ar') return true;
+      return false;
+    } catch { return false; }
+  })();
+  // Sitio ComerciApp en la raíz: sin sesión = landing/login/registro; con sesión de DUEÑO = panel de plataforma.
+  const esOwner = !!user?.es_owner;
+  const showComerciappSite = esComerciappRoot && (!user || esOwner);
+
   // Context value
   const ctx = {
     user, setUser, page, setPage: nav, loading, dark, setDark, toast,
@@ -731,7 +749,7 @@ export default function App() {
       case 'cart': return <CartPage />;
       case 'login': return <LoginPage />;
       case 'register': return <RegisterPage />;
-      case 'admin': return isAdmin ? <AdminPanel /> : <Landing />;
+      case 'admin': return isAdmin ? (['suspendido','vencido'].includes(miPlan?.estado) && !user?.es_owner ? <CuentaBloqueada estado={miPlan.estado} /> : <AdminPanel />) : <Landing />;
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
       case 'forgot': return <ForgotPasswordPage />;
       case 'info': return <InfoPage />;
@@ -744,6 +762,18 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
+      {showComerciappSite ? (
+        <div className={`app${effectiveDark ? ' dark' : ''}`}>
+          {esOwner
+            ? <PanelPlataforma onLogout={handleLogout} />
+            : page === 'crear-tienda'
+              ? <CrearTiendaPage onListo={() => nav('login')} onVolver={() => nav('landing')} />
+              : (page === 'login' || page === 'forgot')
+                ? <ComerciappLoginPage forgot={page === 'forgot'} onVolver={() => nav('landing')} onForgot={() => nav('forgot')} onLogin={() => nav('login')} />
+                : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}
+          <ToastContainer />
+        </div>
+      ) : (
       <div className={`app${effectiveDark ? ' dark' : ''}`}>
         <Header />
         <main className="main-content">{renderPage()}</main>
@@ -752,6 +782,7 @@ export default function App() {
         <ToastContainer />
         <NotifyStockModal />
       </div>
+      )}
     </Ctx.Provider>
   );
 }
@@ -1013,7 +1044,7 @@ function Header() {
 // FOOTER
 // ═══════════════════════════════════════════════════════════
 function Footer() {
-  const { design, redesSociales, nav, secciones } = useContext(Ctx);
+  const { design, redesSociales, nav, secciones, miPlan } = useContext(Ctx);
   const activas = redesSociales.filter(r => r.activo && r.url);
   const [infoPags, setInfoPags] = useState([]);
   useEffect(() => { api.getPaginas().then(setInfoPags).catch(() => {}); }, []);
@@ -1097,6 +1128,13 @@ function Footer() {
           </div>
         )}
         <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>{design.footer_texto || `© ${new Date().getFullYear()} ${design.nombre_tienda || ''} — Todos los derechos reservados`}</p>
+        {!miPlan?.features?.ocultar_marca && (
+          <div style={{ textAlign: 'center', marginTop: 10 }}>
+            <a href="https://comerciapp.com.ar" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none', padding: '5px 12px', border: '1px solid var(--border)', borderRadius: 999 }}>
+              Hecho con <strong style={{ color: 'var(--text-secondary)' }}>ComerciApp</strong>
+            </a>
+          </div>
+        )}
       </div>
     </footer>
   );
@@ -1386,6 +1424,326 @@ function InfoPage() {
 // ═══════════════════════════════════════════════════════════
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
+function ComerciappLoginPage({ forgot, onVolver, onForgot, onLogin }) {
+  const { handleLogin, toast } = useContext(Ctx);
+  const [tienda, setTienda] = useState('');
+  const [usuario, setUsuario] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const doLogin = async (code) => {
+    setBusy(true);
+    try {
+      // Si indicó una dirección de tienda, la usamos como tenant (override). Si no, entra a la principal.
+      const slug = tienda.toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+      try { if (slug) sessionStorage.setItem('tenant_override', slug); else sessionStorage.removeItem('tenant_override'); } catch {}
+      const r = await handleLogin(usuario, password, code || undefined);
+      if (r && r.requires_otp) { setOtpStep(true); toast('Código enviado a tu email'); }
+    } catch (e) { /* handleLogin ya avisa */ }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+      {/* nav ComerciApp */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <button onClick={onVolver} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: 22, color: 'var(--text-primary)' }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></button>
+        <button className="btn btn-outline btn-sm" onClick={onVolver}>← Volver</button>
+      </nav>
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
+        <div className="card" style={{ maxWidth: 420, width: '100%', padding: 32, borderRadius: 20 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontWeight: 900, fontSize: 26, marginBottom: 6 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+            <h2 style={{ fontWeight: 900, fontSize: 20, margin: 0 }}>{otpStep ? 'Verificación' : forgot ? 'Recuperar contraseña' : 'Ingresá a tu panel'}</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>{otpStep ? 'Ingresá el código que recibiste por email' : forgot ? 'Te enviaremos instrucciones por email' : 'Administrá tu tienda'}</p>
+          </div>
+
+          {forgot ? (
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 16 }}>Para recuperar tu contraseña, escribinos por WhatsApp o email y te ayudamos a restablecerla.</p>
+              <button className="btn btn-outline" style={{ width: '100%' }} onClick={onLogin}>← Volver a ingresar</button>
+            </>
+          ) : otpStep ? (
+            <>
+              <div className="form-group"><label className="form-label">CÓDIGO DE VERIFICACIÓN</label>
+                <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin(otpCode)} placeholder="123456" style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.3em' }} maxLength={6} autoFocus />
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', marginTop: 16 }} onClick={() => doLogin(otpCode)} disabled={busy}>Verificar</button>
+              <button onClick={() => { setOtpStep(false); setOtpCode(''); }} style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>← Volver</button>
+            </>
+          ) : (
+            <>
+              <div className="form-group">
+                <label className="form-label">DIRECCIÓN DE TU TIENDA</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input value={tienda} onChange={e => setTienda(e.target.value)} placeholder="mitienda" style={{ flex: 1 }} />
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>.comerciapp.com.ar</span>
+                </div>
+              </div>
+              <div className="form-group"><label className="form-label">USUARIO</label>
+                <input value={usuario} onChange={e => setUsuario(e.target.value)} placeholder="Tu usuario" />
+              </div>
+              <div className="form-group"><label className="form-label">CONTRASEÑA</label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="Tu contraseña" style={{ width: '100%' }} />
+                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+                </div>
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => doLogin()} disabled={busy}>{busy ? 'Ingresando...' : 'Ingresar'}</button>
+              <p style={{ textAlign: 'center', fontSize: 13, marginTop: 16, color: 'var(--text-muted)' }}>
+                <button onClick={onForgot} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>¿Olvidaste tu contraseña?</button>
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrearTiendaPage({ onListo, onVolver }) {
+  const [form, setForm] = useState({ nombre_tienda: '', slug: '', nombre: '', usuario: '', password: '', email: '', telefono: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [ok, setOk] = useState(null);
+  const [slugTouched, setSlugTouched] = useState(false);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Autogenerar slug desde el nombre de la tienda (hasta que el usuario lo edite a mano)
+  const onNombreTienda = (v) => {
+    set('nombre_tienda', v);
+    if (!slugTouched) {
+      const s = v.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 30);
+      set('slug', s);
+    }
+  };
+
+  const enviar = async () => {
+    setError('');
+    if (!form.nombre_tienda || !form.slug || !form.usuario || !form.password) { setError('Completá los campos obligatorios (*)'); return; }
+    if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+    setSaving(true);
+    try {
+      const r = await api.registrarTienda(form);
+      setOk(r);
+    } catch (e) { setError(e.message || 'No se pudo crear la tienda'); setSaving(false); }
+  };
+
+  if (ok) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
+        <div className="card" style={{ maxWidth: 460, padding: 36, textAlign: 'center' }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>¡Tu tienda está lista!</h2>
+          <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
+            Tenés <strong>{ok.dias} días gratis</strong> con todas las funciones. Ingresá con tu usuario <strong>{ok.usuario}</strong> para empezar a cargar tu tienda.
+          </p>
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 14 }}>
+            Tu dirección web: <strong>{ok.slug}.comerciapp.com.ar</strong>
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%' }} onClick={onListo}>Ingresar a mi tienda</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
+        <button className="btn btn-sm btn-outline" style={{ marginBottom: 16 }} onClick={onVolver}>← Volver</button>
+        <div className="card" style={{ padding: 28 }}>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 4px', textAlign: 'center' }}>Creá tu tienda</h2>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 8px', textAlign: 'center' }}>15 días gratis con todas las funciones. Sin tarjeta.</p>
+
+          {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: 8, fontSize: 14, marginBottom: 16 }}>{error}</div>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre de tu tienda *</label>
+              <input value={form.nombre_tienda} onChange={e => onNombreTienda(e.target.value)} placeholder="Ej: Repuestos García" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Dirección web *</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input value={form.slug} onChange={e => { setSlugTouched(true); set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); }} placeholder="mitienda" style={{ flex: 1 }} />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>.comerciapp.com.ar</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid var(--border)', margin: '2px 0' }} />
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Tu nombre</label>
+              <input value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Tu nombre y apellido" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Usuario *</label>
+              <input value={form.usuario} onChange={e => set('usuario', e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="Con el que vas a entrar" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Contraseña *</label>
+              <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Mínimo 6 caracteres" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="Opcional" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Teléfono / WhatsApp</label>
+              <input value={form.telefono} onChange={e => set('telefono', e.target.value)} placeholder="Opcional" style={{ width: '100%' }} />
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 4 }} onClick={enviar} disabled={saving}>{saving ? 'Creando tu tienda...' : 'Crear mi tienda gratis'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComerciappLanding({ onLogin, onRegister }) {
+  const [precios, setPrecios] = useState({ basic: 30000, pro: 45000, full: 60000 });
+  const [oferta, setOferta] = useState({ descuento_pct: 25, meses: 3 });
+
+  useEffect(() => {
+    api.getPlanesPublicos().then(p => {
+      if (p) {
+        setPrecios({ basic: p.basic, pro: p.pro, full: p.full });
+        setOferta({ descuento_pct: p.descuento_pct ?? 0, meses: p.meses ?? 0 });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const money = (n) => '$' + (n || 0).toLocaleString('es-AR');
+  const hayOferta = oferta.descuento_pct > 0;
+  const conDescuento = (p) => Math.round((p || 0) * (1 - oferta.descuento_pct / 100));
+
+  const planes = [
+    {
+      id: 'basic', nombre: 'Basic', tagline: 'Vender', precio: precios.basic, color: '#6b7280',
+      destacado: false,
+      features: ['Tienda online completa', 'Catálogo de productos ilimitado', 'Editor visual + 12 temas', 'Checkout, pagos y envíos', 'Página de contacto con QR', 'WhatsApp integrado', '1 administrador'],
+    },
+    {
+      id: 'pro', nombre: 'Pro', tagline: 'Crecer', precio: precios.pro, color: '#2563eb',
+      destacado: true,
+      features: ['Todo lo de Basic', 'Hasta 3 tiendas', 'Punto de venta (buscador)', 'Marketing: cupones, promos, carritos', 'Caja y arqueo', 'Presupuestos', 'Reportes y analytics', 'Hasta 3 sub-administradores'],
+    },
+    {
+      id: 'full', nombre: 'Full', tagline: 'Escalar', precio: precios.full, color: '#7c3aed',
+      destacado: false,
+      features: ['Todo lo de Pro', 'Tiendas ilimitadas', 'Punto de venta con lector de código', 'Mayorista con aprobación', 'Listas de precio', 'Cuenta corriente', 'Sub-administradores ilimitados', 'Soporte prioritario'],
+    },
+  ];
+
+  const funciones = [
+    { t: 'Tienda profesional', d: 'Catálogo con categorías, variantes, fotos y buscador. Carrito multi-sección, checkout por pasos, favoritos y modo oscuro. Todo listo para vender online desde el primer día, sin comisiones por venta.' },
+    { t: 'Punto de venta', d: 'Cobrá en el mostrador buscando el producto o escaneándolo con lector de código de barras. Ventas rápidas, control de sobreventa y ficha de cliente imprimible. Ideal para local físico y online a la vez.' },
+    { t: 'Control de stock', d: 'Stock en tiempo real que se descuenta con cada venta. Alertas de bajo stock, órdenes de compra que suman stock al recibir, y aviso por WhatsApp o email cuando algo se está por agotar.' },
+    { t: 'Diseño a tu marca', d: 'Editor visual con vista previa en vivo: cambiá colores, logo, tipografía y textos sin saber programar. 12 temas listos para elegir, banners, popups y secciones que ordenás arrastrando.' },
+    { t: 'Clientes y mayoristas', d: 'Cuenta corriente para tus clientes, listas de precio por tipo de cliente, y sección mayorista con aprobación de cuentas. Manejá minoristas y mayoristas desde el mismo lugar.' },
+    { t: 'Reportes y caja', d: 'Arqueo de caja por día, semana y mes con totales por medio de pago. Reportes de ventas, productos más vendidos y métricas de tu negocio para saber siempre cómo venís.' },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      {/* NAV */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', maxWidth: 1200, margin: '0 auto', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontWeight: 900, fontSize: 22 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-outline btn-sm" onClick={onLogin}>Ingresar</button>
+          <button className="btn btn-primary btn-sm" onClick={onRegister}>Crear mi tienda</button>
+        </div>
+      </nav>
+
+      {/* HERO */}
+      <section style={{ textAlign: 'center', padding: '64px 24px 48px', maxWidth: 820, margin: '0 auto' }}>
+        <div style={{ display: 'inline-block', background: 'var(--primary)', color: '#fff', fontSize: 13, fontWeight: 700, padding: '5px 14px', borderRadius: 999, marginBottom: 20 }}>15 días gratis · sin tarjeta</div>
+        <h1 style={{ fontSize: 44, fontWeight: 900, lineHeight: 1.1, margin: '0 0 16px' }}>Tu tienda online y tu sistema de ventas, todo en uno</h1>
+        <p style={{ fontSize: 18, color: 'var(--text-muted)', margin: '0 0 28px', lineHeight: 1.5 }}>Creá tu tienda, gestioná stock, vendé en el mostrador y hacé crecer tu negocio. Sin comisiones por venta.</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" style={{ fontSize: 16, padding: '12px 28px' }} onClick={onRegister}>Empezar gratis</button>
+          <button className="btn btn-outline" style={{ fontSize: 16, padding: '12px 28px' }} onClick={() => document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })}>Ver planes</button>
+        </div>
+      </section>
+
+      {/* FUNCIONES */}
+      <section style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+        <h2 style={{ textAlign: 'center', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>Todo lo que necesitás para vender</h2>
+        <p style={{ textAlign: 'center', fontSize: 16, color: 'var(--text-muted)', margin: '0 0 36px' }}>Una plataforma completa, pensada para comercios y mayoristas.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {funciones.map((f, i) => (
+            <div key={i} className="card" style={{ padding: 24 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8, color: 'var(--primary)' }}>{f.t}</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>{f.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* PLANES */}
+      <section id="planes" style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
+        <h2 style={{ textAlign: 'center', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>Planes y precios</h2>
+        <p style={{ textAlign: 'center', fontSize: 16, color: 'var(--text-muted)', margin: '0 0 12px' }}>Empezá con 15 días gratis. Cambiá o cancelá cuando quieras.</p>
+        {hayOferta && <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--primary)', fontWeight: 700, margin: '0 0 36px' }}>Oferta de lanzamiento: {oferta.descuento_pct}% OFF los primeros {oferta.meses} meses</p>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, alignItems: 'start' }}>
+          {planes.map(pl => (
+            <div key={pl.id} className="card" style={{ padding: 28, position: 'relative', border: pl.destacado ? `2px solid ${pl.color}` : undefined, boxShadow: pl.destacado ? '0 8px 30px rgba(37,99,235,0.15)' : undefined }}>
+              {pl.destacado && <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: pl.color, color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 14px', borderRadius: 999 }}>Más elegido</div>}
+              <div style={{ fontSize: 14, fontWeight: 700, color: pl.color, marginBottom: 4 }}>{pl.nombre}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>{pl.tagline}</div>
+              <div style={{ marginBottom: 20 }}>
+                {hayOferta ? (
+                  <>
+                    <div style={{ fontSize: 16, color: 'var(--text-muted)', textDecoration: 'line-through' }}>{money(pl.precio)}</div>
+                    <div>
+                      <span style={{ fontSize: 34, fontWeight: 900, color: pl.color }}>{money(conDescuento(pl.precio))}</span>
+                      <span style={{ fontSize: 14, color: 'var(--text-muted)' }}> /mes</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: pl.color, fontWeight: 700, marginTop: 2 }}>{oferta.descuento_pct}% OFF los primeros {oferta.meses} meses</div>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 34, fontWeight: 900 }}>{money(pl.precio)}</span>
+                    <span style={{ fontSize: 14, color: 'var(--text-muted)' }}> /mes</span>
+                  </>
+                )}
+              </div>
+              <button className={pl.destacado ? 'btn btn-primary' : 'btn btn-outline'} style={{ width: '100%', marginBottom: 20 }} onClick={onRegister}>Empezar gratis</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {pl.features.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'flex-start' }}>
+                    <span style={{ color: pl.color, fontWeight: 900, flexShrink: 0 }}>✓</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section style={{ textAlign: 'center', padding: '48px 24px 64px', maxWidth: 700, margin: '0 auto' }}>
+        <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 14px' }}>¿Listo para vender más?</h2>
+        <p style={{ fontSize: 16, color: 'var(--text-muted)', margin: '0 0 24px' }}>Creá tu tienda en minutos y probá todo gratis por 15 días.</p>
+        <button className="btn btn-primary" style={{ fontSize: 16, padding: '12px 32px' }} onClick={onRegister}>Crear mi tienda gratis</button>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '28px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6, color: 'var(--text-primary)' }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+        <div>Tu tienda online y sistema de ventas · Argentina</div>
+        <div style={{ marginTop: 10 }}>
+          <button className="btn btn-sm btn-outline" onClick={onLogin}>Ingresar a mi cuenta</button>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 function Landing() {
   const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
@@ -2991,6 +3349,31 @@ function AccountPanel() {
 // ═══════════════════════════════════════════════════════════
 // ADMIN PANEL (with sidebar!)
 // ═══════════════════════════════════════════════════════════
+function CuentaBloqueada({ estado }) {
+  const { handleLogout, config } = useContext(Ctx);
+  const wa = (config?.whatsapp || '').replace(/[^0-9]/g, '');
+  const esVencido = estado === 'vencido';
+  const msg = encodeURIComponent('Hola, quiero reactivar mi tienda en ComerciApp.');
+  return (
+    <div style={{ maxWidth: 480, margin: '48px auto', padding: '0 16px' }}>
+      <div className="card" style={{ padding: 36, textAlign: 'center' }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>{esVencido ? '⏰' : '🔒'}</div>
+        <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>{esVencido ? 'Tu prueba terminó' : 'Tu cuenta está suspendida'}</h2>
+        <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: '0 0 22px', lineHeight: 1.5 }}>
+          {esVencido
+            ? 'Se terminó tu período de prueba gratuito. Para seguir usando tu tienda y no perder tus datos, activá un plan.'
+            : 'Tu tienda está suspendida temporalmente. Regularizá tu suscripción para volver a activarla.'}
+          <br /><br />Tus datos están guardados y seguros.
+        </p>
+        {wa
+          ? <a className="btn btn-primary" style={{ width: '100%', marginBottom: 10 }} href={`https://wa.me/${wa}?text=${msg}`} target="_blank" rel="noopener noreferrer">Activar mi plan por WhatsApp</a>
+          : <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10 }}>Contactá al administrador para reactivar tu cuenta.</div>}
+        <button className="btn btn-outline" style={{ width: '100%' }} onClick={handleLogout}>Cerrar sesión</button>
+      </div>
+    </div>
+  );
+}
+
 function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user, miPlan } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -3051,7 +3434,6 @@ function AdminPanel() {
     { id: 'pagos_grp', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
     { id: 'diseno_grp', label: 'Personalizar tienda', icon: 'palette', single: 'diseno' },
     { id: 'general_grp', label: 'General', icon: 'settings', single: 'general' },
-    ...(user?.es_owner ? [{ id: 'plataforma_grp', label: 'Plataforma (dueño)', icon: 'store', single: 'owner_tenants' }] : []),
   ];
 
   // Mapa tab → feature del plan (si la feature está off, se oculta la sección). El dueño (es_owner) ve todo.
@@ -3406,6 +3788,26 @@ function OwnerStats({ stats }) {
           <span><strong style={{ color: 'var(--text-secondary)' }}>{(stats.uso_total.clientes || 0).toLocaleString('es-AR')}</strong> clientes finales</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function PanelPlataforma({ onLogout }) {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontWeight: 900, fontSize: 20 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 999, padding: '2px 10px' }}>Panel de dueño</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a className="btn btn-sm btn-outline" href={typeof window !== 'undefined' ? window.location.pathname : '/'} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); try { const u = new URL(window.location.href); u.searchParams.delete('comerciapp'); window.location.href = u.pathname + u.search; } catch { window.location.href = '/'; } }}>Ir a mi tienda ↗</a>
+          <button className="btn btn-sm btn-outline" onClick={onLogout}>Cerrar sesión</button>
+        </div>
+      </nav>
+      <div style={{ padding: '24px 16px' }}>
+        <AdminOwner />
+      </div>
     </div>
   );
 }
