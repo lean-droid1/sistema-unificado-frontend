@@ -312,6 +312,8 @@ export async function getPlanesPublicos() { return f('/api/planes-publicos'); }
 export async function registrarTienda(data) { return f('/api/registro-tienda', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getPlanPrecios() { return f('/api/plataforma/precios'); }
 export async function updatePlanPrecios(data) { return f('/api/plataforma/precios', { method: 'PUT', body: JSON.stringify(data) }); }
+export async function getOferta() { return f('/api/plataforma/oferta'); }
+export async function updateOferta(data) { return f('/api/plataforma/oferta', { method: 'PUT', body: JSON.stringify(data) }); }
 export async function getTenant(id) { return f(`/api/tenants/${id}`); }
 export async function createTenant(data) { return f('/api/tenants', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateTenant(id, data) { return f(`/api/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
