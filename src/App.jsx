@@ -721,8 +721,8 @@ export default function App() {
       return false;
     } catch { return false; }
   })();
-  // Mostrar el landing del servicio: en la raíz, sin usuario logueado, y sin estar navegando la tienda a propósito
-  const showComerciappLanding = esComerciappRoot && !user && !['login','register','forgot'].includes(page);
+  // Mostrar el sitio ComerciApp (landing o registro de tienda): en la raíz, sin usuario, sin estar en login de tienda
+  const showComerciappSite = esComerciappRoot && !user && !['login','register','forgot'].includes(page);
 
   // Context value
   const ctx = {
@@ -761,9 +761,11 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
-      {showComerciappLanding ? (
+      {showComerciappSite ? (
         <div className={`app${effectiveDark ? ' dark' : ''}`}>
-          <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('register')} />
+          {page === 'crear-tienda'
+            ? <CrearTiendaPage onListo={() => nav('login')} onVolver={() => nav('landing')} />
+            : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}
           <ToastContainer />
         </div>
       ) : (
@@ -1410,14 +1412,120 @@ function InfoPage() {
 // ═══════════════════════════════════════════════════════════
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
+function CrearTiendaPage({ onListo, onVolver }) {
+  const [form, setForm] = useState({ nombre_tienda: '', slug: '', nombre: '', usuario: '', password: '', email: '', telefono: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [ok, setOk] = useState(null);
+  const [slugTouched, setSlugTouched] = useState(false);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Autogenerar slug desde el nombre de la tienda (hasta que el usuario lo edite a mano)
+  const onNombreTienda = (v) => {
+    set('nombre_tienda', v);
+    if (!slugTouched) {
+      const s = v.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 30);
+      set('slug', s);
+    }
+  };
+
+  const enviar = async () => {
+    setError('');
+    if (!form.nombre_tienda || !form.slug || !form.usuario || !form.password) { setError('Completá los campos obligatorios (*)'); return; }
+    if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+    setSaving(true);
+    try {
+      const r = await api.registrarTienda(form);
+      setOk(r);
+    } catch (e) { setError(e.message || 'No se pudo crear la tienda'); setSaving(false); }
+  };
+
+  if (ok) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
+        <div className="card" style={{ maxWidth: 460, padding: 36, textAlign: 'center' }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>¡Tu tienda está lista!</h2>
+          <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
+            Tenés <strong>{ok.dias} días gratis</strong> con todas las funciones. Ingresá con tu usuario <strong>{ok.usuario}</strong> para empezar a cargar tu tienda.
+          </p>
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 14 }}>
+            Tu dirección web: <strong>{ok.slug}.comerciapp.com.ar</strong>
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%' }} onClick={onListo}>Ingresar a mi tienda</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
+        <button className="btn btn-sm btn-outline" style={{ marginBottom: 16 }} onClick={onVolver}>← Volver</button>
+        <div className="card" style={{ padding: 28 }}>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 4px', textAlign: 'center' }}>Creá tu tienda</h2>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 8px', textAlign: 'center' }}>15 días gratis con todas las funciones. Sin tarjeta.</p>
+
+          {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: 8, fontSize: 14, marginBottom: 16 }}>{error}</div>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre de tu tienda *</label>
+              <input value={form.nombre_tienda} onChange={e => onNombreTienda(e.target.value)} placeholder="Ej: Repuestos García" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Dirección web *</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input value={form.slug} onChange={e => { setSlugTouched(true); set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); }} placeholder="mitienda" style={{ flex: 1 }} />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>.comerciapp.com.ar</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid var(--border)', margin: '2px 0' }} />
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Tu nombre</label>
+              <input value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Tu nombre y apellido" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Usuario *</label>
+              <input value={form.usuario} onChange={e => set('usuario', e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="Con el que vas a entrar" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Contraseña *</label>
+              <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Mínimo 6 caracteres" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="Opcional" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Teléfono / WhatsApp</label>
+              <input value={form.telefono} onChange={e => set('telefono', e.target.value)} placeholder="Opcional" style={{ width: '100%' }} />
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 4 }} onClick={enviar} disabled={saving}>{saving ? 'Creando tu tienda...' : 'Crear mi tienda gratis'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ComerciappLanding({ onLogin, onRegister }) {
   const [precios, setPrecios] = useState({ basic: 30000, pro: 45000, full: 60000 });
+  const [oferta, setOferta] = useState({ descuento_pct: 25, meses: 3 });
 
   useEffect(() => {
-    api.getPlanesPublicos().then(p => { if (p) setPrecios(p); }).catch(() => {});
+    api.getPlanesPublicos().then(p => {
+      if (p) {
+        setPrecios({ basic: p.basic, pro: p.pro, full: p.full });
+        setOferta({ descuento_pct: p.descuento_pct ?? 0, meses: p.meses ?? 0 });
+      }
+    }).catch(() => {});
   }, []);
 
   const money = (n) => '$' + (n || 0).toLocaleString('es-AR');
+  const hayOferta = oferta.descuento_pct > 0;
+  const conDescuento = (p) => Math.round((p || 0) * (1 - oferta.descuento_pct / 100));
 
   const planes = [
     {
@@ -1486,7 +1594,7 @@ function ComerciappLanding({ onLogin, onRegister }) {
       <section id="planes" style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
         <h2 style={{ textAlign: 'center', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>Planes y precios</h2>
         <p style={{ textAlign: 'center', fontSize: 16, color: 'var(--text-muted)', margin: '0 0 12px' }}>Empezá con 15 días gratis. Cambiá o cancelá cuando quieras.</p>
-        <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--primary)', fontWeight: 700, margin: '0 0 36px' }}>Oferta de lanzamiento: 25% OFF los primeros 3 meses</p>
+        {hayOferta && <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--primary)', fontWeight: 700, margin: '0 0 36px' }}>Oferta de lanzamiento: {oferta.descuento_pct}% OFF los primeros {oferta.meses} meses</p>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, alignItems: 'start' }}>
           {planes.map(pl => (
             <div key={pl.id} className="card" style={{ padding: 28, position: 'relative', border: pl.destacado ? `2px solid ${pl.color}` : undefined, boxShadow: pl.destacado ? '0 8px 30px rgba(37,99,235,0.15)' : undefined }}>
@@ -1494,8 +1602,21 @@ function ComerciappLanding({ onLogin, onRegister }) {
               <div style={{ fontSize: 14, fontWeight: 700, color: pl.color, marginBottom: 4 }}>{pl.nombre}</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>{pl.tagline}</div>
               <div style={{ marginBottom: 20 }}>
-                <span style={{ fontSize: 34, fontWeight: 900 }}>{money(pl.precio)}</span>
-                <span style={{ fontSize: 14, color: 'var(--text-muted)' }}> /mes</span>
+                {hayOferta ? (
+                  <>
+                    <div style={{ fontSize: 16, color: 'var(--text-muted)', textDecoration: 'line-through' }}>{money(pl.precio)}</div>
+                    <div>
+                      <span style={{ fontSize: 34, fontWeight: 900, color: pl.color }}>{money(conDescuento(pl.precio))}</span>
+                      <span style={{ fontSize: 14, color: 'var(--text-muted)' }}> /mes</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: pl.color, fontWeight: 700, marginTop: 2 }}>{oferta.descuento_pct}% OFF los primeros {oferta.meses} meses</div>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 34, fontWeight: 900 }}>{money(pl.precio)}</span>
+                    <span style={{ fontSize: 14, color: 'var(--text-muted)' }}> /mes</span>
+                  </>
+                )}
               </div>
               <button className={pl.destacado ? 'btn btn-primary' : 'btn btn-outline'} style={{ width: '100%', marginBottom: 20 }} onClick={onRegister}>Empezar gratis</button>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
