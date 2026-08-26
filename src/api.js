@@ -139,6 +139,7 @@ export async function generarCodigos(seccion_id) { return f('/api/productos/gene
 // imagenes variantes
 export async function getProductoImagenes(productoId) { return f(`/api/producto-imagenes/${productoId}`); }
 export async function addProductoImagen(productoId, url, orden) { return f('/api/producto-imagenes', { method: 'POST', body: JSON.stringify({ producto_id: productoId, url, orden }) }); }
+export async function ordenarProductoImagenes(productoId, ids) { return f('/api/producto-imagenes/reorder', { method: 'PUT', body: JSON.stringify({ items: ids.map((id, i) => ({ id, orden: i })) }) }); }
 export async function deleteProductoImagen(id) { return f(`/api/producto-imagenes/${id}`, { method: 'DELETE' }); }
 export async function reorderProductoImagenes(items) { return f('/api/producto-imagenes/reorder', { method: 'PUT', body: JSON.stringify({ items }) }); }
 export async function getVariantes(productoId) { return f(`/api/variantes/${productoId}`); }
@@ -314,6 +315,10 @@ export async function getPlanPrecios() { return f('/api/plataforma/precios'); }
 export async function updatePlanPrecios(data) { return f('/api/plataforma/precios', { method: 'PUT', body: JSON.stringify(data) }); }
 export async function getOferta() { return f('/api/plataforma/oferta'); }
 export async function updateOferta(data) { return f('/api/plataforma/oferta', { method: 'PUT', body: JSON.stringify(data) }); }
+export async function getPagosTenant(tenantId) { return f(`/api/plataforma/pagos/${tenantId}`); }
+export async function registrarPago(data) { return f('/api/plataforma/pagos', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deletePagoSuscripcion(id) { return f(`/api/plataforma/pagos/${id}`, { method: 'DELETE' }); }
+export async function getCobros() { return f('/api/plataforma/cobros'); }
 export async function getTenant(id) { return f(`/api/tenants/${id}`); }
 export async function createTenant(data) { return f('/api/tenants', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateTenant(id, data) { return f(`/api/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
