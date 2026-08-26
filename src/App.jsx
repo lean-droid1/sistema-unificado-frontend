@@ -3502,6 +3502,9 @@ function AdminPanel() {
       {/* Sidebar */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 12, width: '100%' }}>← Volver a tienda</button>
+        {user?.es_owner && (
+          <button className="btn btn-primary btn-sm" onClick={() => { try { const u = new URL(window.location.href); u.searchParams.set('comerciapp', '1'); window.location.href = u.pathname + '?' + u.searchParams.toString(); } catch { window.location.href = '/?comerciapp=1'; } }} style={{ marginBottom: 12, width: '100%' }}>🌐 Panel de webs</button>
+        )}
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>Panel Admin</h3>
         <select value={adminSeccion} onChange={e => setAdminSeccion(e.target.value)} style={{ width: '100%', marginBottom: 12, padding: 6 }}>
           <option value="all">Todas las secciones</option>
@@ -3648,6 +3651,53 @@ function AdminAnalytics() {
       </div>
 
       <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+    </div>
+  );
+}
+
+function OfertaModal({ onClose, onSaved }) {
+  const { toast } = useContext(Ctx);
+  const [oferta, setOferta] = useState({ descuento_pct: '', meses: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getOferta().then(o => { setOferta({ descuento_pct: o.descuento_pct ?? '', meses: o.meses ?? '' }); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  const guardar = async () => {
+    setSaving(true);
+    try { await api.updateOferta(oferta); toast('Oferta actualizada'); onSaved(); }
+    catch (e) { toast(e.message, 'error'); setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="modal-header"><h3>Oferta de lanzamiento</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {loading ? <div style={{ color: 'var(--text-muted)' }}>Cargando...</div> : (
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Este descuento se muestra en el landing con el precio tachado. Poné 0% para desactivar la oferta.</p>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Descuento (%)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="number" inputMode="numeric" value={oferta.descuento_pct} onChange={e => setOferta(o => ({ ...o, descuento_pct: e.target.value }))} placeholder="25" style={{ flex: 1 }} min="0" max="100" />
+                  <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>%</span>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Durante (meses)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="number" inputMode="numeric" value={oferta.meses} onChange={e => setOferta(o => ({ ...o, meses: e.target.value }))} placeholder="3" style={{ flex: 1 }} min="0" />
+                  <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>meses</span>
+                </div>
+              </div>
+              <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar oferta'}</button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3821,6 +3871,7 @@ function AdminOwner() {
   const [creds, setCreds] = useState(null); // credenciales recién creadas
   const [stats, setStats] = useState(null);
   const [showPrecios, setShowPrecios] = useState(false);
+  const [showOferta, setShowOferta] = useState(false);
 
   const PLANES = [
     { id: 'basic', label: 'Basic - Vender' },
@@ -3855,6 +3906,7 @@ function AdminOwner() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-outline" onClick={() => setShowPrecios(true)}>Editar precios</button>
+          <button className="btn btn-outline" onClick={() => setShowOferta(true)}>Editar oferta</button>
           <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
         </div>
       </div>
@@ -3902,6 +3954,7 @@ function AdminOwner() {
       {creds && <TenantCredsModal creds={creds} onClose={() => setCreds(null)} />}
       {editando && <TenantEditarModal tenant={editando} planes={PLANES} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); cargar(); }} onDeleted={() => { setEditando(null); cargar(); }} />}
       {showPrecios && <PreciosModal onClose={() => setShowPrecios(false)} onSaved={() => { setShowPrecios(false); cargar(); }} />}
+      {showOferta && <OfertaModal onClose={() => setShowOferta(false)} onSaved={() => { setShowOferta(false); cargar(); }} />}
     </div>
   );
 }
