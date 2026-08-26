@@ -308,6 +308,8 @@ export async function resetPrecios(seccionId) { return f(`/api/precios/reset/${s
 // ── PANEL DUEÑO: administración de tenants (solo owner) ──
 export async function getTenants() { return f('/api/tenants'); }
 export async function getPlataformaStats() { return f('/api/plataforma/stats'); }
+export async function getPlanesPublicos() { return f('/api/planes-publicos'); }
+export async function registrarTienda(data) { return f('/api/registro-tienda', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getPlanPrecios() { return f('/api/plataforma/precios'); }
 export async function updatePlanPrecios(data) { return f('/api/plataforma/precios', { method: 'PUT', body: JSON.stringify(data) }); }
 export async function getTenant(id) { return f(`/api/tenants/${id}`); }
