@@ -707,6 +707,23 @@ export default function App() {
 
   const isAdmin = user && ['admin','subadmin'].includes(user.rol);
 
+  // ¿Estamos en la raíz de ComerciApp (el sitio del servicio, no una tienda)?
+  // Es la raíz si: host = comerciapp.com.ar (sin subdominio) o ?comerciapp=1 (para probar sin dominio).
+  const esComerciappRoot = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('comerciapp') === '1') return true;
+      const host = window.location.hostname;
+      const parts = host.split('.');
+      // comerciapp.com.ar exacto o www.comerciapp.com.ar = raíz (4+ partes con subdominio ≠ www = tienda)
+      if (host === 'comerciapp.com.ar' || host === 'www.comerciapp.com.ar') return true;
+      return false;
+    } catch { return false; }
+  })();
+  // Mostrar el landing del servicio: en la raíz, sin usuario logueado, y sin estar navegando la tienda a propósito
+  const showComerciappLanding = esComerciappRoot && !user && !['login','register','forgot'].includes(page);
+
   // Context value
   const ctx = {
     user, setUser, page, setPage: nav, loading, dark, setDark, toast,
@@ -744,6 +761,12 @@ export default function App() {
 
   return (
     <Ctx.Provider value={ctx}>
+      {showComerciappLanding ? (
+        <div className={`app${effectiveDark ? ' dark' : ''}`}>
+          <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('register')} />
+          <ToastContainer />
+        </div>
+      ) : (
       <div className={`app${effectiveDark ? ' dark' : ''}`}>
         <Header />
         <main className="main-content">{renderPage()}</main>
@@ -752,6 +775,7 @@ export default function App() {
         <ToastContainer />
         <NotifyStockModal />
       </div>
+      )}
     </Ctx.Provider>
   );
 }
@@ -1386,6 +1410,126 @@ function InfoPage() {
 // ═══════════════════════════════════════════════════════════
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
+function ComerciappLanding({ onLogin, onRegister }) {
+  const [precios, setPrecios] = useState({ basic: 30000, pro: 45000, full: 60000 });
+
+  useEffect(() => {
+    api.getPlanesPublicos().then(p => { if (p) setPrecios(p); }).catch(() => {});
+  }, []);
+
+  const money = (n) => '$' + (n || 0).toLocaleString('es-AR');
+
+  const planes = [
+    {
+      id: 'basic', nombre: 'Basic', tagline: 'Vender', precio: precios.basic, color: '#6b7280',
+      destacado: false,
+      features: ['Tienda online completa', 'Catálogo de productos ilimitado', 'Editor visual + 12 temas', 'Checkout, pagos y envíos', 'Página de contacto con QR', 'WhatsApp integrado', '1 administrador'],
+    },
+    {
+      id: 'pro', nombre: 'Pro', tagline: 'Crecer', precio: precios.pro, color: '#2563eb',
+      destacado: true,
+      features: ['Todo lo de Basic', 'Hasta 3 tiendas', 'Punto de venta (buscador)', 'Marketing: cupones, promos, carritos', 'Caja y arqueo', 'Presupuestos', 'Reportes y analytics', 'Hasta 3 sub-administradores'],
+    },
+    {
+      id: 'full', nombre: 'Full', tagline: 'Escalar', precio: precios.full, color: '#7c3aed',
+      destacado: false,
+      features: ['Todo lo de Pro', 'Tiendas ilimitadas', 'Punto de venta con lector de código', 'Mayorista con aprobación', 'Listas de precio', 'Cuenta corriente', 'Sub-administradores ilimitados', 'Soporte prioritario'],
+    },
+  ];
+
+  const funciones = [
+    { t: 'Tienda profesional', d: 'Catálogo, carrito, checkout y pagos. Todo listo para vender online.' },
+    { t: 'Punto de venta', d: 'Vendé en el mostrador con buscador o lector de código de barras.' },
+    { t: 'Control de stock', d: 'Stock en tiempo real, alertas de bajo stock y órdenes de compra.' },
+    { t: 'Diseño a tu marca', d: 'Editor visual con vista previa en vivo y 12 temas para elegir.' },
+    { t: 'Clientes y mayoristas', d: 'Cuenta corriente, listas de precio y aprobación de mayoristas.' },
+    { t: 'Reportes', d: 'Caja, ventas, productos más vendidos y métricas de tu negocio.' },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      {/* NAV */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', maxWidth: 1200, margin: '0 auto', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontWeight: 900, fontSize: 22 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-outline btn-sm" onClick={onLogin}>Ingresar</button>
+          <button className="btn btn-primary btn-sm" onClick={onRegister}>Crear mi tienda</button>
+        </div>
+      </nav>
+
+      {/* HERO */}
+      <section style={{ textAlign: 'center', padding: '64px 24px 48px', maxWidth: 820, margin: '0 auto' }}>
+        <div style={{ display: 'inline-block', background: 'var(--primary)', color: '#fff', fontSize: 13, fontWeight: 700, padding: '5px 14px', borderRadius: 999, marginBottom: 20 }}>15 días gratis · sin tarjeta</div>
+        <h1 style={{ fontSize: 44, fontWeight: 900, lineHeight: 1.1, margin: '0 0 16px' }}>Tu tienda online y tu sistema de ventas, todo en uno</h1>
+        <p style={{ fontSize: 18, color: 'var(--text-muted)', margin: '0 0 28px', lineHeight: 1.5 }}>Creá tu tienda, gestioná stock, vendé en el mostrador y hacé crecer tu negocio. Sin comisiones por venta.</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" style={{ fontSize: 16, padding: '12px 28px' }} onClick={onRegister}>Empezar gratis</button>
+          <button className="btn btn-outline" style={{ fontSize: 16, padding: '12px 28px' }} onClick={() => document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })}>Ver planes</button>
+        </div>
+      </section>
+
+      {/* FUNCIONES */}
+      <section style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+        <h2 style={{ textAlign: 'center', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>Todo lo que necesitás para vender</h2>
+        <p style={{ textAlign: 'center', fontSize: 16, color: 'var(--text-muted)', margin: '0 0 36px' }}>Una plataforma completa, pensada para comercios y mayoristas.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {funciones.map((f, i) => (
+            <div key={i} className="card" style={{ padding: 24 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8, color: 'var(--primary)' }}>{f.t}</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>{f.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* PLANES */}
+      <section id="planes" style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
+        <h2 style={{ textAlign: 'center', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>Planes y precios</h2>
+        <p style={{ textAlign: 'center', fontSize: 16, color: 'var(--text-muted)', margin: '0 0 12px' }}>Empezá con 15 días gratis. Cambiá o cancelá cuando quieras.</p>
+        <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--primary)', fontWeight: 700, margin: '0 0 36px' }}>Oferta de lanzamiento: 25% OFF los primeros 3 meses</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, alignItems: 'start' }}>
+          {planes.map(pl => (
+            <div key={pl.id} className="card" style={{ padding: 28, position: 'relative', border: pl.destacado ? `2px solid ${pl.color}` : undefined, boxShadow: pl.destacado ? '0 8px 30px rgba(37,99,235,0.15)' : undefined }}>
+              {pl.destacado && <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: pl.color, color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 14px', borderRadius: 999 }}>Más elegido</div>}
+              <div style={{ fontSize: 14, fontWeight: 700, color: pl.color, marginBottom: 4 }}>{pl.nombre}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>{pl.tagline}</div>
+              <div style={{ marginBottom: 20 }}>
+                <span style={{ fontSize: 34, fontWeight: 900 }}>{money(pl.precio)}</span>
+                <span style={{ fontSize: 14, color: 'var(--text-muted)' }}> /mes</span>
+              </div>
+              <button className={pl.destacado ? 'btn btn-primary' : 'btn btn-outline'} style={{ width: '100%', marginBottom: 20 }} onClick={onRegister}>Empezar gratis</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {pl.features.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'flex-start' }}>
+                    <span style={{ color: pl.color, fontWeight: 900, flexShrink: 0 }}>✓</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section style={{ textAlign: 'center', padding: '48px 24px 64px', maxWidth: 700, margin: '0 auto' }}>
+        <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 14px' }}>¿Listo para vender más?</h2>
+        <p style={{ fontSize: 16, color: 'var(--text-muted)', margin: '0 0 24px' }}>Creá tu tienda en minutos y probá todo gratis por 15 días.</p>
+        <button className="btn btn-primary" style={{ fontSize: 16, padding: '12px 32px' }} onClick={onRegister}>Crear mi tienda gratis</button>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '28px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6, color: 'var(--text-primary)' }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+        <div>Tu tienda online y sistema de ventas · Argentina</div>
+        <div style={{ marginTop: 10 }}>
+          <button className="btn btn-sm btn-outline" onClick={onLogin}>Ingresar a mi cuenta</button>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 function Landing() {
   const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
@@ -3270,6 +3414,55 @@ function AdminAnalytics() {
   );
 }
 
+function PreciosModal({ onClose, onSaved }) {
+  const { toast } = useContext(Ctx);
+  const [precios, setPrecios] = useState({ basic: '', pro: '', full: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getPlanPrecios().then(p => { setPrecios({ basic: p.basic ?? '', pro: p.pro ?? '', full: p.full ?? '' }); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  const guardar = async () => {
+    setSaving(true);
+    try { await api.updatePlanPrecios(precios); toast('Precios actualizados'); onSaved(); }
+    catch (e) { toast(e.message, 'error'); setSaving(false); }
+  };
+
+  const planes = [
+    { plan: 'basic', label: 'Basic — Vender', color: '#6b7280' },
+    { plan: 'pro', label: 'Pro — Crecer', color: '#2563eb' },
+    { plan: 'full', label: 'Full — Escalar', color: '#7c3aed' },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="modal-header"><h3>Precios de los planes</h3><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {loading ? <div style={{ color: 'var(--text-muted)' }}>Cargando...</div> : (
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Precio mensual de cada plan. Se usa para calcular tu facturación y se mostrará en el sitio.</p>
+              {planes.map(({ plan, label, color }) => (
+                <div key={plan}>
+                  <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4, color }}>{label}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 15, color: 'var(--text-muted)' }}>$</span>
+                    <input type="number" inputMode="numeric" value={precios[plan]} onChange={e => setPrecios(p => ({ ...p, [plan]: e.target.value }))} placeholder="0" style={{ flex: 1 }} />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mes</span>
+                  </div>
+                </div>
+              ))}
+              <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar precios'}</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OwnerStats({ stats }) {
   const money = (n) => '$' + (n || 0).toLocaleString('es-AR');
   const nombreMes = (ym) => { const [y, m] = ym.split('-'); return ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][parseInt(m) - 1] + ' ' + y.slice(2); };
@@ -3369,6 +3562,7 @@ function AdminOwner() {
   const [editando, setEditando] = useState(null);
   const [creds, setCreds] = useState(null); // credenciales recién creadas
   const [stats, setStats] = useState(null);
+  const [showPrecios, setShowPrecios] = useState(false);
 
   const PLANES = [
     { id: 'basic', label: 'Basic - Vender' },
@@ -3401,7 +3595,10 @@ function AdminOwner() {
           <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Plataforma</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Administrá las tiendas de tus clientes. {tenants.length} {tenants.length === 1 ? 'tienda' : 'tiendas'}.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-outline" onClick={() => setShowPrecios(true)}>Editar precios</button>
+          <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
+        </div>
       </div>
 
       {stats && <OwnerStats stats={stats} />}
@@ -3446,6 +3643,7 @@ function AdminOwner() {
       {showCrear && <TenantCrearModal onClose={() => setShowCrear(false)} onCreated={(c) => { setCreds(c); setShowCrear(false); cargar(); }} planes={PLANES} />}
       {creds && <TenantCredsModal creds={creds} onClose={() => setCreds(null)} />}
       {editando && <TenantEditarModal tenant={editando} planes={PLANES} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); cargar(); }} onDeleted={() => { setEditando(null); cargar(); }} />}
+      {showPrecios && <PreciosModal onClose={() => setShowPrecios(false)} onSaved={() => { setShowPrecios(false); cargar(); }} />}
     </div>
   );
 }
