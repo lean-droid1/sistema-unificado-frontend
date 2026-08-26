@@ -721,8 +721,9 @@ export default function App() {
       return false;
     } catch { return false; }
   })();
-  // Mostrar el sitio ComerciApp (landing o registro de tienda): en la raíz, sin usuario, sin estar en login de tienda
-  const showComerciappSite = esComerciappRoot && !user && !['login','register','forgot'].includes(page);
+  // Mostrar el sitio ComerciApp (landing, login o registro de tienda) cuando estás en la raíz sin sesión.
+  // Incluye login/forgot/crear-tienda para que tengan branding ComerciApp (no el layout de la tienda).
+  const showComerciappSite = esComerciappRoot && !user;
 
   // Context value
   const ctx = {
@@ -765,7 +766,9 @@ export default function App() {
         <div className={`app${effectiveDark ? ' dark' : ''}`}>
           {page === 'crear-tienda'
             ? <CrearTiendaPage onListo={() => nav('login')} onVolver={() => nav('landing')} />
-            : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}
+            : (page === 'login' || page === 'forgot')
+              ? <ComerciappLoginPage forgot={page === 'forgot'} onVolver={() => nav('landing')} onForgot={() => nav('forgot')} onLogin={() => nav('login')} />
+              : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}
           <ToastContainer />
         </div>
       ) : (
@@ -1039,7 +1042,7 @@ function Header() {
 // FOOTER
 // ═══════════════════════════════════════════════════════════
 function Footer() {
-  const { design, redesSociales, nav, secciones } = useContext(Ctx);
+  const { design, redesSociales, nav, secciones, miPlan } = useContext(Ctx);
   const activas = redesSociales.filter(r => r.activo && r.url);
   const [infoPags, setInfoPags] = useState([]);
   useEffect(() => { api.getPaginas().then(setInfoPags).catch(() => {}); }, []);
@@ -1123,6 +1126,13 @@ function Footer() {
           </div>
         )}
         <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>{design.footer_texto || `© ${new Date().getFullYear()} ${design.nombre_tienda || ''} — Todos los derechos reservados`}</p>
+        {!miPlan?.features?.ocultar_marca && (
+          <div style={{ textAlign: 'center', marginTop: 10 }}>
+            <a href="https://comerciapp.com.ar" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none', padding: '5px 12px', border: '1px solid var(--border)', borderRadius: 999 }}>
+              Hecho con <strong style={{ color: 'var(--text-secondary)' }}>ComerciApp</strong>
+            </a>
+          </div>
+        )}
       </div>
     </footer>
   );
@@ -1412,6 +1422,87 @@ function InfoPage() {
 // ═══════════════════════════════════════════════════════════
 // LANDING PAGE — RXZ-style: products per section
 // ═══════════════════════════════════════════════════════════
+function ComerciappLoginPage({ forgot, onVolver, onForgot, onLogin }) {
+  const { handleLogin, toast } = useContext(Ctx);
+  const [tienda, setTienda] = useState('');
+  const [usuario, setUsuario] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const doLogin = async (code) => {
+    setBusy(true);
+    try {
+      // Si indicó una dirección de tienda, la usamos como tenant (override). Si no, entra a la principal.
+      const slug = tienda.toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+      try { if (slug) sessionStorage.setItem('tenant_override', slug); else sessionStorage.removeItem('tenant_override'); } catch {}
+      const r = await handleLogin(usuario, password, code || undefined);
+      if (r && r.requires_otp) { setOtpStep(true); toast('Código enviado a tu email'); }
+    } catch (e) { /* handleLogin ya avisa */ }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+      {/* nav ComerciApp */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <button onClick={onVolver} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: 22, color: 'var(--text-primary)' }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></button>
+        <button className="btn btn-outline btn-sm" onClick={onVolver}>← Volver</button>
+      </nav>
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
+        <div className="card" style={{ maxWidth: 420, width: '100%', padding: 32, borderRadius: 20 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontWeight: 900, fontSize: 26, marginBottom: 6 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
+            <h2 style={{ fontWeight: 900, fontSize: 20, margin: 0 }}>{otpStep ? 'Verificación' : forgot ? 'Recuperar contraseña' : 'Ingresá a tu panel'}</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>{otpStep ? 'Ingresá el código que recibiste por email' : forgot ? 'Te enviaremos instrucciones por email' : 'Administrá tu tienda'}</p>
+          </div>
+
+          {forgot ? (
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 16 }}>Para recuperar tu contraseña, escribinos por WhatsApp o email y te ayudamos a restablecerla.</p>
+              <button className="btn btn-outline" style={{ width: '100%' }} onClick={onLogin}>← Volver a ingresar</button>
+            </>
+          ) : otpStep ? (
+            <>
+              <div className="form-group"><label className="form-label">CÓDIGO DE VERIFICACIÓN</label>
+                <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin(otpCode)} placeholder="123456" style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.3em' }} maxLength={6} autoFocus />
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', marginTop: 16 }} onClick={() => doLogin(otpCode)} disabled={busy}>Verificar</button>
+              <button onClick={() => { setOtpStep(false); setOtpCode(''); }} style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>← Volver</button>
+            </>
+          ) : (
+            <>
+              <div className="form-group">
+                <label className="form-label">DIRECCIÓN DE TU TIENDA</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input value={tienda} onChange={e => setTienda(e.target.value)} placeholder="mitienda" style={{ flex: 1 }} />
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>.comerciapp.com.ar</span>
+                </div>
+              </div>
+              <div className="form-group"><label className="form-label">USUARIO</label>
+                <input value={usuario} onChange={e => setUsuario(e.target.value)} placeholder="Tu usuario" />
+              </div>
+              <div className="form-group"><label className="form-label">CONTRASEÑA</label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="Tu contraseña" style={{ width: '100%' }} />
+                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+                </div>
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => doLogin()} disabled={busy}>{busy ? 'Ingresando...' : 'Ingresar'}</button>
+              <p style={{ textAlign: 'center', fontSize: 13, marginTop: 16, color: 'var(--text-muted)' }}>
+                <button onClick={onForgot} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>¿Olvidaste tu contraseña?</button>
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CrearTiendaPage({ onListo, onVolver }) {
   const [form, setForm] = useState({ nombre_tienda: '', slug: '', nombre: '', usuario: '', password: '', email: '', telefono: '' });
   const [saving, setSaving] = useState(false);
@@ -1546,12 +1637,12 @@ function ComerciappLanding({ onLogin, onRegister }) {
   ];
 
   const funciones = [
-    { t: 'Tienda profesional', d: 'Catálogo, carrito, checkout y pagos. Todo listo para vender online.' },
-    { t: 'Punto de venta', d: 'Vendé en el mostrador con buscador o lector de código de barras.' },
-    { t: 'Control de stock', d: 'Stock en tiempo real, alertas de bajo stock y órdenes de compra.' },
-    { t: 'Diseño a tu marca', d: 'Editor visual con vista previa en vivo y 12 temas para elegir.' },
-    { t: 'Clientes y mayoristas', d: 'Cuenta corriente, listas de precio y aprobación de mayoristas.' },
-    { t: 'Reportes', d: 'Caja, ventas, productos más vendidos y métricas de tu negocio.' },
+    { t: 'Tienda profesional', d: 'Catálogo con categorías, variantes, fotos y buscador. Carrito multi-sección, checkout por pasos, favoritos y modo oscuro. Todo listo para vender online desde el primer día, sin comisiones por venta.' },
+    { t: 'Punto de venta', d: 'Cobrá en el mostrador buscando el producto o escaneándolo con lector de código de barras. Ventas rápidas, control de sobreventa y ficha de cliente imprimible. Ideal para local físico y online a la vez.' },
+    { t: 'Control de stock', d: 'Stock en tiempo real que se descuenta con cada venta. Alertas de bajo stock, órdenes de compra que suman stock al recibir, y aviso por WhatsApp o email cuando algo se está por agotar.' },
+    { t: 'Diseño a tu marca', d: 'Editor visual con vista previa en vivo: cambiá colores, logo, tipografía y textos sin saber programar. 12 temas listos para elegir, banners, popups y secciones que ordenás arrastrando.' },
+    { t: 'Clientes y mayoristas', d: 'Cuenta corriente para tus clientes, listas de precio por tipo de cliente, y sección mayorista con aprobación de cuentas. Manejá minoristas y mayoristas desde el mismo lugar.' },
+    { t: 'Reportes y caja', d: 'Arqueo de caja por día, semana y mes con totales por medio de pago. Reportes de ventas, productos más vendidos y métricas de tu negocio para saber siempre cómo venís.' },
   ];
 
   return (
