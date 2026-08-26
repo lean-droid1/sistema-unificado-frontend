@@ -3286,16 +3286,11 @@ function PreciosModal({ onClose, onSaved }) {
     catch (e) { toast(e.message, 'error'); setSaving(false); }
   };
 
-  const Campo = ({ label, plan, color }) => (
-    <div>
-      <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4, color }}>{label}</label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 15, color: 'var(--text-muted)' }}>$</span>
-        <input type="number" value={precios[plan]} onChange={e => setPrecios(p => ({ ...p, [plan]: e.target.value }))} placeholder="0" style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mes</span>
-      </div>
-    </div>
-  );
+  const planes = [
+    { plan: 'basic', label: 'Basic — Vender', color: '#6b7280' },
+    { plan: 'pro', label: 'Pro — Crecer', color: '#2563eb' },
+    { plan: 'full', label: 'Full — Escalar', color: '#7c3aed' },
+  ];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -3305,9 +3300,16 @@ function PreciosModal({ onClose, onSaved }) {
           {loading ? <div style={{ color: 'var(--text-muted)' }}>Cargando...</div> : (
             <>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Precio mensual de cada plan. Se usa para calcular tu facturación y se mostrará en el sitio.</p>
-              <Campo label="Basic — Vender" plan="basic" color="#6b7280" />
-              <Campo label="Pro — Crecer" plan="pro" color="#2563eb" />
-              <Campo label="Full — Escalar" plan="full" color="#7c3aed" />
+              {planes.map(({ plan, label, color }) => (
+                <div key={plan}>
+                  <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4, color }}>{label}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 15, color: 'var(--text-muted)' }}>$</span>
+                    <input type="number" inputMode="numeric" value={precios[plan]} onChange={e => setPrecios(p => ({ ...p, [plan]: e.target.value }))} placeholder="0" style={{ flex: 1 }} />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/mes</span>
+                  </div>
+                </div>
+              ))}
               <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar precios'}</button>
             </>
           )}
