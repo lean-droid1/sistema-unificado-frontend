@@ -5667,11 +5667,22 @@ function AdminProductos() {
 }
 
 // ─── MULTI IMAGE UPLOAD ───
-function MultiImageUpload({ productoId }) {
+function MultiImageUpload({ productoId, imagenInicial }) {
   const { toast } = useContext(Ctx);
   const [imgs, setImgs] = useState([]);
   const [uploading, setUploading] = useState(false);
-  useEffect(() => { api.getProductoImagenes(productoId).then(setImgs).catch(() => {}); }, [productoId]);
+  useEffect(() => {
+    (async () => {
+      try {
+        let arr = await api.getProductoImagenes(productoId);
+        // Si la galería está vacía pero el producto ya tenía una foto principal (sistema viejo), la sembramos para no perderla
+        if ((!arr || !arr.length) && imagenInicial) {
+          try { await api.addProductoImagen(productoId, imagenInicial, 0); arr = await api.getProductoImagenes(productoId); } catch {}
+        }
+        setImgs(arr || []);
+      } catch {}
+    })();
+  }, [productoId]);
   // Sube varios archivos EN SERIE (uno tras otro) para que no se pisen y queden en orden.
   const uploadFiles = async (fileList) => {
     const files = Array.from(fileList || []).filter(f => f && f.type && f.type.startsWith('image/'));
@@ -5903,7 +5914,8 @@ function ProductModal({ product, onClose }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
           </div>
-          {/* Image upload (principal) */}
+          {/* Imagen principal: SOLO al crear un producto nuevo. En edición manda la galería de abajo. */}
+          {!isEdit && (
           <div className="form-group">
             <label className="form-label">Imagen principal</label>
             <div className="dropzone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleImageUpload(file); }}>
@@ -5912,8 +5924,9 @@ function ProductModal({ product, onClose }) {
             </div>
             {f.imagen && <input value={f.imagen} onChange={e => setF({ ...f, imagen: e.target.value })} placeholder="O pegá URL de imagen" style={{ marginTop: 8 }} />}
           </div>
+          )}
           {/* Multi-image gallery (only on edit) */}
-          {isEdit && <MultiImageUpload productoId={product.id} />}
+          {isEdit && <MultiImageUpload productoId={product.id} imagenInicial={product.imagen} />}
           {/* Variantes (only on edit) */}
           {isEdit && <VariantesEditor productoId={product.id} />}
           <div className="form-group"><label className="form-label">Descripción</label><textarea value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} rows={3} /></div>
