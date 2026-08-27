@@ -1873,6 +1873,9 @@ function Landing() {
     const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
     const tieneOferta = p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
     const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
+    const umbralGratis = Number(config?.[`envio_gratis_desde_${secId}`]) || 0;
+    const precioRefGratis = tieneOferta ? Number(p.precio_oferta) : Number(precio);
+    const envioGratisCard = p.envio_gratis || (umbralGratis > 0 && precioRefGratis >= umbralGratis);
     const [notifyEmail, setNotifyEmail] = useState('');
     const [showNotify, setShowNotify] = useState(false);
     const [notifyCanal, setNotifyCanal] = useState('whatsapp');
@@ -1891,6 +1894,7 @@ function Landing() {
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
           {tieneOferta && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{descPct}% OFF</span>}
+          {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: tieneOferta ? 40 : 10, left: 10 }}>ENVÍO GRATIS</span>}
           {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10, left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
           {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
           {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--warning)', color: '#000', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
@@ -2312,13 +2316,15 @@ function SectionPage() {
         {productosFiltrados.map(p => {
           const precio = getPrecio(p);
           const sinStock = !p.stock || p.stock <= 0;
+          const umbralG = Number(config?.[`envio_gratis_desde_${p.seccion_id}`]) || 0;
+          const envioGratis = p.envio_gratis || (umbralG > 0 && precio.final >= umbralG);
           return (
             <div key={p.id} className={`product-card ${sinStock ? 'sin-stock' : ''}`}>
               <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
                 {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}>📦</div>}
                 {/* Badges */}
                 <div className="product-badges">
-                  {p.envio_gratis && <span className="pbadge pbadge-shipping">ENVÍO GRATIS</span>}
+                  {envioGratis && <span className="pbadge pbadge-shipping">ENVÍO GRATIS</span>}
                   {precio.original && <span className="pbadge pbadge-discount">{precio.descuento}% OFF</span>}
                 </div>
                 {sinStock && <div className="sin-stock-overlay">SIN STOCK</div>}
