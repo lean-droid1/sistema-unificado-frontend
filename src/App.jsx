@@ -1894,8 +1894,8 @@ function Landing() {
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
           {tieneOferta && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{descPct}% OFF</span>}
-          {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: tieneOferta ? 40 : 10, left: 10 }}>ENVÍO GRATIS</span>}
-          {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10, left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+          {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 10 + (tieneOferta ? 30 : 0), left: 10, background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
+          {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10 + (tieneOferta ? 30 : 0) + (envioGratisCard ? 30 : 0), left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
           {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
           {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--warning)', color: '#000', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
         </div>
@@ -2324,7 +2324,7 @@ function SectionPage() {
                 {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}>📦</div>}
                 {/* Badges */}
                 <div className="product-badges">
-                  {envioGratis && <span className="pbadge pbadge-shipping">ENVÍO GRATIS</span>}
+                  {envioGratis && <span className="pbadge pbadge-shipping" style={{ background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
                   {precio.original && <span className="pbadge pbadge-discount">{precio.descuento}% OFF</span>}
                 </div>
                 {sinStock && <div className="sin-stock-overlay">SIN STOCK</div>}
