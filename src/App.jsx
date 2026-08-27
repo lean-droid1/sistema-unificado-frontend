@@ -3002,7 +3002,7 @@ function ProductDetailPage() {
     if (!p) return;
     setMainImg(p.imagen || '');
     if (sec) api.getMetodosPago(sec.id).then(setMetodosPago).catch(() => {});
-    api.getProductoImagenes(p.id).then(imgs => setGallery(imgs)).catch(() => {});
+    api.getProductoImagenes(p.id).then(imgs => { setGallery(imgs); if (!p.imagen && imgs && imgs.length) setMainImg(imgs[0].url); }).catch(() => {});
     api.getVariantes(p.id).then(v => setVariantes(v)).catch(() => {});
     if (user) api.getFavoritos().then(favs => setIsFav(favs.some(f => f.producto_id === p.id))).catch(() => {});
   }, [p?.id, sec?.id]);
@@ -3013,7 +3013,7 @@ function ProductDetailPage() {
   const precioFinal = (p.precioFinal || precioBase) + (selVariante ? Number(selVariante.precio_extra) || 0 : 0);
   const precioOriginal = p.precioOriginal;
   const sinStock = !p.stock || p.stock <= 0;
-  const allImages = [p.imagen, ...gallery.map(g => g.url)].filter(Boolean);
+  const allImages = gallery.length ? gallery.map(g => g.url) : [p.imagen].filter(Boolean);
 
   const preciosMetodo = metodosPago.filter(m => m.activo).map(m => {
     const descStr = (config[`descuento_${m.nombre.toLowerCase().replace(/\s+/g, '_')}`] || '').trim();
