@@ -611,6 +611,13 @@ export default function App() {
     })();
   }, []);
 
+  // Sincroniza login/logout entre pestañas: si el token cambia en otra pestaña, recarga esta para reflejarlo
+  useEffect(() => {
+    const onStorage = (e) => { if (e.key === 'gm_token') window.location.reload(); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // Nav helper
   const nav = useCallback((p, secId) => {
     // snapshot (con scroll) para el botón atrás del navegador
@@ -2567,6 +2574,35 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
   );
 }
 
+// Pantalla de éxito post-checkout: número de pedido grande + botón para enviar el pedido por WhatsApp
+function PedidoExitoModal({ exito, config, onClose }) {
+  const nums = exito.nums || [];
+  const numStr = nums.map(n => `#${String(n).padStart(4, '0')}`).join(', ');
+  const wa = (config?.whatsapp || config?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const nombre = exito.contacto?.nombre || '';
+  const msg = `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${fmtARS(exito.total)}. Quiero coordinar el pago y la entrega.`;
+  const waUrl = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}` : '';
+  return (
+    <div className="modal-overlay" style={{ zIndex: 3500 }}>
+      <div className="modal" style={{ maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-body" style={{ padding: '32px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 58, marginBottom: 8 }}>✅</div>
+          <h2 style={{ fontSize: 23, fontWeight: 900, margin: '0 0 4px' }}>¡Pedido confirmado!</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 16px' }}>Anotá tu número de pedido</p>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 14, padding: '16px 20px', marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{nums.length > 1 ? 'Pedidos' : 'Pedido'}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--primary)' }}>{numStr}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>Total: {fmtARS(exito.total)}</div>
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>Enviános el pedido por WhatsApp y coordinamos el pago y la entrega al toque.</p>
+          {waUrl ? <a className="btn btn-success" href={waUrl} target="_blank" rel="noopener noreferrer" style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 800, marginBottom: 10, display: 'block' }}>📱 Enviar pedido por WhatsApp</a> : null}
+          <button className="btn btn-outline" onClick={onClose} style={{ width: '100%', padding: 12 }}>Volver a la tienda</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CartPage() {
   const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
   const [cupon, setCupon] = useState('');
@@ -2577,6 +2613,7 @@ function CartPage() {
   const [envio, setEnvio] = useState({});
   const [showMixPopup, setShowMixPopup] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [exito, setExito] = useState(null); // datos del pedido confirmado para la pantalla de éxito
   const [avisos, setAvisos] = useState([]); // cambios detectados al abrir el carrito
   const refreshDone = useRef(false);
 
@@ -2754,13 +2791,14 @@ function CartPage() {
       };
     }).filter(pp => pp.items.length);
     try {
-      await api.createPedidosMulti(pedidos, testMode);
+      const r = await api.createPedidosMulti(pedidos, testMode);
       // Analytics: compra realizada
       const totalCompra = pedidos.reduce((s, p) => s + Number(p.total || 0), 0);
       trackEvent('purchase', 'Purchase', { value: totalCompra, currency: 'ARS', num_items: allItems.length });
       seccionesConItems.forEach(sec => clearCart(sec.id));
       setShowCheckout(false);
-      toast('¡Pedido creado!'); nav('landing');
+      const nums = (r?.pedidos || []).map(p => p.id).filter(Boolean);
+      setExito({ nums, total: totalCompra, contacto: (datosCheckout && datosCheckout.contacto) || {} });
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -2769,6 +2807,7 @@ function CartPage() {
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
       <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🛒 Carrito</h2>
       {testMode && <div style={{ background: 'var(--warning)', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
+      {exito && <PedidoExitoModal exito={exito} config={config} onClose={() => { setExito(null); nav('landing'); }} />}
       {showCheckout && (
         <CheckoutModal
           user={user}
@@ -3445,6 +3484,33 @@ function CuentaBloqueada({ estado }) {
   );
 }
 
+// Semáforo de mantenimiento: indicador verde/rojo + toggle de un clic, en el panel admin
+function MantenimientoToggle() {
+  const { toast } = useContext(Ctx);
+  const [st, setSt] = useState({ activo: false, mensaje: '', countdown: '' });
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { api.getMaintenanceStatus().then(s => setSt({ activo: !!s.activo, mensaje: s.mensaje || '', countdown: s.countdown || '' })).catch(() => {}); }, []);
+  const toggle = async () => {
+    if (saving) return;
+    const nuevo = !st.activo;
+    if (nuevo && !window.confirm('¿Poner la web EN MANTENIMIENTO? Los clientes no van a poder entrar.')) return;
+    setSaving(true);
+    try {
+      await api.setMaintenanceMode(nuevo, st.mensaje, st.countdown);
+      setSt({ ...st, activo: nuevo });
+      toast(nuevo ? 'Web puesta en mantenimiento' : 'Web activada', 'success');
+    } catch (e) { toast(e.message || 'No se pudo cambiar', 'error'); }
+    setSaving(false);
+  };
+  return (
+    <button onClick={toggle} disabled={saving} title={st.activo ? 'La web está en mantenimiento. Tocá para activarla.' : 'La web está activa. Tocá para ponerla en mantenimiento.'}
+      style={{ width: '100%', marginBottom: 12, padding: '9px 11px', borderRadius: 10, border: `1px solid ${st.activo ? '#e74c3c' : '#2ecc71'}`, background: st.activo ? 'rgba(231,76,60,0.12)' : 'rgba(46,204,113,0.12)', color: st.activo ? '#e74c3c' : '#2ecc71', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 800 }}>
+      <span style={{ width: 11, height: 11, borderRadius: '50%', background: st.activo ? '#e74c3c' : '#2ecc71', flexShrink: 0, boxShadow: `0 0 7px ${st.activo ? '#e74c3c' : '#2ecc71'}` }} />
+      {saving ? 'Guardando...' : (st.activo ? 'EN MANTENIMIENTO' : 'WEB ACTIVA')}
+    </button>
+  );
+}
+
 function AdminPanel() {
   const { adminTab, setAdminTab, secciones, adminSeccion, setAdminSeccion, nav, user, miPlan } = useContext(Ctx);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -3577,6 +3643,7 @@ function AdminPanel() {
           <button className="btn btn-primary btn-sm" onClick={() => { try { const u = new URL(window.location.href); u.searchParams.set('comerciapp', '1'); window.location.href = u.pathname + '?' + u.searchParams.toString(); } catch { window.location.href = '/?comerciapp=1'; } }} style={{ marginBottom: 12, width: '100%' }}>🌐 Panel de webs</button>
         )}
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>Panel Admin</h3>
+        {puede('config') && <MantenimientoToggle />}
         <select value={adminSeccion} onChange={e => setAdminSeccion(e.target.value)} style={{ width: '100%', marginBottom: 12, padding: 6 }}>
           <option value="all">Todas las secciones</option>
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
