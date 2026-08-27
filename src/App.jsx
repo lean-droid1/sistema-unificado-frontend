@@ -413,6 +413,7 @@ export default function App() {
     const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv;
   });
   const [loading, setLoading] = useState(true);
+  const [enMantenimiento, setEnMantenimiento] = useState(false); // true = bloquear la tienda a visitantes (no admin)
   const [dark, setDark] = useState(() => localStorage.getItem('gm_dark') === 'true');
   const [testMode, setTestMode] = useState(() => localStorage.getItem('gm_test') === 'true');
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -602,7 +603,7 @@ export default function App() {
         const maint = await api.getMaintenanceStatus();
         if (maint.activo) {
           const me = api.getToken() ? await api.getMe().catch(() => null) : null;
-          if (!me || !['admin','subadmin'].includes(me?.rol)) setPage('maintenance');
+          if (!me || !['admin','subadmin'].includes(me?.rol)) setEnMantenimiento(true);
         }
       } catch (e) { console.error('Init error:', e); }
       setLoading(false);
@@ -740,6 +741,8 @@ export default function App() {
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
+  // Modo mantenimiento: si está activo y NO sos admin, se bloquea TODA la tienda (no se puede escapar navegando)
+  if (enMantenimiento) return <div className={`app${effectiveDark ? ' dark' : ''}`}><MaintenancePage /><ToastContainer /></div>;
 
   // Route
   const renderPage = () => {
@@ -1256,14 +1259,20 @@ function WhatsAppFloat() {
 // MAINTENANCE PAGE
 // ═══════════════════════════════════════════════════════════
 function MaintenancePage() {
-  const { nav, config } = useContext(Ctx);
+  const { nav, config, design } = useContext(Ctx);
   const [maint, setMaint] = useState({ mensaje: '' });
   useEffect(() => { api.getMaintenanceStatus().then(setMaint).catch(() => {}); }, []);
+  const logo = design?.logo_url || config?.logo || '';
+  const nombre = design?.nombre_tienda || config?.nombre_negocio || '';
+  const wa = (config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
   return (
-    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-      <h1>🔧 En mantenimiento</h1>
-      <p style={{ color: 'var(--text-secondary)', marginTop: 12 }}>{maint.mensaje || 'Estamos trabajando en mejoras. Volvemos pronto.'}</p>
-      <button className="btn btn-outline" style={{ marginTop: 20 }} onClick={() => nav('login')}>Acceso admin</button>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg)' }}>
+      {logo ? <img src={logo} alt={nombre} style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 16, marginBottom: 16 }} /> : null}
+      <div style={{ fontSize: 52, marginBottom: 8 }}>🔧</div>
+      <h1 style={{ fontSize: 26, fontWeight: 900, margin: '0 0 10px' }}>Estamos en mantenimiento</h1>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 16, maxWidth: 460, lineHeight: 1.5, margin: '0 0 24px' }}>{maint.mensaje || 'Estamos trabajando en mejoras. Volvemos en un rato.'}</p>
+      {wa ? <a className="btn btn-primary" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" style={{ marginBottom: 10 }}>Escribinos por WhatsApp</a> : null}
+      <button className="btn btn-outline btn-sm" style={{ marginTop: 6, opacity: 0.6 }} onClick={() => nav('login')}>Acceso administrador</button>
     </div>
   );
 }
