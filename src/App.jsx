@@ -604,10 +604,7 @@ export default function App() {
         if (maint.activo) {
           const me = api.getToken() ? await api.getMe().catch(() => null) : null;
           const esAdmin = me && ['admin','subadmin'].includes(me.rol);
-          const quiereLogin = new URLSearchParams(window.location.search).get('adminlogin') === '1';
-          // Bloquear salvo que seas admin, o que vengas a loguearte (?adminlogin=1 muestra SOLO el login, no la tienda)
-          if (!esAdmin && !quiereLogin) setEnMantenimiento(true);
-          if (!esAdmin && quiereLogin) setPage('login');
+          if (!esAdmin) setEnMantenimiento(true); // bloquea a TODO no-admin; el login del admin va DENTRO del bloque
         }
       } catch (e) { console.error('Init error:', e); }
       setLoading(false);
@@ -747,7 +744,7 @@ export default function App() {
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
   // Modo mantenimiento: si está activo y NO sos admin, se bloquea TODA la tienda (no se puede escapar navegando).
   // Se renderiza ANTES del Ctx.Provider, así que usa una versión autocontenida (sin useContext).
-  if (enMantenimiento) return <MaintenanceBlock effectiveDark={effectiveDark} config={config} design={design} onAdmin={() => { try { window.location.href = window.location.pathname + '?adminlogin=1'; } catch { window.location.href = '/?adminlogin=1'; } }} />;
+  if (enMantenimiento) return <MaintenanceBlock effectiveDark={effectiveDark} config={config} design={design} />;
 
   // Route
   const renderPage = () => {
@@ -1263,21 +1260,62 @@ function WhatsAppFloat() {
 // ═══════════════════════════════════════════════════════════
 // MAINTENANCE PAGE
 // ═══════════════════════════════════════════════════════════
-// Pantalla de mantenimiento AUTOCONTENIDA (no usa useContext — se renderiza fuera del Ctx.Provider)
-function MaintenanceBlock({ effectiveDark, config, design, onAdmin }) {
+// Pantalla de mantenimiento AUTOCONTENIDA (no usa useContext — se renderiza fuera del Ctx.Provider).
+// Incluye un mini-login de admin integrado: así el candado NUNCA se suelta y el admin entra desde acá mismo.
+function MaintenanceBlock({ effectiveDark, config, design }) {
   const [maint, setMaint] = useState({ mensaje: '' });
+  const [showLogin, setShowLogin] = useState(false);
+  const [usuario, setUsuario] = useState('');
+  const [password, setPassword] = useState('');
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   useEffect(() => { api.getMaintenanceStatus().then(setMaint).catch(() => {}); }, []);
   const logo = design?.logo_url || config?.logo || '';
   const nombre = design?.nombre_tienda || config?.nombre_negocio || '';
   const wa = (config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const wrap = { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg, #111)' };
+  const inp = { width: '100%', padding: 12, fontSize: 15, marginBottom: 10, borderRadius: 10, border: '1px solid var(--border, #444)', background: 'var(--card-bg, #1a1a1a)', color: 'var(--text, #fff)' };
+
+  const doLogin = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const r = await api.login(usuario, password, otpCode || undefined);
+      if (r && r.requires_otp) { setOtpStep(true); setBusy(false); return; }
+      window.location.reload(); // login OK → recarga; si es admin el init lo deja pasar, si no sigue bloqueado
+    } catch (e) { setErr(e.message || 'No se pudo ingresar'); setBusy(false); }
+  };
+
+  if (showLogin) {
+    return (
+      <div className={`app${effectiveDark ? ' dark' : ''}`} style={wrap}>
+        <div style={{ width: '100%', maxWidth: 340 }}>
+          {logo ? <img src={logo} alt={nombre} style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 14, marginBottom: 14 }} /> : null}
+          <h2 style={{ fontSize: 21, fontWeight: 900, margin: '0 0 6px' }}>{otpStep ? 'Verificación' : 'Acceso administrador'}</h2>
+          <p style={{ color: 'var(--text-secondary, #999)', fontSize: 13, margin: '0 0 18px' }}>{otpStep ? 'Ingresá el código que te llegó por email' : 'Ingresá con tu usuario de administrador'}</p>
+          {otpStep
+            ? <input value={otpCode} onChange={e => setOtpCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="123456" maxLength={6} autoFocus style={{ ...inp, textAlign: 'center', fontSize: 22, letterSpacing: '0.3em' }} />
+            : <>
+                <input value={usuario} onChange={e => setUsuario(e.target.value)} placeholder="Usuario" autoFocus style={inp} />
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="Contraseña" style={inp} />
+              </>}
+          {err ? <p style={{ color: '#e74c3c', fontSize: 13, margin: '0 0 10px' }}>{err}</p> : null}
+          <button className="btn btn-primary" disabled={busy} onClick={doLogin} style={{ width: '100%', padding: 13, marginBottom: 10 }}>{busy ? '...' : (otpStep ? 'Verificar' : 'Ingresar')}</button>
+          <button onClick={() => { setShowLogin(false); setOtpStep(false); setErr(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary, #999)', cursor: 'pointer', fontSize: 13 }}>← Volver</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`app${effectiveDark ? ' dark' : ''}`} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg, #111)' }}>
+    <div className={`app${effectiveDark ? ' dark' : ''}`} style={wrap}>
       {logo ? <img src={logo} alt={nombre} style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 16, marginBottom: 16 }} /> : null}
       <div style={{ fontSize: 52, marginBottom: 8 }}>🔧</div>
       <h1 style={{ fontSize: 26, fontWeight: 900, margin: '0 0 10px' }}>Estamos en mantenimiento</h1>
       <p style={{ color: 'var(--text-secondary, #999)', fontSize: 16, maxWidth: 460, lineHeight: 1.5, margin: '0 0 24px' }}>{maint.mensaje || 'Estamos trabajando en mejoras. Volvemos en un rato.'}</p>
       {wa ? <a className="btn btn-primary" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" style={{ marginBottom: 10 }}>Escribinos por WhatsApp</a> : null}
-      <button className="btn btn-outline btn-sm" style={{ marginTop: 6, opacity: 0.6 }} onClick={onAdmin}>Acceso administrador</button>
+      <button className="btn btn-outline btn-sm" style={{ marginTop: 6, opacity: 0.6 }} onClick={() => setShowLogin(true)}>Acceso administrador</button>
     </div>
   );
 }
