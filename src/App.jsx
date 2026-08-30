@@ -668,25 +668,27 @@ export default function App() {
     const items = Array.isArray(cart[sec.id]) ? cart[sec.id] : [];
     return s + items.reduce((sum, i) => sum + (i.qty > 0 ? i.qty : 0), 0);
   }, 0);
-  const addToCart = (secId, product, qty = 1, precio) => {
+  const addToCart = (secId, product, qty = 1, precio, variante) => {
     // Priorizar la sección REAL del producto para que mínimos/envío/badges apliquen bien
     const realSec = product?.seccion_id ? String(product.seccion_id) : secId;
+    const varLabel = variante ? `${variante.nombre ? variante.nombre + ': ' : ''}${variante.valor || ''}`.trim() : '';
     setCart(prev => {
       const items = [...(prev[realSec] || [])];
-      const existing = items.find(i => i.id === product.id);
+      // Un mismo producto con distinta variante son líneas separadas del carrito
+      const existing = items.find(i => i.id === product.id && (i.variante_id || null) === (variante?.id || null));
       if (existing) existing.qty += qty;
-      else items.push({ ...product, seccion_id: realSec, qty, precio_unitario: precio || product.precio_base });
+      else items.push({ ...product, seccion_id: realSec, qty, precio_unitario: precio || product.precio_base, variante_id: variante?.id || null, variante_label: varLabel });
       return { ...prev, [realSec]: items };
     });
     toast('Agregado al carrito');
     trackEvent('add_to_cart', 'AddToCart', { value: (precio || product.precio_base) * qty, currency: 'ARS', content_name: product.nombre || product.modelo });
   };
-  const removeFromCart = (secId, productId) => {
-    setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).filter(i => i.id !== productId) }));
+  const removeFromCart = (secId, productId, varId = null) => {
+    setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).filter(i => !(i.id === productId && (i.variante_id || null) === varId)) }));
   };
-  const updateCartQty = (secId, productId, qty) => {
-    if (qty <= 0) return removeFromCart(secId, productId);
-    setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).map(i => i.id === productId ? { ...i, qty } : i) }));
+  const updateCartQty = (secId, productId, qty, varId = null) => {
+    if (qty <= 0) return removeFromCart(secId, productId, varId);
+    setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).map(i => (i.id === productId && (i.variante_id || null) === varId) ? { ...i, qty } : i) }));
   };
   const clearCart = (secId) => setCart(prev => ({ ...prev, [secId]: [] }));
 
@@ -2315,7 +2317,7 @@ function SectionPage() {
       <div className="product-grid">
         {productosFiltrados.map(p => {
           const precio = getPrecio(p);
-          const sinStock = !p.stock || p.stock <= 0;
+          const sinStock = (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
           const umbralG = Number(config?.[`envio_gratis_desde_${p.seccion_id}`]) || 0;
           const envioGratis = p.envio_gratis || (umbralG > 0 && precio.final >= umbralG);
           return (
@@ -2644,17 +2646,18 @@ function CartPage() {
               nuevoCart[secId].push({ ...it, ...prod, _preventa: true, _precioReserva: precioReserva, seccion_id: secId, qty: it.qty, precio_unitario: precioReserva });
               continue;
             }
+            const esVar = !!it.variante_id;
             const sinStock = !prod.permitir_sin_stock && !prod.es_digital && Number(prod.stock) < it.qty;
             const precioViejo = Number(it.precio_unitario || it.precio_base);
-            const precioNuevo = Number(prod.precio_base);
+            const precioNuevo = esVar ? Number(it.precio_unitario || it.precio_base) : Number(prod.precio_base);
             if (sinStock) {
               if (Number(prod.stock) <= 0) { cambios.push(`"${prod.nombre || prod.modelo}" se quedó sin stock y se quitó`); continue; }
               cambios.push(`"${prod.nombre || prod.modelo}": solo quedan ${prod.stock}, se ajustó la cantidad`);
-              nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: Number(prod.stock), precio_unitario: precioNuevo });
+              nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: Number(prod.stock), precio_unitario: precioNuevo, variante_id: it.variante_id || null, variante_label: it.variante_label || '' });
               continue;
             }
             if (precioViejo !== precioNuevo) cambios.push(`"${prod.nombre || prod.modelo}": el precio cambió de ${fmtARS(precioViejo)} a ${fmtARS(precioNuevo)}`);
-            nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: it.qty, precio_unitario: precioNuevo });
+            nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: it.qty, precio_unitario: precioNuevo, variante_id: it.variante_id || null, variante_label: it.variante_label || '' });
           } catch {
             nuevoCart[secId].push(it); // si falla la consulta, dejamos el item como está
           }
@@ -2893,19 +2896,20 @@ function CartPage() {
               </div>
             )}
             {secItems.map(i => (
-              <div key={i.id} className="card" style={{ padding: 12, marginBottom: 6, display: 'flex', gap: 10, alignItems: 'center', borderRadius: 12 }}>
+              <div key={`${i.id}_${i.variante_id || 0}`} className="card" style={{ padding: 12, marginBottom: 6, display: 'flex', gap: 10, alignItems: 'center', borderRadius: 12 }}>
                 {i.imagen ? <img src={i.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{i.nombre || i.modelo}</div>
+                  {i.variante_label && <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>{i.variante_label}</div>}
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {fmtARS(i.precio_unitario || i.precio_base)} c/u</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
-                  <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v)); }} style={{ width: 48, padding: '6px 4px', fontWeight: 800, fontSize: 13, textAlign: 'center', border: 'none', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderRadius: 0, background: 'transparent' }} />
-                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
+                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
+                  <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v), i.variante_id); }} style={{ width: 48, padding: '6px 4px', fontWeight: 800, fontSize: 13, textAlign: 'center', border: 'none', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderRadius: 0, background: 'transparent' }} />
+                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                 </div>
                 <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
-                <button onClick={() => removeFromCart(sec.id, i.id)} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
+                <button onClick={() => removeFromCart(sec.id, i.id, i.variante_id)} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
               </div>
             ))}
             {/* Shipping for this section */}
@@ -3010,9 +3014,13 @@ function ProductDetailPage() {
   if (!p) return <Landing />;
 
   const precioBase = Number(p.precio_base) || 0;
-  const precioFinal = (p.precioFinal || precioBase) + (selVariante ? Number(selVariante.precio_extra) || 0 : 0);
+  // Precio de una variante: si tiene precio propio (opción A, absoluto) usa ese; si no, cae a base + extra (compat con variantes viejas)
+  const precioVar = (v) => (Number(v?.precio) > 0 ? Number(v.precio) : (p.precioFinal || precioBase) + (Number(v?.precio_extra) || 0));
+  const tieneVariantes = variantes.length > 0;
+  const precioFinal = selVariante ? precioVar(selVariante) : (p.precioFinal || precioBase);
+  const precioDesde = tieneVariantes && variantes.length ? Math.min(...variantes.map(precioVar)) : precioBase;
   const precioOriginal = p.precioOriginal;
-  const sinStock = !p.stock || p.stock <= 0;
+  const sinStock = (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const allImages = gallery.length ? gallery.map(g => g.url) : [p.imagen].filter(Boolean);
 
   const preciosMetodo = metodosPago.filter(m => m.activo).map(m => {
@@ -3065,7 +3073,9 @@ function ProductDetailPage() {
           <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
 
           <div className="pdp-price">
-            {precioOriginal ? (
+            {tieneVariantes && !selVariante ? (
+              <span className="pdp-price-new">desde {fmtARS(precioDesde)}</span>
+            ) : precioOriginal ? (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                 <span className="pdp-price-old">{fmtARS(precioOriginal)}</span>
                 <span className="pdp-price-new">{fmtARS(precioFinal)}</span>
@@ -3094,7 +3104,7 @@ function ProductDetailPage() {
                 {variantes.map(v => (
                   <button key={v.id} onClick={() => setSelVariante(selVariante?.id === v.id ? null : v)}
                     className={`pdp-variant${selVariante?.id === v.id ? ' active' : ''}`}>
-                    {v.nombre}: {v.valor} {v.precio_extra > 0 && `(+${fmtARS(v.precio_extra)})`}
+                    {v.nombre}: {v.valor} — {fmtARS(precioVar(v))}
                   </button>
                 ))}
               </div>
@@ -3160,8 +3170,8 @@ function ProductDetailPage() {
                 <input type="number" min="1" value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))} style={{ width: 54, textAlign: 'center', border: 'none', background: 'transparent', fontWeight: 800, fontSize: 16, padding: '12px 4px' }} />
                 <button onClick={() => setQty(qty + 1)}>+</button>
               </div>
-              <button className="btn pdp-add" onClick={() => { addToCart(sec?.id || p.seccion_id, p, qty, precioFinal); toast('Agregado al carrito'); }}>
-                AGREGAR AL CARRITO
+              <button className="btn pdp-add" disabled={tieneVariantes && !selVariante} style={tieneVariantes && !selVariante ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={() => { if (tieneVariantes && !selVariante) { toast('Elegí una opción primero', 'error'); return; } addToCart(sec?.id || p.seccion_id, p, qty, precioFinal, selVariante); toast('Agregado al carrito'); }}>
+                {tieneVariantes && !selVariante ? 'ELEGÍ UNA OPCIÓN' : 'AGREGAR AL CARRITO'}
               </button>
             </div>
           )}
@@ -5766,29 +5776,30 @@ function MultiImageUpload({ productoId, imagenInicial }) {
 function VariantesEditor({ productoId }) {
   const { toast } = useContext(Ctx);
   const [vars, setVars] = useState([]);
-  const [form, setForm] = useState({ nombre: '', valor: '', stock: 0, precio_extra: 0 });
+  const [form, setForm] = useState({ nombre: '', valor: '', stock: 0, precio: 0 });
   useEffect(() => { api.getVariantes(productoId).then(setVars).catch(() => {}); }, [productoId]);
   const setLocal = (id, field, value) => setVars(vars.map(x => x.id === id ? { ...x, [field]: value } : x));
   const add = async () => {
     if (!form.nombre) return;
-    try { const r = await api.addVariante({ producto_id: productoId, ...form }); setVars([...vars, r]); setForm({ nombre: form.nombre, valor: '', stock: 0, precio_extra: 0 }); } catch (e) { toast(e.message, 'error'); }
+    try { const r = await api.addVariante({ producto_id: productoId, ...form }); setVars([...vars, r]); setForm({ nombre: form.nombre, valor: '', stock: 0, precio: 0 }); } catch (e) { toast(e.message, 'error'); }
   };
   const saveVar = async (v) => {
-    try { await api.updateVariante(v.id, { nombre: v.nombre, valor: v.valor, stock: Number(v.stock) || 0, precio_extra: Number(v.precio_extra) || 0 }); } catch (e) { toast(e.message, 'error'); }
+    try { await api.updateVariante(v.id, { nombre: v.nombre, valor: v.valor, stock: Number(v.stock) || 0, precio: Number(v.precio) || 0, precio_extra: Number(v.precio_extra) || 0 }); } catch (e) { toast(e.message, 'error'); }
   };
   const remove = async (id) => { try { await api.deleteVariante(id); setVars(vars.filter(v => v.id !== id)); } catch (e) { toast(e.message, 'error'); } };
   const nombresUsados = [...new Set(vars.map(v => v.nombre).filter(Boolean))];
   const dlId = `varnames-${productoId}`;
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-      <h4 style={{ marginBottom: 8, fontSize: 14 }}>🔀 Variantes (opcional)</h4>
+      <h4 style={{ marginBottom: 4, fontSize: 14 }}>🔀 Variantes (opcional)</h4>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>El precio es el <b>precio final</b> de cada variante (lo que paga el cliente). Si el producto usa variantes, se debe elegir una para poder comprar.</p>
       <datalist id={dlId}>{nombresUsados.map(n => <option key={n} value={n} />)}</datalist>
       {vars.map(v => (
         <div key={v.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
           <input value={v.nombre} list={dlId} onChange={e => setLocal(v.id, 'nombre', e.target.value)} onBlur={() => saveVar(v)} placeholder="Nombre" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
           <input value={v.valor} onChange={e => setLocal(v.id, 'valor', e.target.value)} onBlur={() => saveVar(v)} placeholder="Valor" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
           <input type="number" value={v.stock} onChange={e => setLocal(v.id, 'stock', e.target.value)} onBlur={() => saveVar(v)} placeholder="Stock" style={{ flex: '0 1 80px', minWidth: 70, fontSize: 13 }} />
-          <input type="number" value={v.precio_extra} onChange={e => setLocal(v.id, 'precio_extra', e.target.value)} onBlur={() => saveVar(v)} placeholder="+$" style={{ flex: '0 1 80px', minWidth: 70, fontSize: 13 }} />
+          <input type="number" value={v.precio || ''} onChange={e => setLocal(v.id, 'precio', e.target.value)} onBlur={() => saveVar(v)} placeholder="Precio $" title="Precio final de esta variante" style={{ flex: '0 1 90px', minWidth: 80, fontSize: 13 }} />
           <button onClick={() => remove(v.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
         </div>
       ))}
@@ -5796,7 +5807,7 @@ function VariantesEditor({ productoId }) {
         <input placeholder="Nombre (ej: Color)" list={dlId} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
         <input placeholder="Valor (ej: Rojo)" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
         <input type="number" placeholder="Stock" value={form.stock || ''} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ flex: '0 1 80px', minWidth: 70 }} />
-        <input type="number" placeholder="+$" value={form.precio_extra || ''} onChange={e => setForm({ ...form, precio_extra: Number(e.target.value) })} style={{ flex: '0 1 80px', minWidth: 70 }} />
+        <input type="number" placeholder="Precio $" title="Precio final de esta variante" value={form.precio || ''} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} style={{ flex: '0 1 90px', minWidth: 80 }} />
         <button className="btn btn-primary btn-sm" onClick={add}>+ Agregar</button>
       </div>
     </div>
