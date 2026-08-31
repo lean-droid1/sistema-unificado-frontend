@@ -895,7 +895,7 @@ const RED_LABELS = {
 function redIconTipo(tipo) { return (tipo === 'whatsapp_canal' || tipo === 'whatsapp_grupo') ? 'whatsapp' : tipo; }
 
 function HeaderSearch() {
-  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones } = useContext(Ctx);
+  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones, getPrice, userLista } = useContext(Ctx);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -935,7 +935,7 @@ function HeaderSearch() {
       <input className="header-search-input" placeholder="Buscar por marca, modelo o repuesto..." value={globalSearch}
         onChange={e => setGlobalSearch(e.target.value)}
         onFocus={() => { if (flat.length) setOpen(true); }}
-        onKeyDown={e => { if (e.key === 'Enter') { doGlobalSearch(); setOpen(false); } if (e.key === 'Escape') setOpen(false); }} />
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doGlobalSearch(); setOpen(true); } if (e.key === 'Escape') setOpen(false); }} />
       {globalSearch && <button className="header-search-clear" onClick={() => { setGlobalSearch(''); setGlobalResults(null); setOpen(false); }}>✕</button>}
 
       {open && globalSearch.length >= 2 && (
@@ -951,7 +951,7 @@ function HeaderSearch() {
                     <div className="search-dd-name">{p.nombre || p.modelo}</div>
                     <div className="search-dd-sec">{p.secNombre}</div>
                   </div>
-                  {p.precio_base > 0 && <div className="search-dd-price">{fmtARS(p.precio_oferta && p.precio_oferta < p.precio_base ? p.precio_oferta : p.precio_base)}</div>}
+                  {(() => { const _b = Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base) ? p.precio_oferta : p.precio_base; const _pr = getPrice ? getPrice(_b, userLista, p.id) : (Number(_b) || 0); return _pr > 0 ? <div className="search-dd-price">{fmtARS(_pr)}</div> : null; })()}
                 </button>
               ))}
               <button className="search-dd-all" onClick={() => { doGlobalSearch(); setOpen(false); }}>Ver todos los resultados →</button>
@@ -8418,7 +8418,7 @@ function AdminSlider() {
 // FAVORITOS PAGE
 // ═══════════════════════════════════════════════════════════
 function FavoritosPage() {
-  const { nav, toast, addToCart, getPrice } = useContext(Ctx);
+  const { nav, toast, addToCart, getPrice, userLista } = useContext(Ctx);
   const [favs, setFavs] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { api.getFavoritos().then(f => { setFavs(f); setLoading(false); }).catch(() => setLoading(false)); }, []);
@@ -8439,7 +8439,7 @@ function FavoritosPage() {
               <div style={{ padding: 12 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>{f.categoria}</div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{f.nombre || f.modelo}</div>
-                {f.precio_base > 0 && <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(getPrice ? getPrice(f) : f.precio_base)}</div>}
+                {(() => { const _fp = getPrice ? getPrice(f.precio_base, userLista, f.producto_id || f.id) : (Number(f.precio_base) || 0); return _fp > 0 ? <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(_fp)}</div> : <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Consultar precio</div>; })()}
                 <div style={{ display: 'flex', gap: 6 }}>
                   {f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
                   <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}><Ico n="trash" s={15} /></button>
