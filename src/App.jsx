@@ -3241,7 +3241,7 @@ function ProductDetailPage() {
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
           </div>
 
-          {p.sku && <p className="pdp-sku">SKU: {p.sku}</p>}
+          {p.sku && !p.sku.startsWith('RXZ-') && <p className="pdp-sku">SKU: {p.sku}</p>}
           {p.notas && <div className="pdp-note">📝 {p.notas}</div>}
 
           {/* Carteles de confianza */}
