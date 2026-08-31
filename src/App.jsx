@@ -3083,6 +3083,14 @@ function ProductDetailPage() {
     keep.set('producto', String(p.id));
     return window.location.origin + window.location.pathname + '?' + keep.toString();
   })();
+  // URL con OG meta tags para previews en redes sociales (Vercel serverless function)
+  const shareUrlOG = (() => {
+    const keep = new URLSearchParams();
+    const t = new URLSearchParams(window.location.search).get('tienda');
+    if (t) keep.set('tienda', t);
+    keep.set('producto', String(p.id));
+    return window.location.origin + '/api/og?' + keep.toString();
+  })();
   const shareName = p.nombre || p.modelo || 'Producto';
   const shareText = `${shareName} — ${fmtARS(precioFinal)}`;
   const [linkCopied, setLinkCopied] = useState(false);
@@ -3226,9 +3234,9 @@ function ProductDetailPage() {
           {/* Compartir producto */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Compartir:</span>
-            <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank')} title="WhatsApp" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#25d366', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="whatsapp" s={20} /></button>
-            <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank', 'width=600,height=400')} title="Facebook" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1877f2', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="facebook" s={20} /></button>
-            <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')} title="X (Twitter)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="twitter" s={20} /></button>
+            <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrlOG)}`, '_blank')} title="WhatsApp" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#25d366', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="whatsapp" s={20} /></button>
+            <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrlOG)}`, '_blank', 'width=600,height=400')} title="Facebook" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1877f2', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="facebook" s={20} /></button>
+            <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrlOG)}&text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')} title="X (Twitter)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="twitter" s={20} /></button>
             <button onClick={() => { navigator.clipboard.writeText(shareUrl).then(() => { setLinkCopied(true); toast('Link copiado'); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => toast('No se pudo copiar', 'error')); }} title="Copiar link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? 'var(--success, #22c55e)' : 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="copy" s={18} /></button>
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
           </div>
