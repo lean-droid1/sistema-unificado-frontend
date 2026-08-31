@@ -793,6 +793,7 @@ export default function App() {
       case 'info': return <InfoPage />;
       case 'contacto': return <ContactoPage />;
       case 'favoritos': return user ? <FavoritosPage /> : <LoginPage />;
+      case 'search': return <SearchResultsPage />;
       case 'maintenance': return <MaintenancePage />;
       default: return <Landing />;
     }
@@ -935,7 +936,7 @@ function HeaderSearch() {
       <input className="header-search-input" placeholder="Buscar por marca, modelo o repuesto..." value={globalSearch}
         onChange={e => setGlobalSearch(e.target.value)}
         onFocus={() => { if (flat.length) setOpen(true); }}
-        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doGlobalSearch(); setOpen(true); } if (e.key === 'Escape') setOpen(false); }} />
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doGlobalSearch(); setOpen(false); nav('search'); } if (e.key === 'Escape') setOpen(false); }} />
       {globalSearch && <button className="header-search-clear" onClick={() => { setGlobalSearch(''); setGlobalResults(null); setOpen(false); }}>✕</button>}
 
       {open && globalSearch.length >= 2 && (
@@ -954,7 +955,7 @@ function HeaderSearch() {
                   {(() => { const _b = Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base) ? p.precio_oferta : p.precio_base; const _pr = getPrice ? getPrice(_b, userLista, p.id) : (Number(_b) || 0); return _pr > 0 ? <div className="search-dd-price">{fmtARS(_pr)}</div> : null; })()}
                 </button>
               ))}
-              <button className="search-dd-all" onClick={() => { doGlobalSearch(); setOpen(false); }}>Ver todos los resultados →</button>
+              <button className="search-dd-all" onClick={() => { doGlobalSearch(); setOpen(false); nav('search'); }}>Ver todos los resultados →</button>
             </>
           )}
         </div>
@@ -8417,6 +8418,74 @@ function AdminSlider() {
 // ═══════════════════════════════════════════════════════════
 // FAVORITOS PAGE
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// SEARCH RESULTS PAGE
+// ═══════════════════════════════════════════════════════════
+function SearchResultsPage() {
+  const { globalSearch, setGlobalSearch, globalResults, doGlobalSearch, nav, toast, addToCart, getPrice, userLista, config, user, secciones } = useContext(Ctx);
+  const [favIds, setFavIds] = useState(new Set());
+  useEffect(() => { if (user) api.getFavoritos().then(fs => setFavIds(new Set(fs.map(f => f.producto_id)))).catch(() => {}); }, [user]);
+  const toggleFav = async (pid) => { try { if (favIds.has(pid)) { await api.removeFavorito(pid); setFavIds(prev => { const n = new Set(prev); n.delete(pid); return n; }); toast('Quitado de favoritos'); } else { await api.addFavorito(pid); setFavIds(prev => new Set(prev).add(pid)); toast('Agregado a favoritos'); } } catch {} };
+
+  // Trigger search on mount if we have a term but no results yet
+  useEffect(() => { if (globalSearch.length >= 2 && !globalResults) doGlobalSearch(); }, []);
+
+  const total = globalResults?.total || 0;
+  const resultados = globalResults?.resultados || [];
+
+  return (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← Volver</button>
+      <h2 style={{ fontWeight: 800, fontSize: 20, marginBottom: 6 }}>Resultados para "{globalSearch}"</h2>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>{total} producto{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}</p>
+
+      {total === 0 && globalSearch.length >= 2 && (
+        <div className="empty-state"><h3>No encontramos productos</h3><p>Probá con otro término o revisá la ortografía.</p></div>
+      )}
+
+      {resultados.map(r => {
+        const sec = r.seccion;
+        return (
+          <div key={sec.id} style={{ marginBottom: 28 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary)', marginBottom: 12, cursor: 'pointer' }} onClick={() => nav('section', sec.id)}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>({r.productos.length})</span></h3>
+            <div className="product-grid">
+              {r.productos.map(p => {
+                const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
+                const tieneOferta = p.precio_oferta && Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base);
+                const sinStock = p.stock === 0 && !p.permitir_sin_stock && !p.es_digital;
+                return (
+                  <div key={p.id} className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                    {user && <button className={`card-fav${favIds.has(p.id) ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}><Ico n="heart" s={16} fill={favIds.has(p.id)} /></button>}
+                    <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct && window.__secId; nav('product', { ...p, seccion_id: sec.id }); }}>
+                      {p.imagen
+                        ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
+                        : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>}
+                      {sinStock && <span style={{ position: 'absolute', top: 10, left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill, 20px)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+                    </div>
+                    <div className="product-info" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <div className="product-cat">{p.categoria || ''}</div>
+                      <div className="product-name" style={{ flex: 1, cursor: 'pointer', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>{p.nombre || p.modelo}</div>
+                      <div style={{ marginBottom: 8 }}>
+                        {tieneOferta ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
+                            <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
+                          </div>
+                        ) : precio > 0 ? <span className="price-new">{fmtARS(precio)}</span> : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Consultar precio</span>}
+                      </div>
+                      {!sinStock && <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => { addToCart(sec.id, p, 1); toast('Agregado'); }}>Agregar</button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function FavoritosPage() {
   const { nav, toast, addToCart, getPrice, userLista } = useContext(Ctx);
   const [favs, setFavs] = useState([]);
