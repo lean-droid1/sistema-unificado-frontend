@@ -600,6 +600,13 @@ export default function App() {
             window.history.replaceState({}, '', window.location.pathname);
           } catch (e) { toast('No se pudo cargar el carrito compartido', 'error'); }
         }
+        // Búsqueda compartida: ?buscar=TERM abre la página de resultados
+        const buscarParam = new URLSearchParams(window.location.search).get('buscar');
+        if (buscarParam && buscarParam.length >= 2 && !pedidoParam && !carritoParam) {
+          setGlobalSearch(buscarParam);
+          doGlobalSearch(buscarParam);
+          setPage('search');
+        }
         // Producto compartido: ?producto=ID abre el detalle directo
         const productoParam = new URLSearchParams(window.location.search).get('producto');
         if (productoParam && !pedidoParam && !carritoParam) {
@@ -681,6 +688,7 @@ export default function App() {
     const keep = new URLSearchParams();
     for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) keep.set(k, v); }
     if (page === 'product' && selectedProduct?.id) keep.set('producto', String(selectedProduct.id));
+    if (page === 'search' && globalSearch) keep.set('buscar', globalSearch);
     const qs = keep.toString();
     const newUrl = window.location.pathname + (qs ? '?' + qs : '');
     try { window.history.replaceState(window.history.state, '', newUrl); } catch {}
