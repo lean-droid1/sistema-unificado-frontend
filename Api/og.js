@@ -1,18 +1,21 @@
 // Vercel Serverless Function — OG meta tags for social media link previews
-// Placed at /api/og.js → accessible at https://your-domain.com/api/og?producto=123
+// Goes at /api/og.js (project root, NOT inside src/)
 
 const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const { producto, tienda } = req.query;
 
-  // No product → redirect to home
   if (!producto) { res.writeHead(302, { Location: '/' }); res.end(); return; }
 
   const apiUrl = (process.env.VITE_API_URL || process.env.API_URL || '').replace(/\/$/, '');
-  if (!apiUrl) { res.writeHead(302, { Location: `/?producto=${producto}` }); res.end(); return; }
+  if (!apiUrl) {
+    // No API URL configured — redirect and log
+    console.error('OG: VITE_API_URL / API_URL not set');
+    res.writeHead(302, { Location: `/?producto=${producto}` }); res.end(); return;
+  }
 
-  // Resolve tenant from hostname (same logic as frontend api.js)
+  // Resolve tenant from hostname
   const host = req.headers.host || req.headers['x-forwarded-host'] || '';
   let tenant = tienda || '';
   if (!tenant) {
@@ -43,7 +46,7 @@ export default async function handler(req, res) {
     const price = Number(prod.precio_oferta > 0 ? prod.precio_oferta : prod.precio_base) || 0;
     const priceStr = price > 0 ? `$${price.toLocaleString('es-AR')}` : 'Consultar precio';
     const image = prod.imagen || '';
-    const storeName = esc(design.nombre_tienda || host.split('.')[0] || '');
+    const storeName = esc(design.nombre_tienda || '');
     const desc = esc(`${priceStr}${storeName ? ' — ' + storeName : ''}`);
 
     const html = `<!DOCTYPE html><html><head>
@@ -58,7 +61,7 @@ export default async function handler(req, res) {
 <meta name="twitter:description" content="${desc}">
 <meta name="twitter:image" content="${esc(image)}">
 ${price > 0 ? `<meta property="product:price:amount" content="${price}"><meta property="product:price:currency" content="ARS">` : ''}
-<title>${title} — ${esc(storeName)}</title>
+<title>${title}${storeName ? ' — ' + storeName : ''}</title>
 </head><body>
 <script>window.location.replace(${JSON.stringify(canonical)});</script>
 <p>Redirigiendo… <a href="${esc(canonical)}">Ver producto</a></p>
@@ -67,8 +70,9 @@ ${price > 0 ? `<meta property="product:price:amount" content="${price}"><meta pr
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300');
     res.status(200).send(html);
-  } catch {
+  } catch (e) {
+    console.error('OG error:', e);
     res.writeHead(302, { Location: canonical });
     res.end();
   }
-}
+};
