@@ -2937,33 +2937,76 @@ function CartPage() {
         return (
           <div key={sec.id} style={{ marginBottom: 24 }}>
             <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
-            {/* Barra COMPRA MÍNIMA — informativa: el mínimo aplica solo para ENVÍO */}
-            {compraMinima > 0 && faltaMin > 0 && (
-              <div style={{ marginBottom: 8, background: 'var(--accent-light, rgba(255,165,47,0.08))', border: '1px solid var(--accent)', borderRadius: 10, padding: '8px 12px' }}>
-                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
-                  <div style={{ height: '100%', width: `${pctMin}%`, background: 'linear-gradient(90deg, var(--accent), var(--primary))', borderRadius: 3, transition: 'width 0.3s' }} />
+            {/* ── BARRA ÚNICA DE PROGRESO (mínimo envío → envío gratis), estilo hitos ── */}
+            {(() => {
+              const minEnvio = compraMinima;              // hito 1: habilita envío
+              const gratis = gratisDesde;                 // hito 2: envío gratis
+              const aplicaRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
+              // Si no hay ni mínimo ni envío gratis configurado, no mostramos nada
+              if (minEnvio <= 0 && gratis <= 0) return null;
+
+              // El tope de la barra es el mayor de los dos hitos
+              const tope = Math.max(minEnvio, gratis) || 1;
+              const pct = Math.min(100, (secSubtotal / tope) * 100);
+              const posMin = minEnvio > 0 ? Math.min(100, (minEnvio / tope) * 100) : null;
+              const posGratis = gratis > 0 ? Math.min(100, (gratis / tope) * 100) : null;
+
+              const llegoMin = minEnvio <= 0 || secSubtotal >= minEnvio;
+              const llegoGratis = gratis > 0 && secSubtotal >= gratis;
+
+              // Mensaje principal según en qué tramo está
+              let msg, msgColor;
+              if (!llegoMin) {
+                const falta = minEnvio - secSubtotal;
+                msg = aplicaRetiro
+                  ? <>Te faltan <b>{fmtARS(falta)}</b> para llegar al mínimo de compra</>
+                  : <>Te faltan <b>{fmtARS(falta)}</b> para habilitar el envío · <span style={{ opacity: 0.75 }}>retiro sin mínimo</span></>;
+                msgColor = 'var(--accent)';
+              } else if (gratis > 0 && !llegoGratis) {
+                const falta = gratis - secSubtotal;
+                msg = <>¡Envío habilitado! Te faltan <b>{fmtARS(falta)}</b> para <b>envío gratis</b> 🚚</>;
+                msgColor = 'var(--primary)';
+              } else if (llegoGratis) {
+                msg = <>🎉 ¡Tenés <b>envío gratis</b>!</>;
+                msgColor = 'var(--success)';
+              } else {
+                msg = <>✓ Llegaste al mínimo — envío habilitado</>;
+                msgColor = 'var(--success)';
+              }
+
+              return (
+                <div style={{ marginBottom: 14, background: 'var(--bg-card)', borderRadius: 16, padding: '14px 16px', boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.06)' }}>
+                  {/* Track */}
+                  <div style={{ position: 'relative', height: 10, marginBottom: 22, marginTop: 4 }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', width: `${pct}%`, borderRadius: 999,
+                        background: llegoGratis
+                          ? 'var(--success)'
+                          : `linear-gradient(90deg, var(--primary), var(--accent))`,
+                        transition: 'width .5s cubic-bezier(0.32,0.72,0,1)'
+                      }} />
+                    </div>
+                    {/* Hito: mínimo envío */}
+                    {posMin !== null && posMin < 100 && (
+                      <div style={{ position: 'absolute', left: `${posMin}%`, top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
+                        <div style={{ width: 14, height: 14, borderRadius: 999, background: llegoMin ? 'var(--success)' : 'var(--bg)', border: `2.5px solid ${llegoMin ? 'var(--success)' : 'var(--accent)'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: llegoMin ? 'var(--success)' : 'var(--accent)' }}>Envío</div>
+                      </div>
+                    )}
+                    {/* Hito: envío gratis (siempre al final si existe) */}
+                    {posGratis !== null && (
+                      <div style={{ position: 'absolute', left: `${posGratis}%`, top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
+                        <div style={{ width: 14, height: 14, borderRadius: 999, background: llegoGratis ? 'var(--success)' : 'var(--bg)', border: `2.5px solid ${llegoGratis ? 'var(--success)' : 'var(--primary)'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: llegoGratis ? 'var(--success)' : 'var(--primary)' }}>Gratis</div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Mensaje */}
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: msgColor, lineHeight: 1.4 }}>{msg}</div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
-                  {config[`min_aplica_retiro_${sec.id}`] === 'true'
-                    ? <>📦 Mínimo de compra: {fmtARS(compraMinima)} — te faltan {fmtARS(faltaMin)}.</>
-                    : <>📦 Mínimo para envío: {fmtARS(compraMinima)} — te faltan {fmtARS(faltaMin)}. <span style={{ fontWeight: 500 }}>Retirando en el local no hay mínimo.</span></>}
-                </div>
-              </div>
-            )}
-            {compraMinima > 0 && faltaMin === 0 && (
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 8 }}>✓ Llegaste al mínimo para envío</div>
-            )}
-            {/* Barra ENVÍO GRATIS — solo cuando ya superó el mínimo (si no, no puede enviar) */}
-            {gratisDesde > 0 && faltaMin === 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--primary), var(--accent))', borderRadius: 4, transition: 'width 0.4s' }} />
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: faltaGratis === 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
-                  {faltaGratis === 0 ? '🎉 ¡Envío gratis conseguido!' : `🚚 Te faltan ${fmtARS(faltaGratis)} para envío gratis`}
-                </div>
-              </div>
-            )}
+              );
+            })()}
             {secItems.map(i => (
               <div key={`${i.id}_${i.variante_id || 0}`} className="card" style={{ padding: 12, marginBottom: 6, display: 'flex', gap: 10, alignItems: 'center', borderRadius: 12 }}>
                 {i.imagen ? <img src={i.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>}
