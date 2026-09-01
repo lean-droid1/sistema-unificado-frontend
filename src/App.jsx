@@ -2451,9 +2451,33 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
       if (!contacto.nombre.trim()) { toast('Poné el nombre', 'error'); return false; }
       if (!contacto.telefono.trim()) { toast('Poné un teléfono de contacto', 'error'); return false; }
     }
-    if (pasoActual === 'Entrega' && entrega.tipo === 'envio') {
-      if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim() || !entrega.cp.trim()) {
-        toast('Completá la dirección de envío (calle, número, localidad y código postal)', 'error'); return false;
+    if (pasoActual === 'Entrega') {
+      // Validar dirección solo si es envío
+      if (entrega.tipo === 'envio') {
+        if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim() || !entrega.cp.trim()) {
+          toast('Completá la dirección de envío (calle, número, localidad y código postal)', 'error'); return false;
+        }
+      }
+      // Compra mínima:
+      //  - Envío: aplica siempre que la sección tenga mínimo.
+      //  - Retiro: aplica solo si la sección tiene marcado "min_aplica_retiro".
+      const secBajoMin = seccionesConItems.find(sec => {
+        const min = Number(config[`compra_minima_${sec.id}`]) || 0;
+        if (min <= 0) return false;
+        const aplicaEnRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
+        // Si es retiro y esta sección NO aplica mínimo en retiro, se saltea
+        if (entrega.tipo === 'retiro' && !aplicaEnRetiro) return false;
+        const secSub = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+        return secSub < min;
+      });
+      if (secBajoMin) {
+        const min = Number(config[`compra_minima_${secBajoMin.id}`]) || 0;
+        if (entrega.tipo === 'retiro') {
+          toast(`${secBajoMin.nombre} tiene un mínimo de ${fmtARS(min)} también para retiro.`, 'error');
+        } else {
+          toast(`Para envío necesitás un mínimo de ${fmtARS(min)} en ${secBajoMin.nombre}.`, 'error');
+        }
+        return false;
       }
     }
     if (pasoActual === 'Facturación' && facturacion.necesita) {
@@ -2760,12 +2784,10 @@ function CartPage() {
   }, 0);
   const total = Math.max(0, subtotal - descuento + costoEnvioTotal);
 
-  // ¿Alguna sección no llega a su compra mínima? (bloquea el checkout)
-  const algunaBajoMin = seccionesConItems.some(sec => {
-    const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
-    const min = Number(config[`compra_minima_${sec.id}`]) || 0;
-    return min > 0 && ss < min;
-  });
+  // Info de compra mínima por sección (NO bloquea el carrito: el mínimo aplica
+  // solo si eligen ENVÍO, y eso se valida en el paso Entrega del checkout).
+  // Con retiro en el local no hay mínimo.
+  const algunaBajoMin = false;
 
   // Guardar como presupuesto (cliente → admin lo ve en tab presupuestos)
   const guardarPresupuesto = async () => {
@@ -2811,16 +2833,11 @@ function CartPage() {
     }
   };
 
-  // Abre el modal de checkout (valida mínimos antes)
+  // Abre el modal de checkout. El mínimo de compra NO bloquea acá:
+  // se valida en el paso "Entrega" y solo si eligen envío (retiro no tiene mínimo).
   const abrirCheckout = () => {
     if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
-    const bajoMin = seccionesConItems.find(sec => {
-      const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
-      const min = Number(config[`compra_minima_${sec.id}`]) || 0;
-      return min > 0 && ss < min;
-    });
-    if (bajoMin) { toast(`No llegás al mínimo de compra en ${bajoMin.nombre}`, 'warning'); return; }
-    const totalCarrito = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+    const totalCarrito = allItems.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
     trackEvent('begin_checkout', 'InitiateCheckout', { value: totalCarrito, currency: 'ARS', num_items: allItems.length });
     setShowCheckout(true);
   };
@@ -2920,22 +2937,24 @@ function CartPage() {
         return (
           <div key={sec.id} style={{ marginBottom: 24 }}>
             <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
-            {/* Barra COMPRA MÍNIMA — bloquea el checkout hasta llegar */}
+            {/* Barra COMPRA MÍNIMA — informativa: el mínimo aplica solo para ENVÍO */}
             {compraMinima > 0 && faltaMin > 0 && (
-              <div style={{ marginBottom: 8, background: 'var(--danger-light, rgba(231,64,64,0.08))', border: '1px solid var(--danger)', borderRadius: 10, padding: '8px 12px' }}>
+              <div style={{ marginBottom: 8, background: 'var(--accent-light, rgba(255,165,47,0.08))', border: '1px solid var(--accent)', borderRadius: 10, padding: '8px 12px' }}>
                 <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
-                  <div style={{ height: '100%', width: `${pctMin}%`, background: 'linear-gradient(90deg, var(--danger), var(--accent))', borderRadius: 3, transition: 'width 0.3s' }} />
+                  <div style={{ height: '100%', width: `${pctMin}%`, background: 'linear-gradient(90deg, var(--accent), var(--primary))', borderRadius: 3, transition: 'width 0.3s' }} />
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)' }}>
-                  🔒 Compra mínima {fmtARS(compraMinima)} — te faltan {fmtARS(faltaMin)} para poder comprar
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
+                  {config[`min_aplica_retiro_${sec.id}`] === 'true'
+                    ? <>📦 Mínimo de compra: {fmtARS(compraMinima)} — te faltan {fmtARS(faltaMin)}.</>
+                    : <>📦 Mínimo para envío: {fmtARS(compraMinima)} — te faltan {fmtARS(faltaMin)}. <span style={{ fontWeight: 500 }}>Retirando en el local no hay mínimo.</span></>}
                 </div>
               </div>
             )}
             {compraMinima > 0 && faltaMin === 0 && (
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 8 }}>✓ Llegaste al mínimo de compra</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 8 }}>✓ Llegaste al mínimo para envío</div>
             )}
-            {/* Barra ENVÍO GRATIS — se muestra una vez alcanzado el mínimo (o si no hay mínimo) */}
-            {gratisDesde > 0 && faltaMin === 0 && (
+            {/* Barra ENVÍO GRATIS */}
+            {gratisDesde > 0 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--primary), var(--accent))', borderRadius: 4, transition: 'width 0.4s' }} />
@@ -5194,18 +5213,27 @@ function OrdenCompraModal({ secciones, onClose, onSaved, toast }) {
 function AdminReglasCompra() {
   const { secciones, toast, config, setConfig } = useContext(Ctx);
   const [minimos, setMinimos] = useState({});
+  const [aplicaRetiro, setAplicaRetiro] = useState({});
   const [saving, setSaving] = useState(null);
   useEffect(() => {
-    const d = {}; secciones.forEach(s => { d[s.id] = config[`compra_minima_${s.id}`] || ''; }); setMinimos(d);
+    const d = {}, ar = {};
+    secciones.forEach(s => {
+      d[s.id] = config[`compra_minima_${s.id}`] || '';
+      ar[s.id] = config[`min_aplica_retiro_${s.id}`] === 'true';
+    });
+    setMinimos(d); setAplicaRetiro(ar);
   }, [secciones, config]);
 
   const save = async (sec) => {
     setSaving(sec.id);
     try {
-      const upd = { [`compra_minima_${sec.id}`]: String(minimos[sec.id] || 0) };
+      const upd = {
+        [`compra_minima_${sec.id}`]: String(minimos[sec.id] || 0),
+        [`min_aplica_retiro_${sec.id}`]: aplicaRetiro[sec.id] ? 'true' : 'false',
+      };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
-      toast(`Compra mínima de ${sec.nombre} guardada`);
+      toast(`Reglas de ${sec.nombre} guardadas`);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(null);
   };
@@ -5213,20 +5241,28 @@ function AdminReglasCompra() {
   return (
     <div>
       <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Reglas de compra</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Definí un monto mínimo de compra por sección. El cliente no podrá cerrar el pedido si no lo alcanza (se le muestra una barra de progreso en el carrito). Dejá 0 para no exigir mínimo.</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Definí un monto mínimo de compra por sección. Por defecto el mínimo aplica solo al envío (si retiran en el local, no hay mínimo). Marcá la casilla si querés que el mínimo también valga para el retiro. Dejá 0 para no exigir mínimo.</p>
       {secciones.map(s => (
-        <div key={s.id} className="card" style={{ padding: 16, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
-            {Number(minimos[s.id]) > 0
-              ? <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 2 }}>Mínimo activo: {fmtARS(Number(minimos[s.id]))}</div>
-              : <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Sin mínimo (se puede comprar cualquier monto)</div>}
+        <div key={s.id} className="card" style={{ padding: 16, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
+              {Number(minimos[s.id]) > 0
+                ? <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 2 }}>Mínimo activo: {fmtARS(Number(minimos[s.id]))}</div>
+                : <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Sin mínimo (se puede comprar cualquier monto)</div>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>$</span>
+              <input type="number" value={minimos[s.id] ?? ''} onChange={e => setMinimos({ ...minimos, [s.id]: e.target.value })} placeholder="0" style={{ width: 130 }} />
+              <button className="btn btn-primary btn-sm" onClick={() => save(s)} disabled={saving === s.id}>{saving === s.id ? '...' : 'Guardar'}</button>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>$</span>
-            <input type="number" value={minimos[s.id] ?? ''} onChange={e => setMinimos({ ...minimos, [s.id]: e.target.value })} placeholder="0" style={{ width: 130 }} />
-            <button className="btn btn-primary btn-sm" onClick={() => save(s)} disabled={saving === s.id}>{saving === s.id ? '...' : 'Guardar'}</button>
-          </div>
+          {Number(minimos[s.id]) > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={!!aplicaRetiro[s.id]} onChange={e => setAplicaRetiro({ ...aplicaRetiro, [s.id]: e.target.checked })} style={{ width: 17, height: 17 }} />
+              <span>El mínimo también aplica al <strong>retiro en el local</strong> (no solo al envío)</span>
+            </label>
+          )}
         </div>
       ))}
     </div>
