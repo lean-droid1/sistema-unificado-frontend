@@ -2953,8 +2953,8 @@ function CartPage() {
             {compraMinima > 0 && faltaMin === 0 && (
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 8 }}>✓ Llegaste al mínimo para envío</div>
             )}
-            {/* Barra ENVÍO GRATIS */}
-            {gratisDesde > 0 && (
+            {/* Barra ENVÍO GRATIS — solo cuando ya superó el mínimo (si no, no puede enviar) */}
+            {gratisDesde > 0 && faltaMin === 0 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pctGratis}%`, background: faltaGratis === 0 ? 'var(--success)' : 'linear-gradient(90deg, var(--primary), var(--accent))', borderRadius: 4, transition: 'width 0.4s' }} />
