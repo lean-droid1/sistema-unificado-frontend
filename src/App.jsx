@@ -322,9 +322,17 @@ function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
         </button>
       </div>
 
-      {/* Custom shipping options */}
-      {customShipping.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
+      {/* Antes de calcular: mensaje guía (estilo Mercado Libre) */}
+      {!result && (
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '8px 12px' }}>
+          Ingresá tu código postal para ver las opciones de envío y retiro.
+        </p>
+      )}
+
+      {/* Después de calcular: TODAS las opciones (custom + Andreani) */}
+      {result && (
+        <div>
+          {/* Métodos custom (promo local, retiro, moto, etc.) */}
           {customShipping.map(m => (
             <div key={m.id} onClick={() => onSelect && onSelect({ nombre: m.nombre, costo: m.precio, tipo: 'custom' })}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer', transition: 'background 0.15s' }}
@@ -339,12 +347,8 @@ function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
               <div style={{ fontWeight: 800, fontSize: 14 }}>{m.precio > 0 ? fmtARS(m.precio) : 'Gratis'}</div>
             </div>
           ))}
-        </div>
-      )}
 
-      {/* Andreani results */}
-      {result && (
-        <div>
+          {/* Andreani domicilio */}
           {result.cotiz && result.cotiz.costo > 0 && (
             <div onClick={() => onSelect && onSelect({ nombre: 'Envío a domicilio (Andreani)', costo: result.cotiz.costo, tipo: 'andreani' })}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer' }}
@@ -358,6 +362,7 @@ function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
               <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(result.cotiz.costo)}</div>
             </div>
           )}
+          {/* Andreani sucursales */}
           {result.sucursales.map((s, i) => (
             <div key={i} onClick={() => onSelect && onSelect({ nombre: `Retiro en ${s.direccion?.localidad || 'sucursal'}`, costo: (result.cotiz?.costo || 0) * 0.6, tipo: 'sucursal' })}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer' }}
@@ -371,7 +376,7 @@ function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
               <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--success)' }}>{fmtARS((result.cotiz?.costo || 0) * 0.6)}</div>
             </div>
           ))}
-          {!result.cotiz && result.sucursales.length === 0 && (
+          {!result.cotiz && result.sucursales.length === 0 && customShipping.length === 0 && (
             <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>No hay opciones de envío para este código postal</p>
           )}
         </div>
@@ -409,6 +414,9 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('preview') === '1') return 'landing';
       if (params.get('contacto') === '1') return 'contacto';
+      // Link compartido de producto o búsqueda: NO restaurar la página guardada
+      // (si el usuario estaba en 'admin', el link igual debe abrir el producto).
+      if (params.get('producto') || params.get('buscar')) return 'landing';
     }
     const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv;
   });
@@ -2739,8 +2747,14 @@ function CartPage() {
     );
   }
 
-  const subtotal = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
-  const costoEnvioTotal = Object.values(envio).reduce((s, e) => s + (e?.costo || 0), 0);
+  const subtotal = allItems.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+  // Solo contar el envío de secciones que REALMENTE tienen items en el carrito
+  // (evita costos fantasma de una sección que quedó en el estado tras vaciarse).
+  const seccionesConItemsIds = new Set(allItems.map(i => i.seccion_id));
+  const costoEnvioTotal = Object.entries(envio).reduce((s, [secId, e]) => {
+    if (!seccionesConItemsIds.has(Number(secId)) && !seccionesConItemsIds.has(secId)) return s;
+    return s + (Number(e?.costo) || 0);
+  }, 0);
   const total = Math.max(0, subtotal - descuento + costoEnvioTotal);
 
   // ¿Alguna sección no llega a su compra mínima? (bloquea el checkout)
