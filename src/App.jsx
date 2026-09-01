@@ -692,6 +692,9 @@ export default function App() {
 
   // Sync URL params with page state (shareable product URLs)
   useEffect(() => {
+    // No tocar la URL mientras la app carga: el init todavía está procesando
+    // ?producto= / ?buscar= y limpiarla acá borraría el link compartido.
+    if (loading) return;
     const cur = new URLSearchParams(window.location.search);
     const keep = new URLSearchParams();
     for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) keep.set(k, v); }
@@ -700,7 +703,7 @@ export default function App() {
     const qs = keep.toString();
     const newUrl = window.location.pathname + (qs ? '?' + qs : '');
     try { window.history.replaceState(window.history.state, '', newUrl); } catch {}
-  }, [page, selectedProduct?.id]);
+  }, [page, selectedProduct?.id, loading]);
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
