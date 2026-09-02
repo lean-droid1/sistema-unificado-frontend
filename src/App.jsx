@@ -2552,10 +2552,9 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
           {/* PASO 2: Entrega */}
           {pasoActual === 'Entrega' && (
             <div>
-              <h4 style={{ marginBottom: 12, fontSize: 15 }}>🚚 ¿Cómo lo recibís?</h4>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                <button onClick={() => setEntrega({ ...entrega, tipo: 'retiro' })} style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 10, border: `2px solid ${entrega.tipo === 'retiro' ? 'var(--primary)' : 'var(--border)'}`, background: entrega.tipo === 'retiro' ? 'var(--primary-light)' : 'var(--bg-card)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>🏪 Retiro en el local</button>
-                <button onClick={() => setEntrega({ ...entrega, tipo: 'envio' })} style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 10, border: `2px solid ${entrega.tipo === 'envio' ? 'var(--primary)' : 'var(--border)'}`, background: entrega.tipo === 'envio' ? 'var(--primary-light)' : 'var(--bg-card)', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>📦 Envío a domicilio</button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, padding: '12px 14px', background: 'var(--bg-card)', borderRadius: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{entrega.tipo === 'retiro' ? '🏪 Retiro en el local' : '📦 Envío a domicilio'}</span>
+                <button onClick={() => onClose()} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Cambiar en el carrito</button>
               </div>
               {entrega.tipo === 'retiro' ? (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-card)', borderRadius: 10 }}>Coordinás el retiro después de confirmar el pedido. Te contactamos por los datos que dejaste.</p>
@@ -2812,7 +2811,15 @@ function CartPage() {
   // Info de compra mínima por sección (NO bloquea el carrito: el mínimo aplica
   // solo si eligen ENVÍO, y eso se valida en el paso Entrega del checkout).
   // Con retiro en el local no hay mínimo.
-  const algunaBajoMin = false;
+  // Bloqueo del botón: si eligió ENVÍO (o la sección exige mínimo en retiro) y no llega.
+  const algunaBajoMin = seccionesConItems.some(sec => {
+    const min = Number(config[`compra_minima_${sec.id}`]) || 0;
+    if (min <= 0) return false;
+    const aplicaRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
+    if (entregaTipo === 'retiro' && !aplicaRetiro) return false;
+    const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+    return ss < min;
+  });
 
   // Guardar como presupuesto (cliente → admin lo ve en tab presupuestos)
   const guardarPresupuesto = async () => {
@@ -3096,7 +3103,7 @@ function CartPage() {
       </div>
 
       <button onClick={abrirCheckout} disabled={algunaBajoMin} style={{ width: '100%', marginTop: 16, padding: 14, background: algunaBajoMin ? 'var(--border)' : 'var(--primary)', color: algunaBajoMin ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: algunaBajoMin ? 'not-allowed' : 'pointer' }}>
-        {algunaBajoMin ? '🔒 No llegás a la compra mínima' : (testMode ? '🧪 CONTINUAR (PRUEBA)' : 'CONTINUAR AL CHECKOUT →')}
+        {algunaBajoMin ? '🔒 No llegás al mínimo para envío' : (testMode ? '🧪 CONTINUAR (PRUEBA)' : 'CONTINUAR AL CHECKOUT →')}
       </button>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -3320,8 +3327,17 @@ function ProductDetailPage() {
             <div className="pdp-buy">
               <div className="pdp-qty">
                 <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-                <input type="number" min="1" value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))} style={{ width: 54, textAlign: 'center', border: 'none', background: 'transparent', fontWeight: 800, fontSize: 16, padding: '12px 4px' }} />
-                <button onClick={() => setQty(qty + 1)}>+</button>
+                <input type="number" min="1" value={qty} onChange={e => {
+                  const v = Math.max(1, parseInt(e.target.value) || 1);
+                  const tope = (p.permitir_sin_stock || p.es_digital || p.es_preventa) ? Infinity : Number(p.stock || 0);
+                  if (v > tope) { toast(tope > 0 ? `Solo hay ${tope} en stock` : 'Sin stock', 'warning'); setQty(Math.max(1, tope)); }
+                  else setQty(v);
+                }} style={{ width: 54, textAlign: 'center', border: 'none', background: 'transparent', fontWeight: 800, fontSize: 16, padding: '12px 4px' }} />
+                <button onClick={() => {
+                  const tope = (p.permitir_sin_stock || p.es_digital || p.es_preventa) ? Infinity : Number(p.stock || 0);
+                  if (qty + 1 > tope) { toast(tope > 0 ? `Solo hay ${tope} en stock` : 'Sin stock', 'warning'); return; }
+                  setQty(qty + 1);
+                }}>+</button>
               </div>
               <button className="btn pdp-add" disabled={tieneVariantes && !selVariante} style={tieneVariantes && !selVariante ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={() => { if (tieneVariantes && !selVariante) { toast('Elegí una opción primero', 'error'); return; } addToCart(sec?.id || p.seccion_id, p, qty, precioFinal, selVariante); toast('Agregado al carrito'); }}>
                 {tieneVariantes && !selVariante ? 'ELEGÍ UNA OPCIÓN' : 'AGREGAR AL CARRITO'}
@@ -6589,6 +6605,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [allUsers, setAllUsers] = useState([]);
   const [ajuste, setAjuste] = useState(0); // + recargo, - descuento
   const [pagos, setPagos] = useState(initOrder.pagos || []);
+  const [historial, setHistorial] = useState([]);
+  const cargarHistorial = async () => { try { const h = await api.getHistorialPedido(o.id); setHistorial(h || []); } catch {} };
+  useEffect(() => { cargarHistorial(); }, [o.id]);
   const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
   const searchTimer = useRef(null);
 
@@ -6829,7 +6848,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               </>
             ) : (
               <>
-                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
+                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); await cargarPagos(); await cargarHistorial(); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
                   <option value="impago">Impago</option>
                   <option value="senado">Señado</option>
                   <option value="pagado">Pagado</option>
@@ -6940,6 +6959,21 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             </div>
             <small style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginTop: 6 }}>Poné cuánto SALDA este pago de la deuda y el % (negativo = descuento, positivo = recargo). El sistema te dice cuánto cobrarle.</small>
           </div>
+
+          {/* HISTORIAL DE CAMBIOS (auditoría: quién cambió el estado y cuándo) */}
+          {historial.length > 0 && (
+            <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>🕘 Historial de cambios</div>
+              {historial.map(h => (
+                <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--border-light)' }}>
+                  <span>{h.detalle}</span>
+                  <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: 11 }}>
+                    {h.usuario_nombre} · {new Date(h.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
           {o.cupon_codigo && <p style={{ fontSize: 13 }}>🎟️ Cupón: {o.cupon_codigo}</p>}
 
