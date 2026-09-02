@@ -719,8 +719,21 @@ export default function App() {
       const items = [...(prev[realSec] || [])];
       // Un mismo producto con distinta variante son líneas separadas del carrito
       const existing = items.find(i => i.id === product.id && (i.variante_id || null) === (variante?.id || null));
-      if (existing) existing.qty += qty;
-      else items.push({ ...product, seccion_id: realSec, qty, precio_unitario: precio || product.precio_base, variante_id: variante?.id || null, variante_label: varLabel });
+      const sinTope = product.es_digital || product._preventa || product.permitir_sin_stock;
+      const stockMax = sinTope ? Infinity : Number(product.stock ?? Infinity);
+      if (existing) {
+        const nuevaQty = existing.qty + qty;
+        if (!sinTope && nuevaQty > stockMax) {
+          existing.qty = Math.max(1, stockMax);
+          toast(stockMax > 0 ? `Solo hay ${stockMax} en stock` : 'Sin stock disponible', 'warning');
+        } else {
+          existing.qty = nuevaQty;
+        }
+      }
+      else {
+        const qtyInicial = (!sinTope && qty > stockMax) ? Math.max(1, stockMax) : qty;
+        items.push({ ...product, seccion_id: realSec, qty: qtyInicial, precio_unitario: precio || product.precio_base, variante_id: variante?.id || null, variante_label: varLabel });
+      }
       return { ...prev, [realSec]: items };
     });
     toast('Agregado al carrito');
@@ -731,7 +744,17 @@ export default function App() {
   };
   const updateCartQty = (secId, productId, qty, varId = null) => {
     if (qty <= 0) return removeFromCart(secId, productId, varId);
-    setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).map(i => (i.id === productId && (i.variante_id || null) === varId) ? { ...i, qty } : i) }));
+    setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).map(i => {
+      if (!(i.id === productId && (i.variante_id || null) === varId)) return i;
+      // Tope de stock: no dejar pasar del disponible (salvo digital/preventa/sin-stock permitido)
+      const sinTope = i.es_digital || i._preventa || i.permitir_sin_stock;
+      const stockMax = sinTope ? Infinity : Number(i.stock ?? Infinity);
+      if (!sinTope && qty > stockMax) {
+        toast(stockMax > 0 ? `Solo hay ${stockMax} en stock` : 'Sin stock disponible', 'warning');
+        return { ...i, qty: Math.max(1, stockMax) };
+      }
+      return { ...i, qty };
+    }) }));
   };
   const clearCart = (secId) => setCart(prev => ({ ...prev, [secId]: [] }));
 
@@ -2425,7 +2448,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
     nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '',
   });
   const [entrega, setEntrega] = useState({
-    tipo: 'retiro', // 'retiro' | 'envio'
+    tipo: (typeof localStorage !== 'undefined' && localStorage.getItem('gm_entrega_tipo')) || 'retiro', // 'retiro' | 'envio'
     calle: '', numero: '', piso: '', localidad: '', cp: '',
   });
   const [facturacion, setFacturacion] = useState({
@@ -2687,6 +2710,8 @@ function CartPage() {
   const [metodos, setMetodos] = useState([]);
   const [notas, setNotas] = useState('');
   const [envio, setEnvio] = useState({});
+  const [entregaTipo, setEntregaTipo] = useState(() => localStorage.getItem('gm_entrega_tipo') || 'envio'); // 'retiro' | 'envio'
+  useEffect(() => { localStorage.setItem('gm_entrega_tipo', entregaTipo); }, [entregaTipo]);
   const [showMixPopup, setShowMixPopup] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [exito, setExito] = useState(null); // datos del pedido confirmado para la pantalla de éxito
@@ -2925,6 +2950,12 @@ function CartPage() {
         </div>
       )}
 
+      {/* ── ¿CÓMO LO RECIBÍS? — elegir antes, estilo Mercado Libre ── */}
+      <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 6, marginBottom: 16, display: 'flex', gap: 6, boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)' }}>
+        <button onClick={() => setEntregaTipo('retiro')} style={{ flex: 1, padding: '12px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, transition: 'all .25s cubic-bezier(0.32,0.72,0,1)', background: entregaTipo === 'retiro' ? 'var(--primary)' : 'transparent', color: entregaTipo === 'retiro' ? '#fff' : 'var(--text-secondary)', boxShadow: entregaTipo === 'retiro' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none' }}>🏪 Retiro en el local</button>
+        <button onClick={() => setEntregaTipo('envio')} style={{ flex: 1, padding: '12px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, transition: 'all .25s cubic-bezier(0.32,0.72,0,1)', background: entregaTipo === 'envio' ? 'var(--primary)' : 'transparent', color: entregaTipo === 'envio' ? '#fff' : 'var(--text-secondary)', boxShadow: entregaTipo === 'envio' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none' }}>📦 Envío a domicilio</button>
+      </div>
+
       {seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
         const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
@@ -2939,13 +2970,14 @@ function CartPage() {
             <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
             {/* ── BARRA ÚNICA DE PROGRESO (mínimo envío → envío gratis), estilo hitos ── */}
             {(() => {
-              const minEnvio = compraMinima;              // hito 1: habilita envío
-              const gratis = gratisDesde;                 // hito 2: envío gratis
               const aplicaRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
-              // Si no hay ni mínimo ni envío gratis configurado, no mostramos nada
+              // Si eligió RETIRO y esta sección no exige mínimo en retiro:
+              // el mínimo no corre. Solo mostramos envío gratis si aplica (informativo).
+              const minCorre = entregaTipo === 'envio' || aplicaRetiro;
+              const minEnvio = minCorre ? compraMinima : 0;   // hito 1
+              const gratis = entregaTipo === 'envio' ? gratisDesde : 0; // envío gratis solo tiene sentido con envío
               if (minEnvio <= 0 && gratis <= 0) return null;
 
-              // El tope de la barra es el mayor de los dos hitos
               const tope = Math.max(minEnvio, gratis) || 1;
               const pct = Math.min(100, (secSubtotal / tope) * 100);
               const posMin = minEnvio > 0 ? Math.min(100, (minEnvio / tope) * 100) : null;
@@ -2954,47 +2986,37 @@ function CartPage() {
               const llegoMin = minEnvio <= 0 || secSubtotal >= minEnvio;
               const llegoGratis = gratis > 0 && secSubtotal >= gratis;
 
-              // Mensaje principal según en qué tramo está
               let msg, msgColor;
               if (!llegoMin) {
                 const falta = minEnvio - secSubtotal;
-                msg = aplicaRetiro
-                  ? <>Te faltan <b>{fmtARS(falta)}</b> para llegar al mínimo de compra</>
-                  : <>Te faltan <b>{fmtARS(falta)}</b> para habilitar el envío · <span style={{ opacity: 0.75 }}>retiro sin mínimo</span></>;
+                msg = <>Te faltan <b>{fmtARS(falta)}</b> para {entregaTipo === 'envio' ? 'habilitar el envío' : 'llegar al mínimo'}</>;
                 msgColor = 'var(--accent)';
               } else if (gratis > 0 && !llegoGratis) {
                 const falta = gratis - secSubtotal;
-                msg = <>¡Envío habilitado! Te faltan <b>{fmtARS(falta)}</b> para <b>envío gratis</b> 🚚</>;
+                msg = <>¡Listo para enviar! Te faltan <b>{fmtARS(falta)}</b> para <b>envío gratis</b> 🚚</>;
                 msgColor = 'var(--primary)';
               } else if (llegoGratis) {
                 msg = <>🎉 ¡Tenés <b>envío gratis</b>!</>;
                 msgColor = 'var(--success)';
               } else {
-                msg = <>✓ Llegaste al mínimo — envío habilitado</>;
+                msg = entregaTipo === 'retiro'
+                  ? <>✓ Listo para retirar en el local</>
+                  : <>✓ Mínimo alcanzado — envío habilitado</>;
                 msgColor = 'var(--success)';
               }
 
               return (
                 <div style={{ marginBottom: 14, background: 'var(--bg-card)', borderRadius: 16, padding: '14px 16px', boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.06)' }}>
-                  {/* Track */}
                   <div style={{ position: 'relative', height: 10, marginBottom: 22, marginTop: 4 }}>
                     <div style={{ position: 'absolute', inset: 0, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', width: `${pct}%`, borderRadius: 999,
-                        background: llegoGratis
-                          ? 'var(--success)'
-                          : `linear-gradient(90deg, var(--primary), var(--accent))`,
-                        transition: 'width .5s cubic-bezier(0.32,0.72,0,1)'
-                      }} />
+                      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: llegoGratis ? 'var(--success)' : `linear-gradient(90deg, var(--primary), var(--accent))`, transition: 'width .5s cubic-bezier(0.32,0.72,0,1)' }} />
                     </div>
-                    {/* Hito: mínimo envío */}
                     {posMin !== null && posMin < 100 && (
                       <div style={{ position: 'absolute', left: `${posMin}%`, top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
                         <div style={{ width: 14, height: 14, borderRadius: 999, background: llegoMin ? 'var(--success)' : 'var(--bg)', border: `2.5px solid ${llegoMin ? 'var(--success)' : 'var(--accent)'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: llegoMin ? 'var(--success)' : 'var(--accent)' }}>Envío</div>
+                        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: llegoMin ? 'var(--success)' : 'var(--accent)' }}>{entregaTipo === 'envio' ? 'Envío' : 'Mínimo'}</div>
                       </div>
                     )}
-                    {/* Hito: envío gratis (siempre al final si existe) */}
                     {posGratis !== null && (
                       <div style={{ position: 'absolute', left: `${posGratis}%`, top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
                         <div style={{ width: 14, height: 14, borderRadius: 999, background: llegoGratis ? 'var(--success)' : 'var(--bg)', border: `2.5px solid ${llegoGratis ? 'var(--success)' : 'var(--primary)'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
@@ -3002,7 +3024,6 @@ function CartPage() {
                       </div>
                     )}
                   </div>
-                  {/* Mensaje */}
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: msgColor, lineHeight: 1.4 }}>{msg}</div>
                 </div>
               );
