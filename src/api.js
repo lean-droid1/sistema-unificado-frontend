@@ -146,6 +146,9 @@ export async function getVariantes(productoId) { return f(`/api/variantes/${prod
 export async function addVariante(data) { return f('/api/variantes', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateVariante(id, data) { return f(`/api/variantes/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteVariante(id) { return f(`/api/variantes/${id}`, { method: 'DELETE' }); }
+// atributos + variantes combinadas (modelo Empretienda)
+export async function getVariantesFull(productoId) { return f(`/api/productos/${productoId}/variantes-full`); }
+export async function saveVariantesFull(productoId, data) { return f(`/api/productos/${productoId}/variantes-full`, { method: 'PUT', body: JSON.stringify(data) }); }
 
 // precios
 export async function ajustarPrecios(porcentaje, categoria = null) { return f('/api/precios/ajustar', { method: 'POST', body: JSON.stringify({ porcentaje, categoria }) }); }
