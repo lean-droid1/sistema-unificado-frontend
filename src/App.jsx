@@ -738,6 +738,8 @@ export default function App() {
     return s + items.reduce((sum, i) => sum + (i.qty > 0 ? i.qty : 0), 0);
   }, 0);
   const addToCart = (secId, product, qty = 1, precio, variante) => {
+    // Producto con variantes: no se puede agregar sin elegir la combinación (evita items en $0)
+    if (product?.usa_variantes && !variante) { toast('Elegí las opciones del producto primero', 'error'); nav('product', product); return; }
     // Priorizar la sección REAL del producto para que mínimos/envío/badges apliquen bien
     const realSec = product?.seccion_id ? String(product.seccion_id) : secId;
     const varLabel = variante ? (variante._label || (variante.combinacion && Object.keys(variante.combinacion).length ? Object.values(variante.combinacion).join(' / ') : `${variante.nombre ? variante.nombre + ': ' : ''}${variante.valor || ''}`.trim())) : '';
@@ -2004,6 +2006,8 @@ function Landing() {
                 <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
                 <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
               </div>
+            ) : p.usa_variantes && Number(p.precio_desde) > 0 ? (
+              <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
             ) : (
               precio > 0 && <span className="price-new">{fmtARS(precio)}</span>
             )}
@@ -2043,6 +2047,10 @@ function Landing() {
                 🔔 Avisame cuando llegue
               </button>
             </div>
+          ) : p.usa_variantes ? (
+            <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); nav('product', p); }}>
+              Ver opciones
+            </button>
           ) : addToCart && (
             <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); toast('Agregado al carrito'); }}>
               Agregar
@@ -2429,7 +2437,9 @@ function SectionPage() {
                 <div className="product-cat">{p.categoria}</div>
                 <div className="product-name">{p.nombre || p.modelo}</div>
                 <div className="product-price">
-                  {precio.original ? (
+                  {p.usa_variantes && Number(p.precio_desde) > 0 ? (
+                    <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
+                  ) : precio.original ? (
                     <><span className="price-old">{fmtARS(precio.original)}</span> <span className="price-new">{fmtARS(precio.final)}</span></>
                   ) : (
                     <span className="price-new">{fmtARS(precio.final)}</span>
@@ -2437,7 +2447,11 @@ function SectionPage() {
                   {precio.esRevendedor && <span style={{ fontSize: 11, color: 'var(--success)' }}> (Revendedor -{precio.descuento}%)</span>}
                   {esMayorista && dolarBlue && precio.final > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>USD {fmt(Math.round(precio.final / dolarBlue * 100) / 100)}</div>}
                 </div>
-                {!sinStock && (
+                {p.usa_variantes ? (
+                  <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
+                    VER OPCIONES <Ico n="cart" s={14} />
+                  </button>
+                ) : !sinStock && (
                   <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(sec.id, p, 1, precio.final); }}>
                     AGREGAR <Ico n="cart" s={14} />
                   </button>
@@ -8855,9 +8869,9 @@ function SearchResultsPage() {
                             <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
                             <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
                           </div>
-                        ) : precio > 0 ? <span className="price-new">{fmtARS(precio)}</span> : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Consultar precio</span>}
+                        ) : p.usa_variantes && Number(p.precio_desde) > 0 ? <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span> : precio > 0 ? <span className="price-new">{fmtARS(precio)}</span> : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Consultar precio</span>}
                       </div>
-                      {!sinStock && <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => { addToCart(sec.id, p, 1); toast('Agregado'); }}>Agregar</button>}
+                      {p.usa_variantes ? <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>Ver opciones</button> : !sinStock && <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => { addToCart(sec.id, p, 1); toast('Agregado'); }}>Agregar</button>}
                     </div>
                   </div>
                 );
@@ -8894,7 +8908,7 @@ function FavoritosPage() {
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{f.nombre || f.modelo}</div>
                 {(() => { const _fp = getPrice ? getPrice(f.precio_base, userLista, f.producto_id || f.id) : (Number(f.precio_base) || 0); return _fp > 0 ? <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(_fp)}</div> : <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Consultar precio</div>; })()}
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
+                  {f.usa_variantes ? <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => nav('product', { ...f, id: f.producto_id || f.id })}>Ver opciones</button> : f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
                   <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}><Ico n="trash" s={15} /></button>
                 </div>
               </div>
