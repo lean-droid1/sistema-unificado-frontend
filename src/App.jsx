@@ -5984,24 +5984,27 @@ function VariantesEditor({ productoId }) {
   };
   const remove = async (id) => { try { await api.deleteVariante(id); setVars(vars.filter(v => v.id !== id)); } catch (e) { toast(e.message, 'error'); } };
   const nombresUsados = [...new Set(vars.map(v => v.nombre).filter(Boolean))];
+  const valoresUsados = [...new Set(vars.map(v => v.valor).filter(Boolean))];
   const dlId = `varnames-${productoId}`;
+  const dlVal = `varvalues-${productoId}`;
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <h4 style={{ marginBottom: 4, fontSize: 14 }}>🔀 Variantes (opcional)</h4>
-      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>El precio es el <b>precio final</b> de cada variante (lo que paga el cliente). Si el producto usa variantes, se debe elegir una para poder comprar.</p>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>El precio es el <b>precio final</b> de cada variante (lo que paga el cliente). Si el producto usa variantes, se debe elegir una para poder comprar. <b>Tip:</b> al cargar varias, podés reusar los valores ya escritos (aparecen como sugerencia).</p>
       <datalist id={dlId}>{nombresUsados.map(n => <option key={n} value={n} />)}</datalist>
+      <datalist id={dlVal}>{valoresUsados.map(n => <option key={n} value={n} />)}</datalist>
       {vars.map(v => (
         <div key={v.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
           <input value={v.nombre} list={dlId} onChange={e => setLocal(v.id, 'nombre', e.target.value)} onBlur={() => saveVar(v)} placeholder="Nombre" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
-          <input value={v.valor} onChange={e => setLocal(v.id, 'valor', e.target.value)} onBlur={() => saveVar(v)} placeholder="Valor" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
+          <input value={v.valor} list={dlVal} onChange={e => setLocal(v.id, 'valor', e.target.value)} onBlur={() => saveVar(v)} placeholder="Valor" style={{ flex: '1 1 100px', minWidth: 90, fontSize: 13 }} />
           <input type="number" value={v.stock} onChange={e => setLocal(v.id, 'stock', e.target.value)} onBlur={() => saveVar(v)} placeholder="Stock" style={{ flex: '0 1 80px', minWidth: 70, fontSize: 13 }} />
           <input type="number" value={v.precio || ''} onChange={e => setLocal(v.id, 'precio', e.target.value)} onBlur={() => saveVar(v)} placeholder="Precio $" title="Precio final de esta variante" style={{ flex: '0 1 90px', minWidth: 80, fontSize: 13 }} />
           <button onClick={() => remove(v.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <input placeholder="Nombre (ej: Color)" list={dlId} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
-        <input placeholder="Valor (ej: Rojo)" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
+        <input placeholder="Nombre (ej: Moneda)" list={dlId} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
+        <input placeholder="Valor (ej: USDT 3 meses)" list={dlVal} value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} style={{ flex: '1 1 110px', minWidth: 90 }} />
         <input type="number" placeholder="Stock" value={form.stock || ''} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ flex: '0 1 80px', minWidth: 70 }} />
         <input type="number" placeholder="Precio $" title="Precio final de esta variante" value={form.precio || ''} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} style={{ flex: '0 1 90px', minWidth: 80 }} />
         <button className="btn btn-primary btn-sm" onClick={add}>+ Agregar</button>
