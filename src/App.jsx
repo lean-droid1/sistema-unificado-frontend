@@ -12,6 +12,8 @@ gsap.registerPlugin(ScrollTrigger);
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
+// Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
+const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
 // Dispara un evento a Google Analytics y Facebook Pixel (si están cargados). gaName y fbName son los nombres estándar de cada plataforma.
 const trackEvent = (gaName, fbName, data = {}) => {
   try { if (window.gtag && gaName) window.gtag('event', gaName, data); } catch {}
@@ -738,7 +740,8 @@ export default function App() {
   const addToCart = (secId, product, qty = 1, precio, variante) => {
     // Priorizar la sección REAL del producto para que mínimos/envío/badges apliquen bien
     const realSec = product?.seccion_id ? String(product.seccion_id) : secId;
-    const varLabel = variante ? `${variante.nombre ? variante.nombre + ': ' : ''}${variante.valor || ''}`.trim() : '';
+    const varLabel = variante ? (variante._label || (variante.combinacion && Object.keys(variante.combinacion).length ? Object.values(variante.combinacion).join(' / ') : `${variante.nombre ? variante.nombre + ': ' : ''}${variante.valor || ''}`.trim())) : '';
+    const varMoneda = variante ? (variante.moneda || 'ARS') : 'ARS';
     setCart(prev => {
       const items = [...(prev[realSec] || [])];
       // Un mismo producto con distinta variante son líneas separadas del carrito
@@ -756,7 +759,7 @@ export default function App() {
       }
       else {
         const qtyInicial = (!sinTope && qty > stockMax) ? Math.max(1, stockMax) : qty;
-        items.push({ ...product, seccion_id: realSec, qty: qtyInicial, precio_unitario: precio || product.precio_base, variante_id: variante?.id || null, variante_label: varLabel });
+        items.push({ ...product, seccion_id: realSec, qty: qtyInicial, precio_unitario: precio || product.precio_base, variante_id: variante?.id || null, variante_label: varLabel, variante_moneda: varMoneda });
       }
       return { ...prev, [realSec]: items };
     });
@@ -3155,7 +3158,9 @@ function ProductDetailPage() {
   const [metodosPago, setMetodosPago] = useState([]);
   const [gallery, setGallery] = useState([]);
   const [variantes, setVariantes] = useState([]);
-  const [selVariante, setSelVariante] = useState(null);
+  const [atributos, setAtributos] = useState([]);
+  const [selOpts, setSelOpts] = useState({});
+  const [usaVariantes, setUsaVariantes] = useState(false);
   const [mainImg, setMainImg] = useState('');
   const [relacionados, setRelacionados] = useState([]);
   useEffect(() => { if (p?.id) api.getRelacionados(p.id).then(setRelacionados).catch(() => setRelacionados([])); }, [p?.id]);
@@ -3171,20 +3176,28 @@ function ProductDetailPage() {
     setMainImg(p.imagen || '');
     if (sec) api.getMetodosPago(sec.id).then(setMetodosPago).catch(() => {});
     api.getProductoImagenes(p.id).then(imgs => { setGallery(imgs); if (!p.imagen && imgs && imgs.length) setMainImg(imgs[0].url); }).catch(() => {});
-    api.getVariantes(p.id).then(v => setVariantes(v)).catch(() => {});
+    api.getVariantesFull(p.id).then(d => {
+      setUsaVariantes(!!d.usa_variantes && (d.atributos || []).length > 0);
+      setAtributos(d.atributos || []);
+      setVariantes((d.variantes || []).map(v => ({ ...v, combinacion: typeof v.combinacion === 'string' ? (() => { try { return JSON.parse(v.combinacion); } catch { return {}; } })() : (v.combinacion || {}) })));
+      setSelOpts({});
+    }).catch(() => { setUsaVariantes(false); setAtributos([]); setVariantes([]); });
     if (user) api.getFavoritos().then(favs => setIsFav(favs.some(f => f.producto_id === p.id))).catch(() => {});
   }, [p?.id, sec?.id]);
 
   if (!p) return <Landing />;
 
   const precioBase = Number(p.precio_base) || 0;
-  // Precio de una variante: si tiene precio propio (opción A, absoluto) usa ese; si no, cae a base + extra (compat con variantes viejas)
-  const precioVar = (v) => (Number(v?.precio) > 0 ? Number(v.precio) : (p.precioFinal || precioBase) + (Number(v?.precio_extra) || 0));
-  const tieneVariantes = variantes.length > 0;
-  const precioFinal = selVariante ? precioVar(selVariante) : (p.precioFinal || precioBase);
-  const precioDesde = tieneVariantes && variantes.length ? Math.min(...variantes.map(precioVar)) : precioBase;
+  // Precio real de una variante (usa oferta si es válida)
+  const varPrecio = (v) => { const of = Number(v?.precio_oferta) || 0; const pr = Number(v?.precio) || 0; return (of > 0 && of < pr) ? of : pr; };
+  const tieneVariantes = usaVariantes && variantes.length > 0;
+  const fullSel = tieneVariantes && atributos.length > 0 && atributos.every(a => selOpts[a.nombre]);
+  const matched = fullSel ? variantes.find(v => atributos.every(a => (v.combinacion || {})[a.nombre] === selOpts[a.nombre])) : null;
+  const varMin = variantes.length ? variantes.reduce((m, v) => varPrecio(v) < varPrecio(m) ? v : m, variantes[0]) : null;
+  const precioFinal = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : (p.precioFinal || precioBase));
+  const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : 'ARS');
   const precioOriginal = p.precioOriginal;
-  const sinStock = (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
+  const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const allImages = gallery.length ? gallery.map(g => g.url) : [p.imagen].filter(Boolean);
 
   const preciosMetodo = metodosPago.filter(m => m.activo).map(m => {
@@ -3257,15 +3270,20 @@ function ProductDetailPage() {
           <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
 
           <div className="pdp-price">
-            {tieneVariantes && !selVariante ? (
-              <span className="pdp-price-new">desde {fmtARS(precioDesde)}</span>
-            ) : precioOriginal ? (
+            {tieneVariantes && !matched ? (
+              <span className="pdp-price-new">desde {fmtMon(precioFinal, monedaFinal)}</span>
+            ) : matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                <span className="pdp-price-old">{fmtMon(matched.precio, monedaFinal)}</span>
+                <span className="pdp-price-new">{fmtMon(precioFinal, monedaFinal)}</span>
+              </div>
+            ) : precioOriginal && !tieneVariantes ? (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                 <span className="pdp-price-old">{fmtARS(precioOriginal)}</span>
                 <span className="pdp-price-new">{fmtARS(precioFinal)}</span>
               </div>
             ) : (
-              <span className="pdp-price-new">{fmtARS(precioFinal)}</span>
+              <span className="pdp-price-new">{fmtMon(precioFinal, monedaFinal)}</span>
             )}
           </div>
 
@@ -3280,18 +3298,19 @@ function ProductDetailPage() {
             </div>
           )}
 
-          {/* Variantes */}
-          {variantes.length > 0 && (
+          {/* Variantes: un selector por atributo (estilo Empretienda/ML) */}
+          {tieneVariantes && (
             <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Variantes:</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {variantes.map(v => (
-                  <button key={v.id} onClick={() => setSelVariante(selVariante?.id === v.id ? null : v)}
-                    className={`pdp-variant${selVariante?.id === v.id ? ' active' : ''}`}>
-                    {v.nombre}: {v.valor} — {fmtARS(precioVar(v))}
-                  </button>
-                ))}
-              </div>
+              {atributos.map(a => (
+                <div key={a.nombre} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{a.nombre}</div>
+                  <select value={selOpts[a.nombre] || ''} onChange={e => setSelOpts(s => ({ ...s, [a.nombre]: e.target.value }))} style={{ width: '100%', maxWidth: 340, padding: '10px 12px', borderRadius: 10, fontWeight: 600 }}>
+                    <option value="">Elegí una opción</option>
+                    {(a.valores || []).map(val => <option key={val} value={val}>{val}</option>)}
+                  </select>
+                </div>
+              ))}
+              {fullSel && !matched && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>Esa combinación no está disponible.</p>}
             </div>
           )}
 
@@ -3363,8 +3382,8 @@ function ProductDetailPage() {
                   setQty(qty + 1);
                 }}>+</button>
               </div>
-              <button className="btn pdp-add" disabled={tieneVariantes && !selVariante} style={tieneVariantes && !selVariante ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={() => { if (tieneVariantes && !selVariante) { toast('Elegí una opción primero', 'error'); return; } addToCart(sec?.id || p.seccion_id, p, qty, precioFinal, selVariante); toast('Agregado al carrito'); }}>
-                {tieneVariantes && !selVariante ? 'ELEGÍ UNA OPCIÓN' : 'AGREGAR AL CARRITO'}
+              <button className="btn pdp-add" disabled={tieneVariantes && !matched} style={tieneVariantes && !matched ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={() => { if (tieneVariantes && !matched) { toast(fullSel ? 'Esa combinación no está disponible' : 'Elegí todas las opciones primero', 'error'); return; } const label = atributos.map(a => selOpts[a.nombre]).join(' / '); addToCart(sec?.id || p.seccion_id, p, qty, precioFinal, matched ? { ...matched, _label: label } : null); toast('Agregado al carrito'); }}>
+                {tieneVariantes && !matched ? (fullSel ? 'NO DISPONIBLE' : 'ELEGÍ LAS OPCIONES') : 'AGREGAR AL CARRITO'}
               </button>
             </div>
           )}
@@ -5828,11 +5847,8 @@ function AdminProductos() {
                 </td>
               </tr>
               {expandVars === p.id && (
-                <tr><td colSpan={colCount} style={{ background: 'var(--bg)', padding: '12px' }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span>Las variantes ahora se cargan en el editor del producto (atributos combinados).</span>
-                    <button className="btn btn-primary btn-sm" onClick={() => { setExpandVars(null); setEditProd(p); }}>Abrir editor de variantes</button>
-                  </div>
+                <tr><td colSpan={colCount} style={{ background: 'var(--bg)', padding: '0 12px' }}>
+                  <VariantesQuickEdit productoId={p.id} onOpenFull={() => { setExpandVars(null); setEditProd(p); }} />
                 </td></tr>
               )}
               </Fragment>
@@ -6130,6 +6146,65 @@ function AtributosEditor({ value, onChange }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── EDICIÓN RÁPIDA DE VARIANTES desde la lista de productos (reusa variantes-full) ───
+function VariantesQuickEdit({ productoId, onOpenFull }) {
+  const { toast } = useContext(Ctx);
+  const [data, setData] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    api.getVariantesFull(productoId).then(d => setData({
+      usa_variantes: !!d.usa_variantes,
+      atributos: d.atributos || [],
+      variantes: (d.variantes || []).map(v => ({ ...v, combinacion: typeof v.combinacion === 'string' ? (() => { try { return JSON.parse(v.combinacion); } catch { return {}; } })() : (v.combinacion || {}) }))
+    })).catch(() => setData({ usa_variantes: false, atributos: [], variantes: [] }));
+  }, [productoId]);
+  if (!data) return <div style={{ padding: 10, fontSize: 13, color: 'var(--text-muted)' }}>Cargando…</div>;
+  const nombresAtr = (data.atributos || []).map(a => a.nombre);
+  if (!data.usa_variantes || !data.variantes.length)
+    return <div style={{ padding: 10, fontSize: 13, color: 'var(--text-muted)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}><span>Este producto no tiene variantes cargadas.</span>{onOpenFull && <button className="btn btn-outline btn-sm" onClick={onOpenFull}>Abrir editor del producto</button>}</div>;
+  const setField = (i, fld, val) => { setData(d => ({ ...d, variantes: d.variantes.map((v, k) => k === i ? { ...v, [fld]: val } : v) })); setDirty(true); };
+  const guardar = async () => {
+    setSaving(true);
+    try {
+      await api.saveVariantesFull(productoId, {
+        usa_variantes: true,
+        atributos: (data.atributos || []).map(a => ({ nombre: a.nombre, valores: a.valores || [] })),
+        variantes: data.variantes
+      });
+      toast('Variantes actualizadas'); setDirty(false);
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+  return (
+    <div style={{ padding: '10px 4px' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+          <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+            {nombresAtr.map(n => <th key={n} style={{ padding: '4px 6px' }}>{n}</th>)}
+            <th style={{ padding: '4px 6px' }}>Stock</th><th style={{ padding: '4px 6px' }}>Precio</th><th style={{ padding: '4px 6px' }}>Oferta</th><th style={{ padding: '4px 6px' }}>Moneda</th>
+          </tr></thead>
+          <tbody>
+            {data.variantes.map((v, i) => (
+              <tr key={v.id || i} style={{ borderTop: '1px solid var(--border)' }}>
+                {nombresAtr.map(n => <td key={n} style={{ padding: '4px 6px', fontWeight: 600 }}>{(v.combinacion || {})[n] || '—'}</td>)}
+                <td style={{ padding: '4px 6px' }}><input type="number" value={v.stock ?? 0} onChange={e => setField(i, 'stock', Number(e.target.value))} style={{ width: 70 }} /></td>
+                <td style={{ padding: '4px 6px' }}><input type="number" value={v.precio || ''} onChange={e => setField(i, 'precio', Number(e.target.value))} style={{ width: 90 }} /></td>
+                <td style={{ padding: '4px 6px' }}><input type="number" value={v.precio_oferta || ''} onChange={e => setField(i, 'precio_oferta', Number(e.target.value))} style={{ width: 90 }} /></td>
+                <td style={{ padding: '4px 6px' }}><select value={v.moneda || 'ARS'} onChange={e => setField(i, 'moneda', e.target.value)} style={{ width: 80 }}><option value="ARS">ARS $</option><option value="USDT">USDT</option><option value="USD">USD</option></select></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-primary btn-sm" onClick={guardar} disabled={saving || !dirty}>{saving ? 'Guardando…' : dirty ? '💾 Guardar cambios' : 'Sin cambios'}</button>
+        {onOpenFull && <button className="btn btn-outline btn-sm" onClick={onOpenFull}>Editar atributos / agregar combinaciones</button>}
+      </div>
     </div>
   );
 }
