@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
 import { Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle } from 'lucide-react';
@@ -407,6 +407,30 @@ function useToast() {
 // ═══════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════
+// ─── ERROR BOUNDARY: muestra el error en pantalla en vez de dejar todo negro ───
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { try { console.error('ErrorBoundary', err, info); } catch (e) {} }
+  render() {
+    if (this.state.err) {
+      const msg = String(this.state.err && (this.state.err.stack || this.state.err.message || this.state.err));
+      return (
+        <div style={{ padding: 20, margin: 20, border: '2px solid #e11d48', borderRadius: 12, background: '#fff', color: '#111', maxWidth: 820 }}>
+          <h2 style={{ color: '#e11d48', marginBottom: 8, fontSize: 20 }}>⚠️ Se rompió esta pantalla</h2>
+          <p style={{ fontSize: 13, marginBottom: 8 }}>Sacale una captura a esto y pasámelo:</p>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, background: '#f5f5f5', padding: 10, borderRadius: 8, overflow: 'auto', maxHeight: 320 }}>{msg}</pre>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={() => this.setState({ err: null })} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #ccc', cursor: 'pointer' }}>Reintentar</button>
+            <button onClick={() => { try { window.location.href = window.location.origin; } catch (e) {} }} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #ccc', cursor: 'pointer' }}>Volver al inicio</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState(() => {
@@ -857,7 +881,7 @@ export default function App() {
       ) : (
       <div className={`app${effectiveDark ? ' dark' : ''}`}>
         <Header />
-        <main className="main-content">{renderPage()}</main>
+        <main className="main-content"><ErrorBoundary key={page}>{renderPage()}</ErrorBoundary></main>
         <Footer />
         <WhatsAppFloat />
         <ToastContainer />
