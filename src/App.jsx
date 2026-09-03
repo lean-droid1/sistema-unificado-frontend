@@ -5804,8 +5804,11 @@ function AdminProductos() {
                 </td>
               </tr>
               {expandVars === p.id && (
-                <tr><td colSpan={colCount} style={{ background: 'var(--bg)', padding: '0 12px' }}>
-                  <VariantesEditor productoId={p.id} />
+                <tr><td colSpan={colCount} style={{ background: 'var(--bg)', padding: '12px' }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span>Las variantes ahora se cargan en el editor del producto (atributos combinados).</span>
+                    <button className="btn btn-primary btn-sm" onClick={() => { setExpandVars(null); setEditProd(p); }}>Abrir editor de variantes</button>
+                  </div>
                 </td></tr>
               )}
               </Fragment>
@@ -6013,6 +6016,100 @@ function VariantesEditor({ productoId }) {
   );
 }
 
+// ─── ATRIBUTOS + VARIANTES COMBINADAS (modelo Empretienda) — controlado por ProductModal ───
+function AtributosEditor({ value, onChange }) {
+  const usa = !!value.usa_variantes;
+  const atributos = value.atributos || [];
+  const variantes = value.variantes || [];
+  const upd = (patch) => onChange({ ...value, ...patch });
+
+  const toggleUsa = (on) => {
+    if (on && atributos.length === 0) upd({ usa_variantes: true, atributos: [{ nombre: '', valores: [''] }] });
+    else upd({ usa_variantes: on });
+  };
+  const setAtrNombre = (i, nom) => { const a = atributos.map((x, k) => k === i ? { ...x, nombre: nom } : x); upd({ atributos: a }); };
+  const addAtr = () => upd({ atributos: [...atributos, { nombre: '', valores: [''] }] });
+  const removeAtr = (i) => upd({ atributos: atributos.filter((_, k) => k !== i) });
+  const setVal = (ai, vi, val) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: (x.valores || []).map((v, j) => j === vi ? val : v) } : x); upd({ atributos: a }); };
+  const addVal = (ai) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: [...(x.valores || []), ''] } : x); upd({ atributos: a }); };
+  const removeVal = (ai, vi) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: (x.valores || []).filter((_, j) => j !== vi) } : x); upd({ atributos: a }); };
+
+  const atrsLimpios = () => atributos
+    .map(a => ({ nombre: (a.nombre || '').trim(), valores: [...new Set((a.valores || []).map(v => ('' + v).trim()).filter(Boolean))] }))
+    .filter(a => a.nombre && a.valores.length);
+  const keyOf = (atrs, comb) => atrs.map(a => a.nombre + '=' + (comb[a.nombre] || '')).join('|');
+
+  const generar = () => {
+    const atrs = atrsLimpios();
+    if (!atrs.length) { onChange({ ...value, variantes: [] }); return; }
+    let combos = [{}];
+    for (const a of atrs) { const next = []; for (const c of combos) for (const v of a.valores) next.push({ ...c, [a.nombre]: v }); combos = next; }
+    const prev = {}; for (const v of variantes) prev[keyOf(atrs, v.combinacion || {})] = v;
+    const nuevas = combos.map(comb => { const ex = prev[keyOf(atrs, comb)]; return ex ? { ...ex, combinacion: comb } : { combinacion: comb, precio: 0, precio_oferta: 0, stock: 0, moneda: 'ARS' }; });
+    onChange({ ...value, variantes: nuevas });
+  };
+  const setVarField = (i, field, val) => { const vs = variantes.map((x, k) => k === i ? { ...x, [field]: val } : x); upd({ variantes: vs }); };
+  const nombresAtr = atrsLimpios().map(a => a.nombre);
+  const totalCombos = atrsLimpios().reduce((n, a) => n * a.valores.length, 1);
+  const desincronizado = usa && atrsLimpios().length > 0 && variantes.length !== totalCombos;
+
+  return (
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+        <input type="checkbox" checked={usa} onChange={e => toggleUsa(e.target.checked)} /> 🔀 Este producto usa variantes (atributos combinados)
+      </label>
+      {usa && (
+        <div style={{ marginTop: 10 }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Cargá los atributos (ej: <b>Método de Pago</b>, <b>Licencia</b>) con sus valores. Después tocá <b>Generar combinaciones</b> y poné precio/stock a cada fila. Con variantes activas, el <b>precio base y stock del producto se ignoran</b>.</p>
+          {atributos.map((a, ai) => (
+            <div key={ai} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                <input value={a.nombre} onChange={e => setAtrNombre(ai, e.target.value)} placeholder="Nombre del atributo (ej: Método de Pago)" style={{ flex: 1, fontWeight: 600 }} />
+                <button type="button" onClick={() => removeAtr(ai)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 15 }} title="Quitar atributo">✕</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(a.valores || []).map((v, vi) => (
+                  <span key={vi} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                    <input value={v} onChange={e => setVal(ai, vi, e.target.value)} placeholder="valor" style={{ width: 110, fontSize: 13 }} />
+                    <button type="button" onClick={() => removeVal(ai, vi)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="Quitar valor">✕</button>
+                  </span>
+                ))}
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => addVal(ai)}>+ valor</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={addAtr}>+ Agregar atributo</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={generar} disabled={!atrsLimpios().length}>⚙️ Generar combinaciones {totalCombos > 1 ? `(${totalCombos})` : ''}</button>
+          </div>
+          {desincronizado && <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}>⚠️ Cambiaste los atributos. Tocá <b>Generar combinaciones</b> para actualizar la tabla (se conservan los precios ya cargados).</p>}
+          {variantes.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+                  {nombresAtr.map(n => <th key={n} style={{ padding: '4px 6px' }}>{n}</th>)}
+                  <th style={{ padding: '4px 6px' }}>Stock</th><th style={{ padding: '4px 6px' }}>Precio</th><th style={{ padding: '4px 6px' }}>Precio oferta</th><th style={{ padding: '4px 6px' }}>Moneda</th>
+                </tr></thead>
+                <tbody>
+                  {variantes.map((v, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                      {nombresAtr.map(n => <td key={n} style={{ padding: '4px 6px', fontWeight: 600 }}>{(v.combinacion || {})[n] || '—'}</td>)}
+                      <td style={{ padding: '4px 6px' }}><input type="number" value={v.stock ?? 0} onChange={e => setVarField(i, 'stock', Number(e.target.value))} style={{ width: 70 }} /></td>
+                      <td style={{ padding: '4px 6px' }}><input type="number" value={v.precio || ''} onChange={e => setVarField(i, 'precio', Number(e.target.value))} placeholder="0" style={{ width: 90 }} /></td>
+                      <td style={{ padding: '4px 6px' }}><input type="number" value={v.precio_oferta || ''} onChange={e => setVarField(i, 'precio_oferta', Number(e.target.value))} placeholder="0" style={{ width: 90 }} /></td>
+                      <td style={{ padding: '4px 6px' }}><select value={v.moneda || 'ARS'} onChange={e => setVarField(i, 'moneda', e.target.value)} style={{ width: 80 }}><option value="ARS">ARS $</option><option value="USDT">USDT</option><option value="USD">USD</option></select></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── CATEGORY OPTIONS HELPER ───
 function CatOptions({ seccionId, exclude }) {
   const [cats, setCats] = useState([]);
@@ -6036,6 +6133,13 @@ function ProductModal({ product, onClose }) {
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Atributos + variantes combinadas (controlado). combinacion viene como objeto (JSONB)
+  const [varData, setVarData] = useState({ usa_variantes: !!product?.usa_variantes, atributos: [], variantes: [] });
+  useEffect(() => {
+    if (isEdit && product?.id) api.getVariantesFull(product.id)
+      .then(d => setVarData({ usa_variantes: !!d.usa_variantes, atributos: d.atributos || [], variantes: (d.variantes || []).map(v => ({ ...v, combinacion: typeof v.combinacion === 'string' ? (() => { try { return JSON.parse(v.combinacion); } catch { return {}; } })() : (v.combinacion || {}) })) }))
+      .catch(() => {});
+  }, [product?.id]);
   // Precios fijos por lista
   const [fp, setFp] = useState(() => {
     if (!product) return {};
@@ -6051,8 +6155,10 @@ function ProductModal({ product, onClose }) {
   const save = async () => {
     setSaving(true);
     try {
+      const payload = { ...f, usa_variantes: !!varData.usa_variantes };
+      let prodId = product?.id;
       if (isEdit) {
-        await api.updateProducto(product.id, f);
+        await api.updateProducto(product.id, payload);
         // Save precios fijos
         for (const [listaId, precio] of Object.entries(fp)) {
           await api.setPrecioFijo(product.id, listaId, Number(precio) || 0);
@@ -6060,7 +6166,16 @@ function ProductModal({ product, onClose }) {
         const pf = await api.getPreciosFijos().catch(() => []);
         setPreciosFijos(Array.isArray(pf) ? pf : []);
       } else {
-        await api.createProducto(f);
+        const creado = await api.createProducto(payload);
+        prodId = creado?.id;
+      }
+      // Guardar atributos + variantes combinadas (aplica al crear y al editar → misma plantilla)
+      if (prodId) {
+        await api.saveVariantesFull(prodId, {
+          usa_variantes: !!varData.usa_variantes,
+          atributos: (varData.atributos || []).map(a => ({ nombre: (a.nombre || '').trim(), valores: [...new Set((a.valores || []).map(v => ('' + v).trim()).filter(Boolean))] })).filter(a => a.nombre && a.valores.length),
+          variantes: varData.usa_variantes ? (varData.variantes || []) : []
+        }).catch(e => toast('Producto guardado, pero falló guardar variantes: ' + e.message, 'error'));
       }
       toast(isEdit ? 'Producto actualizado' : 'Producto creado');
       onClose();
@@ -6110,13 +6225,13 @@ function ProductModal({ product, onClose }) {
               <select value={f.moneda} onChange={e => setF({ ...f, moneda: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option><option value="USDT">USDT</option></select></div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Precio base *</label><input type="number" value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
-            <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
+            <div className="form-group"><label className="form-label">Precio base *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
+            <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
             <div className="form-group"><label className="form-label">Precio de costo (lo que te sale)</label><input type="number" value={f.precio_original || ''} onChange={e => setF({ ...f, precio_original: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_original: Number(e.target.value) || 0 })} placeholder="Para calcular ganancia" /></div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Stock *</label><input type="number" value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
-            <div className="form-group"><label className="form-label">Stock mínimo</label><input type="number" value={f.stock_minimo} onChange={e => setF({ ...f, stock_minimo: Number(e.target.value) })} /></div>
+            <div className="form-group"><label className="form-label">Stock *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
+            <div className="form-group"><label className="form-label">Stock mínimo</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock_minimo} onChange={e => setF({ ...f, stock_minimo: Number(e.target.value) })} /></div>
           </div>
           {/* Stock options */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '8px 0 12px' }}>
@@ -6137,8 +6252,8 @@ function ProductModal({ product, onClose }) {
           )}
           {/* Multi-image gallery (only on edit) */}
           {isEdit && <MultiImageUpload productoId={product.id} imagenInicial={product.imagen} />}
-          {/* Variantes (only on edit) */}
-          {isEdit && <VariantesEditor productoId={product.id} />}
+          {/* Atributos + variantes combinadas (mismo editor al crear y al editar) */}
+          <AtributosEditor value={varData} onChange={setVarData} />
           <div className="form-group"><label className="form-label">Descripción</label><textarea value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} rows={3} /></div>
           <div className="form-group"><label className="form-label">Notas internas</label><textarea value={f.notas} onChange={e => setF({ ...f, notas: e.target.value })} rows={2} /></div>
           <div className="form-group"><label className="form-label">Compatibilidad</label><input value={f.compatibilidad} onChange={e => setF({ ...f, compatibilidad: e.target.value })} /></div>
