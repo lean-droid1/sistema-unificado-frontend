@@ -15,6 +15,25 @@ const fmtARS = n => `$${fmt(n)}`;
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
 const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
 
+// ─── SEO: meta tags dinámicos por página ───
+function upsertMeta(selector, attr, key, content) {
+  let el = document.head.querySelector(selector);
+  if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el); }
+  el.setAttribute('content', content || '');
+}
+function setCanonical(url) {
+  let el = document.head.querySelector('link[rel="canonical"]');
+  if (!el) { el = document.createElement('link'); el.setAttribute('rel', 'canonical'); document.head.appendChild(el); }
+  el.setAttribute('href', url);
+}
+function setJsonLd(obj) {
+  let el = document.getElementById('ld-json');
+  if (!obj) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('script'); el.type = 'application/ld+json'; el.id = 'ld-json'; document.head.appendChild(el); }
+  el.textContent = JSON.stringify(obj);
+}
+const stripHtml = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
 // ─── ROUTING: URLs reales (SEO + compartir + back-button) ───
 const RUTAS_RESERVADAS = new Set(['producto', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
@@ -795,6 +814,52 @@ export default function App() {
       if ((window.location.pathname + window.location.search) !== url) window.history.replaceState({ ...(window.history.state || {}) }, '', url);
     } catch (e) {}
   }, [page, selectedProduct?.id, globalSearch, loading]);
+
+  // SEO: título, descripción, OG/Twitter, canonical y datos estructurados por página
+  useEffect(() => {
+    if (loading || typeof document === 'undefined') return;
+    const tienda = design.nombre_tienda || 'Tienda';
+    const url = window.location.origin + window.location.pathname + window.location.search;
+    let title = tienda;
+    let desc = stripHtml(design.descripcion_tienda || config.meta_description) || `${tienda} — comprá online, envíos a todo el país.`;
+    let image = design.og_image || design.logo_url || '';
+    let type = 'website';
+    let ld = null;
+    if (page === 'product' && selectedProduct) {
+      const p = selectedProduct;
+      const nom = p.nombre || p.modelo || 'Producto';
+      title = `${nom} | ${tienda}`;
+      desc = stripHtml(p.descripcion) ? stripHtml(p.descripcion).slice(0, 160) : `${nom} — comprá en ${tienda}.`;
+      image = p.imagen || image;
+      type = 'product';
+      const precio = Number(p.precio_oferta > 0 ? p.precio_oferta : p.precio_base) || 0;
+      ld = { '@context': 'https://schema.org', '@type': 'Product', name: nom, description: desc };
+      if (image) ld.image = [image];
+      if (p.sku) ld.sku = p.sku;
+      if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
+      if (precio > 0) ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url };
+    } else if (page === 'section' && seccionActual) {
+      title = `${seccionActual.nombre} | ${tienda}`;
+      desc = `${seccionActual.nombre} — ${tienda}. Envíos a todo el país.`;
+    } else if (page === 'search' && globalSearch) {
+      title = `${globalSearch} | ${tienda}`;
+      desc = `Resultados para "${globalSearch}" en ${tienda}.`;
+    }
+    document.title = title;
+    upsertMeta('meta[name="description"]', 'name', 'description', desc);
+    upsertMeta('meta[property="og:title"]', 'property', 'og:title', title);
+    upsertMeta('meta[property="og:description"]', 'property', 'og:description', desc);
+    upsertMeta('meta[property="og:type"]', 'property', 'og:type', type);
+    upsertMeta('meta[property="og:url"]', 'property', 'og:url', url);
+    upsertMeta('meta[property="og:site_name"]', 'property', 'og:site_name', tienda);
+    if (image) upsertMeta('meta[property="og:image"]', 'property', 'og:image', image);
+    upsertMeta('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary_large_image');
+    upsertMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
+    upsertMeta('meta[name="twitter:description"]', 'name', 'twitter:description', desc);
+    if (image) upsertMeta('meta[name="twitter:image"]', 'name', 'twitter:image', image);
+    setCanonical(url);
+    setJsonLd(ld);
+  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading]);
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
