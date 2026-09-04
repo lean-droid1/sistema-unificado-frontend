@@ -579,8 +579,10 @@ export default function App() {
   const [listas, setListas] = useState([]);
   const [preciosFijos, setPreciosFijos] = useState([]);
 
-  const [adminTab, setAdminTab] = useState('dashboard');
+  const [adminTab, setAdminTab] = useState(() => { try { return localStorage.getItem('gm_admin_tab') || 'dashboard'; } catch (e) { return 'dashboard'; } });
   const [adminSeccion, setAdminSeccion] = useState('all');
+  // Recordar la última pestaña del panel al recargar
+  useEffect(() => { try { localStorage.setItem('gm_admin_tab', adminTab); } catch (e) {} }, [adminTab]);
 
   // Global search (shared across Header + Landing + all pages)
   const [globalSearch, setGlobalSearch] = useState('');
@@ -5887,7 +5889,7 @@ function AdminProductos() {
 
   const load = async () => {
     const secId = secFiltro !== 'all' ? secFiltro : undefined;
-    const data = await api.getProductos({ seccion_id: secId, q: busq, categoria: catFiltro, page: pagina, limit: pageSize });
+    const data = await api.getProductos({ seccion_id: secId, q: busq, categoria: catFiltro, page: pagina, limit: pageSize, incluir_ocultos: 1 });
     setProductos(data.productos || []); setTotal(data.total || 0);
     const cats = await api.getCategorias(secId).catch(() => []);
     setCategorias(cats || []);
@@ -6415,6 +6417,9 @@ function CatOptions({ seccionId, exclude }) {
 function ProductModal({ product, onClose }) {
   const { secciones, adminSeccion, toast, listas, preciosFijos, setPreciosFijos } = useContext(Ctx);
   const isEdit = !!product;
+  const [createdId, setCreatedId] = useState(null);
+  const yaCreado = isEdit || !!createdId;        // ya existe en la base (editar, o recién creado)
+  const idActual = product?.id || createdId;
   const [reservadoReal, setReservadoReal] = useState(null);
   useEffect(() => { if (isEdit && product?.es_preventa && product?.id) api.getReservadoReal(product.id).then(r => setReservadoReal(r.reservado)).catch(() => {}); }, [product?.id]);
   const [f, setF] = useState(product || {
@@ -6450,12 +6455,11 @@ function ProductModal({ product, onClose }) {
     setSaving(true);
     try {
       const payload = { ...f, usa_variantes: !!varData.usa_variantes };
-      let prodId = product?.id;
-      if (isEdit) {
-        await api.updateProducto(product.id, payload);
-        // Save precios fijos
+      let prodId = idActual;
+      if (yaCreado) {
+        await api.updateProducto(idActual, payload);
         for (const [listaId, precio] of Object.entries(fp)) {
-          await api.setPrecioFijo(product.id, listaId, Number(precio) || 0);
+          await api.setPrecioFijo(idActual, listaId, Number(precio) || 0);
         }
         const pf = await api.getPreciosFijos().catch(() => []);
         setPreciosFijos(Array.isArray(pf) ? pf : []);
@@ -6471,8 +6475,15 @@ function ProductModal({ product, onClose }) {
           variantes: varData.usa_variantes ? (varData.variantes || []) : []
         }).catch(e => toast('Producto guardado, pero falló guardar variantes: ' + e.message, 'error'));
       }
-      toast(isEdit ? 'Producto actualizado' : 'Producto creado');
-      onClose();
+      if (yaCreado) {
+        toast('Producto actualizado');
+        onClose();
+      } else {
+        // Recién creado: NO cerramos, pasamos a modo edición para cargar la galería de fotos
+        setCreatedId(prodId);
+        setF({ ...f, id: prodId });
+        toast('Producto creado ✓ Ahora podés cargar las fotos y guardar');
+      }
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -6480,7 +6491,7 @@ function ProductModal({ product, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">{isEdit ? 'Editar producto' : 'Nuevo producto'}</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">{yaCreado ? 'Editar producto' : 'Nuevo producto'}</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           <div className="form-row">
             <div className="form-group"><label className="form-label">Sección *</label>
@@ -6533,8 +6544,8 @@ function ProductModal({ product, onClose }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
           </div>
-          {/* Imagen principal: SOLO al crear un producto nuevo. En edición manda la galería de abajo. */}
-          {!isEdit && (
+          {/* Imagen principal: SOLO antes de crear. Una vez creado (o en edición) manda la galería. */}
+          {!yaCreado && (
           <div className="form-group">
             <label className="form-label">Imagen principal</label>
             <div className="dropzone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleImageUpload(file); }}>
@@ -6542,10 +6553,11 @@ function ProductModal({ product, onClose }) {
               <input type="file" accept="image/*" onChange={e => { const file = e.target.files[0]; if (file) handleImageUpload(file); }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
             </div>
             {f.imagen && <input value={f.imagen} onChange={e => setF({ ...f, imagen: e.target.value })} placeholder="O pegá URL de imagen" style={{ marginTop: 8 }} />}
+            <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Al crear el producto vas a poder sumar más fotos (galería).</small>
           </div>
           )}
-          {/* Multi-image gallery (only on edit) */}
-          {isEdit && <MultiImageUpload productoId={product.id} imagenInicial={product.imagen} />}
+          {/* Galería de varias fotos: en edición y también apenas se crea el producto */}
+          {yaCreado && <MultiImageUpload productoId={idActual} imagenInicial={product?.imagen || f.imagen} />}
           {/* Atributos + variantes combinadas (mismo editor al crear y al editar) */}
           <AtributosEditor value={varData} onChange={setVarData} />
           <div className="form-group"><label className="form-label">Descripción</label><textarea value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} rows={3} /></div>
@@ -6613,8 +6625,8 @@ function ProductModal({ product, onClose }) {
           )}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          <button className="btn btn-outline" onClick={onClose}>{yaCreado && createdId ? 'Cerrar' : 'Cancelar'}</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : (yaCreado ? 'Guardar' : 'Crear producto')}</button>
         </div>
       </div>
     </div>
