@@ -6178,10 +6178,21 @@ function MultiImageUpload({ productoId, imagenInicial }) {
     try { await api.ordenarProductoImagenes(productoId, arr.map(i => i.id)); } catch (e) { toast('No se pudo guardar el orden', 'error'); }
   };
   const [dragOver, setDragOver] = useState(false);
+  // Reordenar arrastrando (desktop). En celu se usan las flechas ← →.
+  const dragIdx = useRef(null);
+  const reordenarDrop = async (toIdx) => {
+    const from = dragIdx.current; dragIdx.current = null;
+    if (from == null || from === toIdx) return;
+    const arr = [...imgs];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, moved);
+    setImgs(arr);
+    try { await api.ordenarProductoImagenes(productoId, arr.map(i => i.id)); } catch (e) { toast('No se pudo guardar el orden', 'error'); }
+  };
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <h4 style={{ marginBottom: 8, fontSize: 14 }}>📸 Galería de imágenes ({imgs.length})</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Arrastrá varias imágenes a la zona de abajo. Podés reordenarlas con ← → y eliminar con ✕. La primera es la principal.</p>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Arrastrá varias imágenes a la zona de abajo. Reordenalas <b>arrastrando</b> (o con ← → en el celu) y eliminá con ✕. La primera es la principal.</p>
       <div
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -6189,8 +6200,8 @@ function MultiImageUpload({ productoId, imagenInicial }) {
         style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, padding: 8, borderRadius: 10, border: dragOver ? '2px dashed var(--primary)' : '2px dashed transparent', background: dragOver ? 'var(--bg-secondary)' : 'transparent', transition: 'all .15s' }}
       >
         {imgs.map((img, idx) => (
-          <div key={img.id} style={{ position: 'relative', width: 80 }}>
-            <img src={img.url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: idx === 0 ? '2px solid var(--primary)' : '1px solid var(--border)' }} />
+          <div key={img.id} draggable onDragStart={() => { dragIdx.current = idx; }} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.stopPropagation(); e.preventDefault(); reordenarDrop(idx); }} style={{ position: 'relative', width: 80, cursor: 'grab' }}>
+            <img src={img.url} alt="" draggable={false} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: idx === 0 ? '2px solid var(--primary)' : '1px solid var(--border)' }} />
             {idx === 0 && <span style={{ position: 'absolute', top: 2, left: 2, background: 'var(--primary)', color: '#fff', fontSize: 9, padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>Principal</span>}
             <button onClick={() => remove(img.id)} style={{ position: 'absolute', top: -6, right: -6, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, fontSize: 11, cursor: 'pointer' }}>✕</button>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 2 }}>
