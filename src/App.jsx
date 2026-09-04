@@ -3690,7 +3690,7 @@ function RegisterPage() {
   const { nav, toast } = useContext(Ctx);
   const [form, setForm] = useState({ nombre: '', usuario: '', password: '', telefono: '', email: '', nombre_fantasia: '' });
   const submit = async () => {
-    try { await api.register(form); toast('Registro enviado. Esperá la aprobación del admin.'); nav('login'); } catch (e) { toast(e.message, 'error'); }
+    try { const r = await api.register(form); toast(r && r.aprobado ? '¡Cuenta creada! Ya podés ingresar.' : 'Registro enviado. Esperá la aprobación del admin.'); nav('login'); } catch (e) { toast(e.message, 'error'); }
   };
   return (
     <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
@@ -7101,6 +7101,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       await api.updatePedido(o.id, { items: newItems, subtotal: editSubtotal, descuento: ajuste < 0 ? Math.abs(ajuste) : 0, total: editTotal });
       toast('Pedido actualizado'); setEditing(false);
       const full = await api.getPedido(o.id); setO(full); setItems((full.items || []).map(i => ({ ...i, qty: i.cantidad || 1 })));
+      pedirAviso(`Hola ${o.usuario_nombre || ''}, actualizamos tu pedido #${o.id}. Cualquier duda escribinos.`);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -7115,6 +7116,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     setSearchResults([]); setAddSearch('');
   };
 
+  const [notif, setNotif] = useState(null); // {mensaje, telefono} → cartelito para avisar al cliente
+  const pedirAviso = (mensaje) => { if (mensaje && o.usuario_telefono) setNotif({ mensaje, telefono: '54' + String(o.usuario_telefono).replace(/\D/g, '') }); };
+
   const changeEstado = async (estado) => {
     try {
       await api.updatePedido(o.id, { estado });
@@ -7127,10 +7131,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
         entregado: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue entregado 🎉 ¡Gracias por tu compra!`,
         cancelado: `Hola ${o.usuario_nombre || ''}, tu pedido #${o.id} fue cancelado. Cualquier duda escribinos.`,
       };
-      const msg = mensajes[estado];
-      if (msg && o.usuario_telefono && confirm(`¿Notificar al cliente por WhatsApp que el pedido está "${estado}"?`)) {
-        window.open(waLink('54' + String(o.usuario_telefono).replace(/\D/g, ''), msg), '_blank');
-      }
+      pedirAviso(mensajes[estado]);
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -7234,6 +7235,21 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
+      {notif && (
+        <div className="modal-overlay" style={{ zIndex: 3000 }} onClick={(e) => { e.stopPropagation(); setNotif(null); }}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><span className="modal-title">¿Avisar al cliente?</span><button className="modal-close" onClick={(e) => { e.stopPropagation(); setNotif(null); }}>✕</button></div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Se le enviaría por WhatsApp:</p>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, fontSize: 14, whiteSpace: 'pre-wrap' }}>{notif.mensaje}</div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={(e) => { e.stopPropagation(); setNotif(null); }}>No, gracias</button>
+              <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); window.open(waLink(notif.telefono, notif.mensaje), '_blank'); setNotif(null); }}>Sí, abrir WhatsApp</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
         <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}>🔖 RESERVA / PREVENTA</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -7467,10 +7483,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
 // ─── ADMIN: Usuarios (full modal: edit, approve with lista, subadmin perms) ───
 function AdminUsuarios() {
-  const { toast, listas, config } = useContext(Ctx);
+  const { toast, listas, config, setConfig } = useContext(Ctx);
   const [users, setUsers] = useState([]);
   const [busq, setBusq] = useState('');
   const [editUser, setEditUser] = useState(null);
+  const aprobReq = config.registro_requiere_aprobacion === 'true';
+  const toggleAprob = async () => {
+    const nuevo = aprobReq ? 'false' : 'true';
+    try { await api.updateConfig({ registro_requiere_aprobacion: nuevo }); setConfig({ ...config, registro_requiere_aprobacion: nuevo }); toast(nuevo === 'true' ? 'Los registros nuevos van a requerir aprobación' : 'Los registros nuevos entran directo (sin aprobación)'); } catch (e) { toast(e.message, 'error'); }
+  };
 
   useEffect(() => { api.getUsuarios(busq).then(setUsers).catch(() => {}); }, [busq]);
   const refresh = () => api.getUsuarios(busq).then(setUsers);
@@ -7480,6 +7501,12 @@ function AdminUsuarios() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>Usuarios</h3>
         <button className="btn btn-primary btn-sm" onClick={() => setEditUser({ _isNew: true })}>+ Nuevo</button>
+      </div>
+      <div className="card" style={{ padding: 12, marginBottom: 12, borderLeft: '3px solid var(--primary)' }}>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+          <input type="checkbox" checked={aprobReq} onChange={toggleAprob} style={{ marginTop: 3 }} />
+          <span><b>Requerir aprobación para registros nuevos</b><br /><small style={{ color: 'var(--text-muted)' }}>Apagado (recomendado): cualquiera que se registre puede comprar al toque. La sección <b>Mayorista</b> sigue con su candado aparte, así que solo esa pide aprobación.</small></span>
+        </label>
       </div>
       <input placeholder="Buscar por nombre, usuario o fantasía..." value={busq} onChange={e => setBusq(e.target.value)} style={{ marginBottom: 12, width: '100%' }} />
       {users.map(u => (
