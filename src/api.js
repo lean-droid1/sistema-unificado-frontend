@@ -107,9 +107,10 @@ export async function uploadImagen(file) {
 export async function uploadBase64(data, filename) { return f('/api/upload-base64', { method: 'POST', body: JSON.stringify({ data, filename }) }); }
 
 // productos
-export async function getProductos({ q, categoria, page = 1, limit = 50, seccion_id, marca } = {}) {
+export async function getProductos({ q, categoria, page = 1, limit = 50, seccion_id, marca, incluir_ocultos } = {}) {
   const p = new URLSearchParams(); if (q) p.set('q', q); if (categoria) p.set('categoria', categoria);
   p.set('page', page); p.set('limit', limit); if (seccion_id) p.set('seccion_id', seccion_id); if (marca) p.set('marca', marca);
+  if (incluir_ocultos) p.set('incluir_ocultos', '1');
   return f(`/api/productos?${p}`);
 }
 export async function getCategorias(seccion_id) { return f(`/api/categorias${seccion_id ? `?seccion_id=${seccion_id}` : ''}`); }
