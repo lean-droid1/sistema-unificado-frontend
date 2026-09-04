@@ -3396,6 +3396,12 @@ function ProductDetailPage() {
   const precioOriginal = p.precioOriginal;
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const allImages = gallery.length ? gallery.map(g => g.url) : [p.imagen].filter(Boolean);
+  // Foto de la opción elegida (ej: color) — si tiene, se muestra como imagen principal
+  const varImg = (() => {
+    for (const a of atributos) { const sel = selOpts[a.nombre]; if (!sel) continue; const v = (a.valores || []).find(x => (typeof x === 'string' ? x : (x?.valor || '')) === sel); const img = (v && typeof v === 'object') ? (v.imagen || '') : ''; if (img) return img; }
+    return '';
+  })();
+  useEffect(() => { if (varImg) setMainImg(varImg); }, [varImg]);
 
   const preciosMetodo = metodosPago.filter(m => m.activo).map(m => {
     const descStr = (config[`descuento_${m.nombre.toLowerCase().replace(/\s+/g, '_')}`] || '').trim();
@@ -3503,7 +3509,7 @@ function ProductDetailPage() {
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{a.nombre}</div>
                   <select value={selOpts[a.nombre] || ''} onChange={e => setSelOpts(s => ({ ...s, [a.nombre]: e.target.value }))} style={{ width: '100%', maxWidth: 340, padding: '10px 12px', borderRadius: 10, fontWeight: 600 }}>
                     <option value="">Elegí una opción</option>
-                    {(a.valores || []).map(val => <option key={val} value={val}>{val}</option>)}
+                    {(a.valores || []).map(val => { const vv = typeof val === 'string' ? val : (val?.valor || ''); return <option key={vv} value={vv}>{vv}</option>; })}
                   </select>
                 </div>
               ))}
@@ -6270,20 +6276,23 @@ function AtributosEditor({ value, onChange }) {
   const atributos = value.atributos || [];
   const variantes = value.variantes || [];
   const upd = (patch) => onChange({ ...value, ...patch });
+  const vVal = (v) => typeof v === 'string' ? v : (v?.valor || '');
+  const vImg = (v) => (v && typeof v === 'object') ? (v.imagen || '') : '';
 
   const toggleUsa = (on) => {
-    if (on && atributos.length === 0) upd({ usa_variantes: true, atributos: [{ nombre: '', valores: [''] }] });
+    if (on && atributos.length === 0) upd({ usa_variantes: true, atributos: [{ nombre: '', valores: [{ valor: '', imagen: '' }] }] });
     else upd({ usa_variantes: on });
   };
   const setAtrNombre = (i, nom) => { const a = atributos.map((x, k) => k === i ? { ...x, nombre: nom } : x); upd({ atributos: a }); };
-  const addAtr = () => upd({ atributos: [...atributos, { nombre: '', valores: [''] }] });
+  const addAtr = () => upd({ atributos: [...atributos, { nombre: '', valores: [{ valor: '', imagen: '' }] }] });
   const removeAtr = (i) => upd({ atributos: atributos.filter((_, k) => k !== i) });
-  const setVal = (ai, vi, val) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: (x.valores || []).map((v, j) => j === vi ? val : v) } : x); upd({ atributos: a }); };
-  const addVal = (ai) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: [...(x.valores || []), ''] } : x); upd({ atributos: a }); };
+  const setVal = (ai, vi, val) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: (x.valores || []).map((v, j) => j === vi ? { valor: val, imagen: vImg(v) } : v) } : x); upd({ atributos: a }); };
+  const setValImg = (ai, vi, url) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: (x.valores || []).map((v, j) => j === vi ? { valor: vVal(v), imagen: url } : v) } : x); upd({ atributos: a }); };
+  const addVal = (ai) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: [...(x.valores || []), { valor: '', imagen: '' }] } : x); upd({ atributos: a }); };
   const removeVal = (ai, vi) => { const a = atributos.map((x, k) => k === ai ? { ...x, valores: (x.valores || []).filter((_, j) => j !== vi) } : x); upd({ atributos: a }); };
 
   const atrsLimpios = () => atributos
-    .map(a => ({ nombre: (a.nombre || '').trim(), valores: [...new Set((a.valores || []).map(v => ('' + v).trim()).filter(Boolean))] }))
+    .map(a => { const seen = new Set(); const valores = (a.valores || []).map(v => ({ valor: vVal(v).trim(), imagen: vImg(v) })).filter(x => x.valor && !seen.has(x.valor) && seen.add(x.valor)); return { nombre: (a.nombre || '').trim(), valores }; })
     .filter(a => a.nombre && a.valores.length);
   const keyOf = (atrs, comb) => atrs.map(a => a.nombre + '=' + (comb[a.nombre] || '')).join('|');
 
@@ -6291,7 +6300,7 @@ function AtributosEditor({ value, onChange }) {
     const atrs = atrsLimpios();
     if (!atrs.length) { onChange({ ...value, variantes: [] }); return; }
     let combos = [{}];
-    for (const a of atrs) { const next = []; for (const c of combos) for (const v of a.valores) next.push({ ...c, [a.nombre]: v }); combos = next; }
+    for (const a of atrs) { const next = []; for (const c of combos) for (const v of a.valores) next.push({ ...c, [a.nombre]: v.valor }); combos = next; }
     const prev = {}; for (const v of variantes) prev[keyOf(atrs, v.combinacion || {})] = v;
     const nuevas = combos.map(comb => { const ex = prev[keyOf(atrs, comb)]; return ex ? { ...ex, combinacion: comb } : { combinacion: comb, precio: 0, precio_oferta: 0, stock: 0, moneda: 'ARS' }; });
     onChange({ ...value, variantes: nuevas });
@@ -6308,17 +6317,20 @@ function AtributosEditor({ value, onChange }) {
       </label>
       {usa && (
         <div style={{ marginTop: 10 }}>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Cargá los atributos (ej: <b>Método de Pago</b>, <b>Licencia</b>) con sus valores. Después tocá <b>Generar combinaciones</b> y poné precio/stock a cada fila. Con variantes activas, el <b>precio base y stock del producto se ignoran</b>.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Cargá los atributos (ej: <b>Método de Pago</b>, <b>Licencia</b>, <b>Color</b>) con sus valores. Tocá 📷 en un valor para darle una <b>foto</b> (ej: por color: al elegirlo, cambia la imagen en la tienda). Después tocá <b>Generar combinaciones</b> y poné precio/stock a cada fila. Con variantes activas, el <b>precio base y stock del producto se ignoran</b>.</p>
           {atributos.map((a, ai) => (
             <div key={ai} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
                 <input value={a.nombre} onChange={e => setAtrNombre(ai, e.target.value)} placeholder="Nombre del atributo (ej: Método de Pago)" style={{ flex: 1, fontWeight: 600 }} />
                 <button type="button" onClick={() => removeAtr(ai)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 15 }} title="Quitar atributo">✕</button>
               </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 {(a.valores || []).map((v, vi) => (
-                  <span key={vi} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                    <input value={v} onChange={e => setVal(ai, vi, e.target.value)} placeholder="valor" style={{ width: 110, fontSize: 13 }} />
+                  <span key={vi} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'var(--bg)', borderRadius: 6, padding: '2px 4px' }}>
+                    {vImg(v) ? <img src={vImg(v)} alt="" style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }} /> : null}
+                    <input value={vVal(v)} onChange={e => setVal(ai, vi, e.target.value)} placeholder="valor" style={{ width: 100, fontSize: 13 }} />
+                    <label title="Foto de esta opción" style={{ cursor: 'pointer', fontSize: 14 }}>{vImg(v) ? '🔄' : '📷'}<input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return; try { const r = await api.uploadImagen(file); setValImg(ai, vi, r.url); } catch (err) {} }} /></label>
+                    {vImg(v) && <button type="button" onClick={() => setValImg(ai, vi, '')} title="Quitar foto" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11 }}>✕foto</button>}
                     <button type="button" onClick={() => removeVal(ai, vi)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="Quitar valor">✕</button>
                   </span>
                 ))}
@@ -6482,7 +6494,7 @@ function ProductModal({ product, onClose }) {
       if (prodId) {
         await api.saveVariantesFull(prodId, {
           usa_variantes: !!varData.usa_variantes,
-          atributos: (varData.atributos || []).map(a => ({ nombre: (a.nombre || '').trim(), valores: [...new Set((a.valores || []).map(v => ('' + v).trim()).filter(Boolean))] })).filter(a => a.nombre && a.valores.length),
+          atributos: (varData.atributos || []).map(a => { const seen = new Set(); const valores = (a.valores || []).map(v => typeof v === 'string' ? { valor: v.trim(), imagen: '' } : { valor: (v.valor || '').trim(), imagen: v.imagen || '' }).filter(x => x.valor && !seen.has(x.valor) && seen.add(x.valor)); return { nombre: (a.nombre || '').trim(), valores }; }).filter(a => a.nombre && a.valores.length),
           variantes: varData.usa_variantes ? (varData.variantes || []) : []
         }).catch(e => toast('Producto guardado, pero falló guardar variantes: ' + e.message, 'error'));
       }
