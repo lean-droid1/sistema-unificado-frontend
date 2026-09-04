@@ -2507,9 +2507,19 @@ function SectionPage() {
           <h2 style={{ fontWeight: 900, fontSize: 28, letterSpacing: '-0.03em' }}>{sec.nombre}</h2>
           {sec.descripcion && <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 4 }}>{sec.descripcion}</p>}
         </div>
-        {esMayorista && dolarBlue && (
-          <div style={{ background: 'var(--bg-card)', color: 'var(--primary)', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}>💵 USD Blue: ${fmt(dolarBlue)}</div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {esMayorista && dolarBlue && (
+            <div style={{ background: 'var(--bg-card)', color: 'var(--primary)', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}>💵 USD Blue: ${fmt(dolarBlue)}</div>
+          )}
+          <button className="btn btn-outline btn-sm" onClick={async () => {
+            const slug = sec.slug || ('s-' + sec.id);
+            const t = new URLSearchParams(window.location.search).get('tienda');
+            const ogUrl = `${window.location.origin}/api/og?seccion=${encodeURIComponent(slug)}${t ? '&tienda=' + encodeURIComponent(t) : ''}`;
+            const cleanUrl = `${window.location.origin}/${slug}${t ? '?tienda=' + encodeURIComponent(t) : ''}`;
+            if (navigator.share) { try { await navigator.share({ title: sec.nombre, text: sec.nombre, url: ogUrl }); } catch (e) {} return; }
+            try { await navigator.clipboard.writeText(cleanUrl); toast('Link copiado'); } catch (e) { toast(cleanUrl); }
+          }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🔗 Compartir</button>
+        </div>
       </div>
 
       {/* KICKS filters row */}
