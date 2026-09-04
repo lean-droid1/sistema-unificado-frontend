@@ -3422,10 +3422,20 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
       const a = document.createElement('a'); a.href = url; a.download = `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}-${formato}.png`; document.body.appendChild(a); a.click(); a.remove();
     } catch (e) { toast('Esta foto no permite descargarse por permisos del servidor de imágenes. Probá con otro producto.', 'error'); }
   };
+  const compartir = async () => {
+    try {
+      const blob = await new Promise((res, rej) => { try { canvasRef.current.toBlob(b => b ? res(b) : rej(new Error('no blob')), 'image/png'); } catch (e) { rej(e); } });
+      const file = new File([blob], `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.png`, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: producto.nombre || 'Producto', text: `${producto.nombre || ''} — ${precioStr}` });
+      } else { descargar(); }
+    } catch (e) { if (e && e.name === 'AbortError') return; descargar(); }
+  };
+  const puedeCompartir = typeof navigator !== 'undefined' && navigator.canShare;
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">📷 Imagen para redes</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">Imagen para redes</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ textAlign: 'center' }}>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
             <button className={`btn btn-sm ${formato === 'feed' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFormato('feed')}>Feed (cuadrado)</button>
@@ -3433,11 +3443,12 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
           </div>
           <canvas ref={canvasRef} style={{ width: '100%', maxWidth: formato === 'story' ? 250 : 330, borderRadius: 12, border: '1px solid var(--border)', display: 'inline-block' }} />
           {tainted && <p style={{ fontSize: 11, color: 'var(--warning, #d97706)', marginTop: 8 }}>Vista previa lista. Si la descarga falla, es por permisos del servidor de fotos.</p>}
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Descargá la imagen y subila a tu historia o post de Instagram / Facebook.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>{puedeCompartir ? 'Tocá “Compartir” y elegí Instagram, TikTok, Stories, etc. O descargá la imagen.' : 'Descargá la imagen y subila a tu historia o post de Instagram / Facebook / TikTok.'}</p>
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cerrar</button>
-          <button className="btn btn-primary" onClick={descargar}>⬇ Descargar imagen</button>
+          {puedeCompartir && <button className="btn btn-primary" onClick={compartir}>📲 Compartir</button>}
+          <button className={`btn ${puedeCompartir ? 'btn-outline' : 'btn-primary'}`} onClick={descargar}>⬇ Descargar</button>
         </div>
       </div>
     </div>
@@ -3706,7 +3717,7 @@ function ProductDetailPage() {
             <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrlOG)}&text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')} title="X (Twitter)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="twitter" s={20} /></button>
             <button onClick={() => { navigator.clipboard.writeText(shareUrl).then(() => { setLinkCopied(true); toast('Link copiado'); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => toast('No se pudo copiar', 'error')); }} title="Copiar link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? 'var(--success, #22c55e)' : 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="copy" s={18} /></button>
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
-            <button onClick={() => setShowRedes(true)} title="Generar imagen para Instagram / Facebook" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text)', padding: '4px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700 }}>📷 Imagen redes</button>
+            <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>✨ Crear imagen para redes</button>
           </div>
           {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} onClose={() => setShowRedes(false)} />}
 
