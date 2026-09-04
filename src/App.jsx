@@ -7058,6 +7058,8 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       setO({ ...o, estado_pago: r.estado });
       setNuevoPago({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
       toast('Pago registrado');
+      const mp = { pagado: `¡Hola ${o.usuario_nombre || ''}! Confirmamos el pago de tu pedido #${o.id}. ¡Gracias! 🙌`, senado: `¡Hola ${o.usuario_nombre || ''}! Registramos tu seña del pedido #${o.id}.`, parcial: `¡Hola ${o.usuario_nombre || ''}! Registramos un pago a cuenta de tu pedido #${o.id}.` };
+      pedirAviso(mp[r.estado]);
     } catch (e) { toast(e.message, 'error'); }
   };
   const quitarPago = async (pagoId) => {
@@ -7288,7 +7290,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               </>
             ) : (
               <>
-                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { await api.updatePedido(o.id, { estado_pago: e.target.value }); const full = await api.getPedido(o.id); setO(full); await cargarPagos(); await cargarHistorial(); toast('Estado de pago actualizado'); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
+                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { const nuevo = e.target.value; await api.updatePedido(o.id, { estado_pago: nuevo }); const full = await api.getPedido(o.id); setO(full); await cargarPagos(); await cargarHistorial(); toast('Estado de pago actualizado'); const mp = { pagado: `¡Hola ${o.usuario_nombre || ''}! Confirmamos el pago de tu pedido #${o.id}. ¡Gracias! 🙌`, senado: `¡Hola ${o.usuario_nombre || ''}! Registramos tu seña del pedido #${o.id}.`, parcial: `¡Hola ${o.usuario_nombre || ''}! Registramos un pago a cuenta de tu pedido #${o.id}.` }; pedirAviso(mp[nuevo]); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
                   <option value="impago">Impago</option>
                   <option value="senado">Señado</option>
                   <option value="pagado">Pagado</option>
