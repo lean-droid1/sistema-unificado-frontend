@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /panel
+Disallow: /mi-cuenta
+Disallow: /carrito
+Disallow: /ingresar
+Disallow: /registro
+Disallow: /recuperar
+
+Sitemap: https://lean-droidgremio.com/sitemap.xml
