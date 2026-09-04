@@ -14,6 +14,54 @@ const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits:
 const fmtARS = n => `$${fmt(n)}`;
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
 const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
+
+// ─── ROUTING: URLs reales (SEO + compartir + back-button) ───
+const RUTAS_RESERVADAS = new Set(['producto', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
+const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
+const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
+// Preserva ?tienda / ?preview (necesarios para probar tenants sin dominio propio)
+const keptQuery = () => { const cur = new URLSearchParams(window.location.search); const kept = new URLSearchParams(); for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) kept.set(k, v); } return kept; };
+function buildPath(page, o = {}) {
+  const { sec, prod, search, pag } = o;
+  let base = '/';
+  if (page === 'product' && prod?.id) base = productPath(prod);
+  else if (page === 'section' && (sec?.slug || sec?.id)) base = `/${sec.slug || ('s-' + sec.id)}`;
+  else if (page === 'search' && search) base = `/buscar/${encodeURIComponent(search)}`;
+  else if (page === 'cart') base = '/carrito';
+  else if (page === 'favoritos') base = '/favoritos';
+  else if (page === 'contacto') base = '/contacto';
+  else if (page === 'account') base = '/mi-cuenta';
+  else if (page === 'admin') base = '/panel';
+  else if (page === 'login') base = '/ingresar';
+  else if (page === 'register') base = '/registro';
+  else if (page === 'forgot') base = '/recuperar';
+  const kept = keptQuery();
+  if (page === 'section' && pag && pag > 1) kept.set('pag', String(pag));
+  const qs = kept.toString();
+  return base + (qs ? '?' + qs : '');
+}
+function parsePath(pathname, search, secciones = []) {
+  const parts = String(pathname || '/').split('/').filter(Boolean);
+  const sp = new URLSearchParams(search || '');
+  if (!parts.length) return { page: 'landing' };
+  const a = parts[0];
+  if (a === 'producto') return { page: 'product', prodId: parseProdId(parts[1]) };
+  if (a === 'buscar') return { page: 'search', search: decodeURIComponent(parts[1] || '') };
+  if (a === 'carrito') return { page: 'cart' };
+  if (a === 'favoritos') return { page: 'favoritos' };
+  if (a === 'contacto') return { page: 'contacto' };
+  if (a === 'mi-cuenta') return { page: 'account' };
+  if (a === 'panel') return { page: 'admin' };
+  if (a === 'ingresar') return { page: 'login' };
+  if (a === 'registro') return { page: 'register' };
+  if (a === 'recuperar') return { page: 'forgot' };
+  if (!RUTAS_RESERVADAS.has(a)) {
+    const sec = secciones.find(s => s.slug === a || ('s-' + s.id) === a);
+    if (sec) return { page: 'section', sec, pag: Number(sp.get('pag')) || 1 };
+  }
+  return { page: 'landing' };
+}
 // Dispara un evento a Google Analytics y Facebook Pixel (si están cargados). gaName y fbName son los nombres estándar de cada plataforma.
 const trackEvent = (gaName, fbName, data = {}) => {
   try { if (window.gtag && gaName) window.gtag('event', gaName, data); } catch {}
@@ -443,6 +491,10 @@ export default function App() {
       // Link compartido de producto o búsqueda: NO restaurar la página guardada
       // (si el usuario estaba en 'admin', el link igual debe abrir el producto).
       if (params.get('producto') || params.get('buscar')) return 'landing';
+      // Ruta real (path): resolver páginas estáticas al toque; producto/búsqueda/sección se cargan en el init async
+      const r = parsePath(window.location.pathname, window.location.search, []);
+      if (['cart', 'favoritos', 'contacto', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
+      if (r.page === 'product' || r.page === 'search') return 'landing';
     }
     const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv;
   });
@@ -654,6 +706,17 @@ export default function App() {
             }
           } catch {}
         }
+        // Ruta real (path): /producto/slug-ID, /{seccion}, /buscar/term
+        if (!productoParam && !buscarParam && !pedidoParam && !carritoParam) {
+          const r = parsePath(window.location.pathname, window.location.search, secs);
+          if (r.page === 'product' && r.prodId) {
+            try { const prod = await api.getProducto(r.prodId); if (prod) { setSelectedProduct(prod); const sec = secs.find(s => s.id === prod.seccion_id); if (sec) setSeccionActual(sec); setPage('product'); } else setPage('landing'); } catch { setPage('landing'); }
+          } else if (r.page === 'section') {
+            setSeccionActual(r.sec); setPage('section');
+          } else if (r.page === 'search' && r.search) {
+            setGlobalSearch(r.search); doGlobalSearch(r.search); setPage('search');
+          }
+        }
         const maint = await api.getMaintenanceStatus();
         if (maint.activo) {
           const me = api.getToken() ? await api.getMe().catch(() => null) : null;
@@ -674,62 +737,64 @@ export default function App() {
 
   // Nav helper
   const nav = useCallback((p, secId) => {
-    // snapshot (con scroll) para el botón atrás del navegador
-    window._navHist = window._navHist || [];
-    window._navHist.push({ page, sec: seccionActual, prod: selectedProduct, scrollY: window.scrollY });
-    try { window.history.pushState({ d: window._navHist.length }, ''); } catch (e) {}
+    // Guardar el scroll de la entrada actual (para restaurarlo al volver)
+    try { window.history.replaceState({ ...(window.history.state || {}), scrollY: window.scrollY }, ''); } catch (e) {}
+    let sec = seccionActual, prod = selectedProduct;
     if (p === 'product' && secId && typeof secId === 'object') {
-      setSelectedProduct(secId);
-      const sec = seccionActual || secciones.find(s => s.id === secId.seccion_id);
+      prod = secId; setSelectedProduct(secId);
+      sec = seccionActual || secciones.find(s => s.id === secId.seccion_id) || null;
       if (sec) setSeccionActual(sec);
       setPage('product');
-    } else if (secId) {
-      const sec = secciones.find(s => s.id === Number(secId) || s.slug === secId);
-      setSeccionActual(sec || null);
-      setPage(p);
+    } else if (p === 'section' && secId) {
+      sec = secciones.find(s => s.id === Number(secId) || s.slug === secId) || null;
+      setSeccionActual(sec); setPage('section');
     } else {
       setPage(p);
     }
+    try {
+      const url = buildPath(p, { sec: (p === 'section' ? sec : seccionActual), prod: (p === 'product' ? prod : selectedProduct), search: globalSearch });
+      if ((window.location.pathname + window.location.search) !== url) window.history.pushState({ scrollY: 0 }, '', url);
+    } catch (e) {}
     setMobileMenu(false); window.scrollTo(0, 0);
-  }, [secciones, seccionActual, page, selectedProduct]);
+  }, [secciones, seccionActual, page, selectedProduct, globalSearch]);
+  // Refs para leer estado actual dentro del listener de popstate (que se registra una sola vez)
+  const seccionesRef = useRef([]); seccionesRef.current = secciones;
+  const selectedProductRef = useRef(null); selectedProductRef.current = selectedProduct;
 
-  // Bloque 2: el botón atrás del navegador navega dentro de la app (no sale del sitio)
+  // Botón atrás/adelante del navegador: resuelve la URL a estado (sin salir del sitio)
   useEffect(() => {
-    const onPop = () => {
-      const h = window._navHist || [];
-      const snap = h.pop();
-      if (!snap) { setPage('landing'); return; }
-      setSelectedProduct(snap.prod || null);
-      setSeccionActual(snap.sec || null);
-      setPage(snap.page || 'landing');
-      const y = snap.scrollY || 0;
-      if (y > 0) {
-        let n = 0;
-        const restore = () => {
-          window.scrollTo(0, y);
-          if (Math.abs(window.scrollY - y) > 3 && ++n < 40) setTimeout(restore, 50);
-        };
-        setTimeout(restore, 30);
-      } else window.scrollTo(0, 0);
+    try { if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'; } catch (e) {}
+    const onPop = (e) => {
+      const r = parsePath(window.location.pathname, window.location.search, seccionesRef.current);
+      if (r.page === 'product') {
+        if (r.prodId && selectedProductRef.current?.id === r.prodId) { setPage('product'); }
+        else if (r.prodId) { api.getProducto(r.prodId).then(prod => { if (prod) { setSelectedProduct(prod); const sec = seccionesRef.current.find(s => s.id === prod.seccion_id); if (sec) setSeccionActual(sec); setPage('product'); } else setPage('landing'); }).catch(() => setPage('landing')); }
+        else setPage('landing');
+      } else if (r.page === 'section') {
+        setSeccionActual(r.sec); setPage('section');
+      } else if (r.page === 'search') {
+        setSelectedProduct(null); setGlobalResults(null); setGlobalSearch(r.search); setPage('search');
+      } else {
+        setSelectedProduct(null); setPage(r.page || 'landing');
+      }
+      const y = (e.state && e.state.scrollY) || 0;
+      let n = 0; const restore = () => { window.scrollTo(0, y); if (Math.abs(window.scrollY - y) > 3 && ++n < 40) setTimeout(restore, 50); };
+      setTimeout(restore, 40);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // Sync URL params with page state (shareable product URLs)
+  // Sincroniza la URL con el estado (URLs reales para SEO/compartir).
+  // Las secciones manejan su propio ?pag aparte (ver SectionPage), por eso no las tocamos acá.
   useEffect(() => {
-    // No tocar la URL mientras la app carga: el init todavía está procesando
-    // ?producto= / ?buscar= y limpiarla acá borraría el link compartido.
     if (loading) return;
-    const cur = new URLSearchParams(window.location.search);
-    const keep = new URLSearchParams();
-    for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) keep.set(k, v); }
-    if (page === 'product' && selectedProduct?.id) keep.set('producto', String(selectedProduct.id));
-    if (page === 'search' && globalSearch) keep.set('buscar', globalSearch);
-    const qs = keep.toString();
-    const newUrl = window.location.pathname + (qs ? '?' + qs : '');
-    try { window.history.replaceState(window.history.state, '', newUrl); } catch {}
-  }, [page, selectedProduct?.id, loading]);
+    if (page === 'section') return; // SectionPage escribe su URL con paginación
+    try {
+      const url = buildPath(page, { sec: seccionActual, prod: selectedProduct, search: globalSearch });
+      if ((window.location.pathname + window.location.search) !== url) window.history.replaceState({ ...(window.history.state || {}) }, '', url);
+    } catch (e) {}
+  }, [page, selectedProduct?.id, globalSearch, loading]);
 
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
@@ -2253,8 +2318,22 @@ function SectionPage() {
   const [precioMin, setPrecioMin] = useState('');
   const [precioMax, setPrecioMax] = useState('');
   const [orden, setOrden] = useState('relevancia'); // relevancia | precio_asc | precio_desc | nombre
-  const [pagina, setPagina] = useState(1);
+  const [pagina, setPagina] = useState(() => Number(new URLSearchParams(window.location.search).get('pag')) || 1);
   const [porPagina, setPorPagina] = useState(50);
+  // Al cambiar de sección, tomar la página desde la URL (1 si no hay ?pag)
+  useEffect(() => { setPagina(Number(new URLSearchParams(window.location.search).get('pag')) || 1); }, [sec?.id]);
+  // Mantener el número de página en la URL (?pag=N) para que el botón "atrás" vuelva a la misma página
+  useEffect(() => {
+    if (!sec || (!sec.slug && !sec.id)) return;
+    const base = `/${sec.slug || ('s-' + sec.id)}`;
+    const cur = new URLSearchParams(window.location.search);
+    const kept = new URLSearchParams();
+    for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) kept.set(k, v); }
+    if (pagina > 1) kept.set('pag', String(pagina));
+    const qs = kept.toString();
+    const url = base + (qs ? '?' + qs : '');
+    if ((window.location.pathname + window.location.search) !== url) { try { window.history.replaceState({ ...(window.history.state || {}) }, '', url); } catch (e) {} }
+  }, [pagina, sec?.id]);
   const [total, setTotal] = useState(0);
   const [promos, setPromos] = useState([]);
   const [secBadges, setSecBadges] = useState([]);
@@ -3255,7 +3334,7 @@ function ProductDetailPage() {
 
   return (
     <div className="pdp">
-      <button className="pdp-back" onClick={() => { if (window._navHist && window._navHist.length) window.history.back(); else nav('section', sec?.id); }}>← Volver</button>
+      <button className="pdp-back" onClick={() => { if (window.history.length > 1) window.history.back(); else nav('section', sec?.id); }}>← Volver</button>
 
       <div className="pdp-crumbs">
         <span onClick={() => nav('landing')}>Inicio</span> / <span onClick={() => nav('section', sec?.id)}>{sec?.nombre}</span> {p.categoria && <> / {p.categoria}</>} / <span className="pdp-crumb-current">{p.nombre || p.modelo}</span>
