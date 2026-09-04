@@ -56,17 +56,24 @@ export default async function handler(req, res) {
     const canonical = `https://${host}/?producto=${encodeURIComponent(producto)}${qTienda}`;
     if (!apiUrl) { res.statusCode = 302; res.setHeader('Location', canonical); res.end(); return; }
     try {
-      const [prodRes, designRes] = await Promise.all([
+      const [prodRes, designRes, configRes] = await Promise.all([
         fetch(`${apiUrl}/api/productos/id/${encodeURIComponent(producto)}`, { headers }),
-        fetch(`${apiUrl}/api/design`, { headers })
+        fetch(`${apiUrl}/api/design`, { headers }),
+        fetch(`${apiUrl}/api/config`, { headers })
       ]);
       if (!prodRes.ok) { res.statusCode = 302; res.setHeader('Location', canonical); res.end(); return; }
       const prod = await prodRes.json();
       const design = await designRes.json().catch(() => ({}));
+      const config = await configRes.json().catch(() => ({}));
       const price = Number(prod.precio_oferta > 0 ? prod.precio_oferta : prod.precio_base) || 0;
       const priceStr = price > 0 ? `$${price.toLocaleString('es-AR')}` : 'Consultar precio';
       const storeName = design.nombre_tienda || '';
-      render(res, { title: prod.nombre || prod.modelo || 'Producto', desc: `${priceStr}${storeName ? ' — ' + storeName : ''}`, image: prod.imagen || design.og_image || design.logo_url || '', canonical, type: 'product', price, storeName });
+      const umbral = Number(config['envio_gratis_desde_' + prod.seccion_id]) || 0;
+      const envioGratis = !prod.excluir_envio_gratis && (!!prod.envio_gratis || (umbral > 0 && price >= umbral));
+      const partes = [priceStr];
+      if (envioGratis) partes.push('🚚 Envío gratis');
+      if (storeName) partes.push(storeName);
+      render(res, { title: prod.nombre || prod.modelo || 'Producto', desc: partes.join(' · '), image: prod.imagen || design.og_image || design.logo_url || '', canonical, type: 'product', price, storeName });
     } catch (e) { res.statusCode = 302; res.setHeader('Location', canonical); res.end(); }
     return;
   }
