@@ -3343,6 +3343,107 @@ function CartPage() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ─── GENERADOR DE IMAGEN PARA REDES (Instagram/Facebook) ───
+function _wrapText(ctx, text, maxW, maxLines) {
+  const words = String(text || '').split(/\s+/);
+  const lines = []; let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; if (lines.length >= maxLines) break; }
+    else cur = test;
+  }
+  if (lines.length < maxLines && cur) lines.push(cur);
+  if (lines.length === maxLines) { let last = lines[maxLines - 1]; while (ctx.measureText(last + '…').width > maxW && last.length) last = last.slice(0, -1); if (words.join(' ') !== lines.join(' ')) lines[maxLines - 1] = last + '…'; }
+  return lines;
+}
+function _roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function drawRedesImagen(canvas, o) {
+  const { formato, imgEl, nombre, precioStr, precioViejo, envioGratis, storeName, dominio } = o;
+  let color = '#6366f1';
+  try { const c = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(); if (c) color = c; } catch (e) {}
+  const W = 1080, H = formato === 'story' ? 1920 : 1080;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0d0d0f'; ctx.fillRect(0, 0, W, H);
+  const imgH = formato === 'story' ? Math.round(H * 0.64) : Math.round(H * 0.72);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, imgH);
+  if (imgEl && imgEl.width) {
+    const ir = imgEl.width / imgEl.height, ar = W / imgH;
+    let dw, dh, dx, dy;
+    if (ir > ar) { dh = imgH; dw = imgH * ir; dx = (W - dw) / 2; dy = 0; }
+    else { dw = W; dh = W / ir; dx = 0; dy = (imgH - dh) / 2; }
+    try { ctx.drawImage(imgEl, dx, dy, dw, dh); } catch (e) {}
+  }
+  const panelY = imgH;
+  ctx.fillStyle = '#0d0d0f'; ctx.fillRect(0, panelY, W, H - panelY);
+  let y = panelY + 78;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff'; ctx.font = '700 48px Archivo, Arial, sans-serif';
+  const lines = _wrapText(ctx, nombre, W - 100, 2);
+  for (const ln of lines) { ctx.fillText(ln, 50, y); y += 58; }
+  y += 12;
+  if (envioGratis) {
+    ctx.font = '800 34px Archivo, Arial, sans-serif';
+    const t = '🚚  ENVÍO GRATIS';
+    const tw = ctx.measureText(t).width;
+    ctx.fillStyle = color; _roundRect(ctx, 50, y - 40, tw + 44, 60, 14); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.fillText(t, 72, y);
+    y += 86;
+  }
+  if (precioViejo) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '600 40px Archivo, Arial, sans-serif'; ctx.fillText(precioViejo, 50, y - 6); ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, y - 20); ctx.lineTo(50 + ctx.measureText(precioViejo).width, y - 20); ctx.stroke(); y += 18; }
+  ctx.fillStyle = color; ctx.font = '900 92px Archivo, Arial, sans-serif';
+  ctx.fillText(precioStr, 50, y + 40);
+  ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.font = '800 32px Archivo, Arial, sans-serif';
+  ctx.fillText(storeName || '', 50, H - 58);
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '500 27px Archivo, Arial, sans-serif';
+  ctx.fillText(dominio || '', 50, H - 22);
+}
+function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, storeName, dominio, imageUrl, onClose }) {
+  const { toast } = useContext(Ctx);
+  const canvasRef = useRef(null);
+  const [formato, setFormato] = useState('feed');
+  const [imgEl, setImgEl] = useState(null);
+  const [tainted, setTainted] = useState(false);
+  useEffect(() => {
+    if (!imageUrl) { setImgEl(null); return; }
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => { setImgEl(im); setTainted(false); };
+    im.onerror = () => { const im2 = new Image(); im2.onload = () => { setImgEl(im2); setTainted(true); }; im2.onerror = () => setImgEl(null); im2.src = imageUrl; };
+    im.src = imageUrl;
+  }, [imageUrl]);
+  useEffect(() => {
+    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, imgEl, nombre: producto.nombre || producto.modelo || '', precioStr, precioViejo, envioGratis, storeName, dominio }); };
+    draw();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw).catch(() => {});
+  }, [formato, imgEl, precioStr, envioGratis]);
+  const descargar = () => {
+    try {
+      const url = canvasRef.current.toDataURL('image/png');
+      const a = document.createElement('a'); a.href = url; a.download = `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}-${formato}.png`; document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) { toast('Esta foto no permite descargarse por permisos del servidor de imágenes. Probá con otro producto.', 'error'); }
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span className="modal-title">📷 Imagen para redes</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-body" style={{ textAlign: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+            <button className={`btn btn-sm ${formato === 'feed' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFormato('feed')}>Feed (cuadrado)</button>
+            <button className={`btn btn-sm ${formato === 'story' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFormato('story')}>Story (vertical)</button>
+          </div>
+          <canvas ref={canvasRef} style={{ width: '100%', maxWidth: formato === 'story' ? 250 : 330, borderRadius: 12, border: '1px solid var(--border)', display: 'inline-block' }} />
+          {tainted && <p style={{ fontSize: 11, color: 'var(--warning, #d97706)', marginTop: 8 }}>Vista previa lista. Si la descarga falla, es por permisos del servidor de fotos.</p>}
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Descargá la imagen y subila a tu historia o post de Instagram / Facebook.</p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Cerrar</button>
+          <button className="btn btn-primary" onClick={descargar}>⬇ Descargar imagen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
@@ -3359,6 +3460,7 @@ function ProductDetailPage() {
   const [selOpts, setSelOpts] = useState({});
   const [usaVariantes, setUsaVariantes] = useState(false);
   const [mainImg, setMainImg] = useState('');
+  const [showRedes, setShowRedes] = useState(false);
   const [relacionados, setRelacionados] = useState([]);
   useEffect(() => { if (p?.id) api.getRelacionados(p.id).then(setRelacionados).catch(() => setRelacionados([])); }, [p?.id]);
   useEffect(() => { if (p?.id) trackEvent('view_item', 'ViewContent', { content_name: p.nombre || p.modelo, value: Number(p.precioFinal || p.precio_base) || 0, currency: 'ARS' }); }, [p?.id]);
@@ -3395,6 +3497,9 @@ function ProductDetailPage() {
   const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : 'ARS');
   const precioOriginal = p.precioOriginal;
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
+  const umbralGratis = Number(config['envio_gratis_desde_' + (p.seccion_id || sec?.id)]) || 0;
+  const envioGratisProd = !p.excluir_envio_gratis && (!!p.envio_gratis || (umbralGratis > 0 && precioFinal >= umbralGratis));
+  const precioViejoStr = precioOriginal ? fmtARS(precioOriginal) : (matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? fmtMon(matched.precio, monedaFinal) : '');
   const allImages = gallery.length ? gallery.map(g => g.url) : [p.imagen].filter(Boolean);
   // Foto de la opción elegida (ej: color) — si tiene, se muestra como imagen principal
   const varImg = (() => {
@@ -3601,7 +3706,9 @@ function ProductDetailPage() {
             <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrlOG)}&text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')} title="X (Twitter)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="twitter" s={20} /></button>
             <button onClick={() => { navigator.clipboard.writeText(shareUrl).then(() => { setLinkCopied(true); toast('Link copiado'); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => toast('No se pudo copiar', 'error')); }} title="Copiar link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? 'var(--success, #22c55e)' : 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="copy" s={18} /></button>
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
+            <button onClick={() => setShowRedes(true)} title="Generar imagen para Instagram / Facebook" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text)', padding: '4px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700 }}>📷 Imagen redes</button>
           </div>
+          {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} onClose={() => setShowRedes(false)} />}
 
           {p.sku && !p.sku.startsWith('RXZ-') && <p className="pdp-sku">SKU: {p.sku}</p>}
           {p.notas && <div className="pdp-note">📝 {p.notas}</div>}
