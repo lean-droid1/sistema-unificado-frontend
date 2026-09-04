@@ -2523,7 +2523,7 @@ function SectionPage() {
             const cleanUrl = `${window.location.origin}/${slug}${t ? '?tienda=' + encodeURIComponent(t) : ''}`;
             if (navigator.share) { try { await navigator.share({ title: sec.nombre, text: sec.nombre, url: ogUrl }); } catch (e) {} return; }
             try { await navigator.clipboard.writeText(cleanUrl); toast('Link copiado'); } catch (e) { toast(cleanUrl); }
-          }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🔗 Compartir</button>
+          }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Compartir</button>
         </div>
       </div>
 
@@ -2854,7 +2854,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
               </div>
               {subtotalUSDT > 0 && (
                 <div style={{ background: 'var(--bg-card)', border: '1.5px solid var(--primary)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>₮ Pago en USDT: {fmtMon(subtotalUSDT, 'USDT')}</div>
+                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>Pago en USDT: {fmtMon(subtotalUSDT, 'USDT')}</div>
                   {config.usdt_red && <div style={{ fontSize: 13 }}><strong>Red:</strong> {config.usdt_red}</div>}
                   {config.usdt_wallet && <div style={{ fontSize: 13, wordBreak: 'break-all' }}><strong>Wallet:</strong> {config.usdt_wallet}</div>}
                   {config.usdt_alias && <div style={{ fontSize: 13 }}><strong>Alias / Binance:</strong> {config.usdt_alias}</div>}
@@ -3214,7 +3214,7 @@ function CartPage() {
                 msgColor = 'var(--accent)';
               } else if (gratis > 0 && !llegoGratis) {
                 const falta = gratis - secSubtotal;
-                msg = <>¡Listo para enviar! Te faltan <b>{fmtARS(falta)}</b> para <b>envío gratis</b> 🚚</>;
+                msg = <>¡Listo para enviar! Te faltan <b>{fmtARS(falta)}</b> para <b>envío gratis</b></>;
                 msgColor = 'var(--primary)';
               } else if (llegoGratis) {
                 msg = <>🎉 ¡Tenés <b>envío gratis</b>!</>;
@@ -3384,7 +3384,7 @@ function drawRedesImagen(canvas, o) {
   y += 12;
   if (envioGratis) {
     ctx.font = '800 34px Archivo, Arial, sans-serif';
-    const t = '🚚  ENVÍO GRATIS';
+    const t = 'ENVÍO GRATIS';
     const tw = ctx.measureText(t).width;
     ctx.fillStyle = color; _roundRect(ctx, 50, y - 40, tw + 44, 60, 14); ctx.fill();
     ctx.fillStyle = '#ffffff'; ctx.fillText(t, 72, y);
@@ -3447,8 +3447,8 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cerrar</button>
-          {puedeCompartir && <button className="btn btn-primary" onClick={compartir}>📲 Compartir</button>}
-          <button className={`btn ${puedeCompartir ? 'btn-outline' : 'btn-primary'}`} onClick={descargar}>⬇ Descargar</button>
+          {puedeCompartir && <button className="btn btn-primary" onClick={compartir}>Compartir</button>}
+          <button className={`btn ${puedeCompartir ? 'btn-outline' : 'btn-primary'}`} onClick={descargar}>Descargar</button>
         </div>
       </div>
     </div>
@@ -3717,7 +3717,7 @@ function ProductDetailPage() {
             <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrlOG)}&text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')} title="X (Twitter)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="twitter" s={20} /></button>
             <button onClick={() => { navigator.clipboard.writeText(shareUrl).then(() => { setLinkCopied(true); toast('Link copiado'); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => toast('No se pudo copiar', 'error')); }} title="Copiar link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? 'var(--success, #22c55e)' : 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="copy" s={18} /></button>
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
-            <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>✨ Crear imagen para redes</button>
+            <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>Crear imagen para redes</button>
           </div>
           {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} onClose={() => setShowRedes(false)} />}
 
@@ -6364,7 +6364,7 @@ function VariantesEditor({ productoId }) {
   const dlVal = `varvalues-${productoId}`;
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-      <h4 style={{ marginBottom: 4, fontSize: 14 }}>🔀 Variantes (opcional)</h4>
+      <h4 style={{ marginBottom: 4, fontSize: 14 }}>Variantes (opcional)</h4>
       <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>El precio es el <b>precio final</b> de cada variante (lo que paga el cliente). Si el producto usa variantes, se debe elegir una para poder comprar. <b>Tip:</b> al cargar varias, podés reusar los valores ya escritos (aparecen como sugerencia).</p>
       <datalist id={dlId}>{nombresUsados.map(n => <option key={n} value={n} />)}</datalist>
       <datalist id={dlVal}>{valoresUsados.map(n => <option key={n} value={n} />)}</datalist>
@@ -6431,7 +6431,7 @@ function AtributosEditor({ value, onChange }) {
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-        <input type="checkbox" checked={usa} onChange={e => toggleUsa(e.target.checked)} /> 🔀 Este producto usa variantes (atributos combinados)
+        <input type="checkbox" checked={usa} onChange={e => toggleUsa(e.target.checked)} /> Este producto usa variantes (atributos combinados)
       </label>
       {usa && (
         <div style={{ marginTop: 10 }}>
@@ -6447,7 +6447,7 @@ function AtributosEditor({ value, onChange }) {
                   <span key={vi} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'var(--bg)', borderRadius: 6, padding: '2px 4px' }}>
                     {vImg(v) ? <img src={vImg(v)} alt="" style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }} /> : null}
                     <input value={vVal(v)} onChange={e => setVal(ai, vi, e.target.value)} placeholder="valor" style={{ width: 100, fontSize: 13 }} />
-                    <label title="Foto de esta opción" style={{ cursor: 'pointer', fontSize: 14 }}>{vImg(v) ? '🔄' : '📷'}<input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return; try { const r = await api.uploadImagen(file); setValImg(ai, vi, r.url); } catch (err) {} }} /></label>
+                    <label title="Foto de esta opción" style={{ cursor: 'pointer', fontSize: 14 }}>{vImg(v) ? 'Cambiar foto' : '+ Foto'}<input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return; try { const r = await api.uploadImagen(file); setValImg(ai, vi, r.url); } catch (err) {} }} /></label>
                     {vImg(v) && <button type="button" onClick={() => setValImg(ai, vi, '')} title="Quitar foto" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11 }}>✕foto</button>}
                     <button type="button" onClick={() => removeVal(ai, vi)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="Quitar valor">✕</button>
                   </span>
@@ -6458,7 +6458,7 @@ function AtributosEditor({ value, onChange }) {
           ))}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             <button type="button" className="btn btn-outline btn-sm" onClick={addAtr}>+ Agregar atributo</button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={generar} disabled={!atrsLimpios().length}>⚙️ Generar combinaciones {totalCombos > 1 ? `(${totalCombos})` : ''}</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={generar} disabled={!atrsLimpios().length}>Generar combinaciones {totalCombos > 1 ? `(${totalCombos})` : ''}</button>
           </div>
           {desincronizado && <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}>⚠️ Cambiaste los atributos. Tocá <b>Generar combinaciones</b> para actualizar la tabla (se conservan los precios ya cargados).</p>}
           {variantes.length > 0 && (
@@ -6540,7 +6540,7 @@ function VariantesQuickEdit({ productoId, onOpenFull }) {
         </table>
       </div>
       <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn btn-primary btn-sm" onClick={guardar} disabled={saving || !dirty}>{saving ? 'Guardando…' : dirty ? '💾 Guardar cambios' : 'Sin cambios'}</button>
+        <button className="btn btn-primary btn-sm" onClick={guardar} disabled={saving || !dirty}>{saving ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Sin cambios'}</button>
         {onOpenFull && <button className="btn btn-outline btn-sm" onClick={onOpenFull}>Editar atributos / agregar combinaciones</button>}
       </div>
     </div>
@@ -8538,7 +8538,7 @@ function AdminMetodosPago() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de pago</h3><button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button></div>
       <div className="card" style={{ padding: 14, marginBottom: 16, borderLeft: '3px solid var(--primary)' }}>
-        <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>₮ Pago en USDT / dólar</h4>
+        <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Pago en USDT / dólar</h4>
         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Estos datos se le muestran al cliente en el checkout cuando el pedido tiene ítems en USDT. Dejalos vacíos si preferís coordinar por WhatsApp.</p>
         <div className="form-row">
           <div className="form-group"><label className="form-label">Red</label><input value={usdt.red} onChange={e => setUsdt({ ...usdt, red: e.target.value })} placeholder="Ej: TRC20 / BEP20" /></div>
@@ -9399,7 +9399,7 @@ function SectionStockConfig() {
               <input value={secData[s.id]?.cp_origen || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], cp_origen: e.target.value } })} style={{ width: 80, fontSize: 12 }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <label style={{ fontSize: 12 }}>🚚 Envío gratis desde $:</label>
+              <label style={{ fontSize: 12 }}>Envío gratis desde $:</label>
               <input type="number" value={secData[s.id]?.gratis_desde || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], gratis_desde: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
             </div>
           </div>
