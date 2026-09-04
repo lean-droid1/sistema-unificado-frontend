@@ -14,6 +14,9 @@ const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits:
 const fmtARS = n => `$${fmt(n)}`;
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
 const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
+// Un ítem del carrito es en cripto/dólar si su variante quedó marcada así
+const esUSDT = (i) => !!i && (i.variante_moneda === 'USDT' || i.variante_moneda === 'USD');
+const monedaItem = (i) => (i && i.variante_moneda) || 'ARS';
 
 // ─── SEO: meta tags dinámicos por página ───
 function upsertMeta(selector, attr, key, content) {
@@ -2653,8 +2656,9 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
   const [metodoPago, setMetodoPago] = useState(metodos && metodos[0] ? (metodos[0].nombre || metodos[0]) : 'transferencia');
   const [notas, setNotas] = useState('');
 
-  // Totales
-  const subtotalTodo = allItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+  // Totales (los ítems en USDT van aparte, no se suman a los pesos)
+  const subtotalTodo = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+  const subtotalUSDT = allItems.filter(esUSDT).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
   const envioTotal = seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0);
   const totalFinal = subtotalTodo - (seccionesConItems.length === 1 ? descuento : 0) + (entrega.tipo === 'envio' ? envioTotal : 0);
 
@@ -2834,8 +2838,8 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
               <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
                 {allItems.map((i, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                    <span>{i.qty}× {i.nombre || i.modelo}</span>
-                    <span style={{ fontWeight: 600 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
+                    <span>{i.qty}× {i.nombre || i.modelo}{i.variante_label ? ` (${i.variante_label})` : ''}</span>
+                    <span style={{ fontWeight: 600 }}>{fmtMon((i.precio_unitario || i.precio_base) * i.qty, monedaItem(i))}</span>
                   </div>
                 ))}
                 <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, fontSize: 13 }}>
@@ -2843,8 +2847,19 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
                   {seccionesConItems.length === 1 && descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}><span>Descuento</span><span>-{fmtARS(descuento)}</span></div>}
                   {entrega.tipo === 'envio' && envioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Envío</span><span>{fmtARS(envioTotal)}</span></div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 16, marginTop: 6 }}><span>Total</span><span>{fmtARS(totalFinal)}</span></div>
+                  {subtotalUSDT > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 16, marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--border)' }}><span>Total USDT</span><span>{fmtMon(subtotalUSDT, 'USDT')}</span></div>}
                 </div>
               </div>
+              {subtotalUSDT > 0 && (
+                <div style={{ background: 'var(--bg-card)', border: '1.5px solid var(--primary)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>₮ Pago en USDT: {fmtMon(subtotalUSDT, 'USDT')}</div>
+                  {config.usdt_red && <div style={{ fontSize: 13 }}><strong>Red:</strong> {config.usdt_red}</div>}
+                  {config.usdt_wallet && <div style={{ fontSize: 13, wordBreak: 'break-all' }}><strong>Wallet:</strong> {config.usdt_wallet}</div>}
+                  {config.usdt_alias && <div style={{ fontSize: 13 }}><strong>Alias / Binance:</strong> {config.usdt_alias}</div>}
+                  {config.usdt_instrucciones && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, whiteSpace: 'pre-wrap' }}>{config.usdt_instrucciones}</div>}
+                  {!config.usdt_wallet && !config.usdt_alias && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Coordinamos el pago en USDT por WhatsApp al confirmar.</div>}
+                </div>
+              )}
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 <div><strong>Contacto:</strong> {contacto.nombre} · {contacto.telefono}</div>
                 <div><strong>Entrega:</strong> {entrega.tipo === 'retiro' ? 'Retiro en el local' : `Envío a ${entrega.calle} ${entrega.numero}${entrega.piso ? ` (${entrega.piso})` : ''}, ${entrega.localidad} (CP ${entrega.cp})`}</div>
@@ -2993,7 +3008,8 @@ function CartPage() {
     );
   }
 
-  const subtotal = allItems.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+  const subtotal = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+  const subtotalUSDT = allItems.filter(i => esUSDT(i)).reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
   // Solo contar el envío de secciones que REALMENTE tienen items en el carrito
   // (evita costos fantasma de una sección que quedó en el estado tras vaciarse).
   const seccionesConItemsIds = new Set(allItems.map(i => i.seccion_id));
@@ -3160,7 +3176,8 @@ function CartPage() {
 
       {seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
-        const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        const secSubtotal = secItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        const secSubtotalUSDT = secItems.filter(esUSDT).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
         const gratisDesde = Number(config[`envio_gratis_desde_${sec.id}`]) || 0;
         const faltaGratis = gratisDesde > 0 ? Math.max(0, gratisDesde - secSubtotal) : 0;
         const pctGratis = gratisDesde > 0 ? Math.min(100, (secSubtotal / gratisDesde) * 100) : 0;
@@ -3236,14 +3253,14 @@ function CartPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{i.nombre || i.modelo}</div>
                   {i.variante_label && <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>{i.variante_label}</div>}
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {fmtARS(i.precio_unitario || i.precio_base)} c/u</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {fmtMon(i.precio_unitario || i.precio_base, monedaItem(i))} c/u</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
                   <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v), i.variante_id); }} style={{ width: 48, padding: '6px 4px', fontWeight: 800, fontSize: 13, textAlign: 'center', border: 'none', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderRadius: 0, background: 'transparent' }} />
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                 </div>
-                <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtARS((i.precio_unitario || i.precio_base) * i.qty)}</span>
+                <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtMon((i.precio_unitario || i.precio_base) * i.qty, monedaItem(i))}</span>
                 <button onClick={() => removeFromCart(sec.id, i.id, i.variante_id)} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
               </div>
             ))}
@@ -3255,6 +3272,12 @@ function CartPage() {
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal {sec.nombre}</span>
               <span style={{ fontSize: 15, fontWeight: 800 }}>{fmtARS(secSubtotal + (envio[sec.id]?.costo || 0))}</span>
             </div>
+            {secSubtotalUSDT > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal USDT {sec.nombre}</span>
+                <span style={{ fontSize: 15, fontWeight: 800 }}>{fmtMon(secSubtotalUSDT, 'USDT')}</span>
+              </div>
+            )}
           </div>
         );
       })}
@@ -3285,7 +3308,7 @@ function CartPage() {
         {seccionesConItems.length > 1 && (
           <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
             {seccionesConItems.map(sec => {
-              const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
+              const ss = allItems.filter(i => i.seccion_id === sec.id && !esUSDT(i)).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
               return <div key={sec.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}><span style={{ color: 'var(--text-secondary)' }}>Subtotal {sec.nombre}</span><span style={{ fontWeight: 700 }}>{fmtARS(ss + (envio[sec.id]?.costo || 0))}</span></div>;
             })}
           </div>
@@ -3295,6 +3318,10 @@ function CartPage() {
         {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuento</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(descuento)}</span></div>}
         <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
+        {subtotalUSDT > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--border)' }}><span style={{ fontWeight: 700 }}>Total USDT</span><span style={{ fontWeight: 900 }}>{fmtMon(subtotalUSDT, 'USDT')}</span></div>
+        )}
+        {subtotalUSDT > 0 && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Los ítems en USDT se cobran aparte (los datos de pago aparecen en el checkout). No se suman a los pesos.</p>}
       </div>
 
       <button onClick={abrirCheckout} disabled={algunaBajoMin} style={{ width: '100%', marginTop: 16, padding: 14, background: algunaBajoMin ? 'var(--border)' : 'var(--primary)', color: algunaBajoMin ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: algunaBajoMin ? 'not-allowed' : 'pointer' }}>
@@ -8308,6 +8335,8 @@ function AdminMetodosPago() {
   const [edit, setEdit] = useState(null);
   const loadMps = () => api.getMetodosPagoAll().then(m => setMps(m.sort((a,b) => (a.orden||0) - (b.orden||0))));
   useEffect(() => { loadMps(); }, []);
+  const [usdt, setUsdt] = useState({ wallet: config.usdt_wallet || '', red: config.usdt_red || '', alias: config.usdt_alias || '', instrucciones: config.usdt_instrucciones || '' });
+  const saveUsdt = async () => { try { const upd = { usdt_wallet: usdt.wallet || '', usdt_red: usdt.red || '', usdt_alias: usdt.alias || '', usdt_instrucciones: usdt.instrucciones || '' }; await api.updateConfig(upd); setConfig({ ...config, ...upd }); toast('Datos de pago USDT guardados'); } catch (e) { toast(e.message, 'error'); } };
   const descKey = (nombre) => `descuento_${(nombre || '').toLowerCase().replace(/\s+/g, '_')}`;
   const openNew = () => { setEdit(null); setForm({ nombre: '', descripcion: '', instrucciones: '', icono: '💳', seccion_id: null, activo: true, orden: 0 }); setDescuentoPct(''); setShow(true); };
   const openEdit = (m) => { setEdit(m); setForm(m); setDescuentoPct(config[descKey(m.nombre)] || ''); setShow(true); };
@@ -8326,6 +8355,17 @@ function AdminMetodosPago() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Métodos de pago</h3><button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button></div>
+      <div className="card" style={{ padding: 14, marginBottom: 16, borderLeft: '3px solid var(--primary)' }}>
+        <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>₮ Pago en USDT / dólar</h4>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Estos datos se le muestran al cliente en el checkout cuando el pedido tiene ítems en USDT. Dejalos vacíos si preferís coordinar por WhatsApp.</p>
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Red</label><input value={usdt.red} onChange={e => setUsdt({ ...usdt, red: e.target.value })} placeholder="Ej: TRC20 / BEP20" /></div>
+          <div className="form-group"><label className="form-label">Alias / Binance ID / email</label><input value={usdt.alias} onChange={e => setUsdt({ ...usdt, alias: e.target.value })} placeholder="Ej: tu@email o ID de Binance" /></div>
+        </div>
+        <div className="form-group"><label className="form-label">Dirección de wallet</label><input value={usdt.wallet} onChange={e => setUsdt({ ...usdt, wallet: e.target.value })} placeholder="Ej: TXXXXXXXXXXXXXXXXXX" /></div>
+        <div className="form-group"><label className="form-label">Instrucciones (opcional)</label><textarea value={usdt.instrucciones} onChange={e => setUsdt({ ...usdt, instrucciones: e.target.value })} rows={2} placeholder="Ej: Enviá el comprobante por WhatsApp después de pagar." /></div>
+        <button className="btn btn-primary btn-sm" onClick={saveUsdt}>Guardar datos USDT</button>
+      </div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Arrastrá para reordenar.</p>
       {mps.map((m, i) => (<div key={m.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ opacity: 0.35, marginRight: 8 }}>⠿</span><RenderIcon value={m.icono} size={16} /> <strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.descripcion}</span>} {config[descKey(m.nombre)] && parseFloat(config[descKey(m.nombre)]) > 0 && <span style={{ fontSize: 11, background: 'var(--success)', color: '#fff', padding: '1px 7px', borderRadius: 4, fontWeight: 700, marginLeft: 4 }}>−{config[descKey(m.nombre)]}%</span>}</div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => openEdit(m)}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteMetodoPago(m.id); loadMps(); }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} método de pago</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
