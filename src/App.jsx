@@ -3046,7 +3046,7 @@ function CartPage() {
         return {
           seccion_id: sec.id, tipo: 'presupuesto', estado: 'pendiente', metodo_pago: metodoPago, notas,
           subtotal: secSubtotal, descuento: 0, total: secSubtotal,
-          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false }))
+          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
         };
       }).filter(pp => pp.items.length);
       for (const p of pedidos) await api.createPedido(p);
@@ -3110,7 +3110,7 @@ function CartPage() {
         costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: dc.entrega?.cp || '',
         estado_pago: tieneReserva ? 'senado' : 'impago',
         datos_envio: datosEnvioJSON, datos_facturacion: datosFactJSON,
-        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false }))
+        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
       };
     }).filter(pp => pp.items.length);
     try {
@@ -7247,7 +7247,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const saveEdit = async () => {
     setSaving(true);
     try {
-      const newItems = items.map(i => ({ producto_id: i.producto_id || i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: itemName(i), cantidad: i.qty, precio_unitario: Number(i.precio_unitario) || 0, precio_base: Number(i.precio_base) || 0 }));
+      const newItems = items.map(i => ({ producto_id: i.producto_id || i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: itemName(i), cantidad: i.qty, precio_unitario: Number(i.precio_unitario) || 0, precio_base: Number(i.precio_base) || 0, variante_id: i.variante_id || null, variante_combinacion: i.variante_combinacion || '' }));
       await api.updatePedido(o.id, { items: newItems, subtotal: editSubtotal, descuento: ajuste < 0 ? Math.abs(ajuste) : 0, total: editTotal });
       toast('Pedido actualizado'); setEditing(false);
       const full = await api.getPedido(o.id); setO(full); setItems((full.items || []).map(i => ({ ...i, qty: i.cantidad || 1 })));
