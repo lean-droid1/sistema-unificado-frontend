@@ -3816,6 +3816,8 @@ function RegisterPage() {
   const { nav, toast } = useContext(Ctx);
   const [form, setForm] = useState({ nombre: '', usuario: '', password: '', telefono: '', email: '', nombre_fantasia: '' });
   const submit = async () => {
+    if (!form.nombre.trim() || !form.usuario.trim() || !form.password) { toast('Completá nombre, usuario y contraseña', 'error'); return; }
+    if (!form.telefono.trim()) { toast('El teléfono es obligatorio (lo necesitamos para contactarte por tu pedido)', 'error'); return; }
     try { const r = await api.register(form); toast(r && r.aprobado ? '¡Cuenta creada! Ya podés ingresar.' : 'Registro enviado. Esperá la aprobación del admin.'); nav('login'); } catch (e) { toast(e.message, 'error'); }
   };
   return (
@@ -3828,7 +3830,7 @@ function RegisterPage() {
         <div className="form-group"><label className="form-label">NOMBRE COMPLETO *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">USUARIO *</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">CONTRASEÑA *</label><input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
-        <div className="form-group"><label className="form-label">TELÉFONO / WHATSAPP</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">TELÉFONO / WHATSAPP *</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">EMAIL</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">NOMBRE DE FANTASÍA</label><input value={form.nombre_fantasia} onChange={e => setForm({ ...form, nombre_fantasia: e.target.value })} placeholder="Opcional" /></div>
         <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, borderRadius: 12, background: 'var(--primary)', borderColor: 'var(--primary)' }} onClick={submit}>CREAR CUENTA</button>
@@ -7246,6 +7248,11 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       await api.updatePedido(o.id, { items: newItems, subtotal: editSubtotal, descuento: ajuste < 0 ? Math.abs(ajuste) : 0, total: editTotal });
       toast('Pedido actualizado'); setEditing(false);
       const full = await api.getPedido(o.id); setO(full); setItems((full.items || []).map(i => ({ ...i, qty: i.cantidad || 1 })));
+      // Aviso si quedaron pagos que no coinciden con el nuevo total (evita pagos fantasma)
+      const sumPagos = (pagos || []).reduce((s, pg) => s + (Number(pg.cuenta_como) || Number(pg.monto) || 0), 0);
+      if (sumPagos > 0.5 && Math.abs(sumPagos - editTotal) > 0.5) {
+        toast(`Atención: este pedido tiene pagos por ${fmtARS(sumPagos)} y el nuevo total es ${fmtARS(editTotal)}. Revisá y borrá los pagos que sobren.`, 'error');
+      }
       pedirAviso(`Hola ${o.usuario_nombre || ''}, actualizamos tu pedido #${o.id}. Cualquier duda escribinos.`);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
