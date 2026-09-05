@@ -3398,7 +3398,7 @@ function drawRedesImagen(canvas, o) {
   ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '500 27px Archivo, Arial, sans-serif';
   ctx.fillText(dominio || '', 50, H - 22);
 }
-function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, storeName, dominio, imageUrl, onClose }) {
+function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, storeName, dominio, imageUrl, url, onClose }) {
   const { toast } = useContext(Ctx);
   const canvasRef = useRef(null);
   const [formato, setFormato] = useState('feed');
@@ -3427,7 +3427,7 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
       const blob = await new Promise((res, rej) => { try { canvasRef.current.toBlob(b => b ? res(b) : rej(new Error('no blob')), 'image/png'); } catch (e) { rej(e); } });
       const file = new File([blob], `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.png`, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: producto.nombre || 'Producto', text: `${producto.nombre || ''} — ${precioStr}` });
+        await navigator.share({ files: [file], title: producto.nombre || 'Producto', text: `${producto.nombre || ''} — ${precioStr}${url ? '\n' + url : ''}`, url: url || undefined });
       } else { descargar(); }
     } catch (e) { if (e && e.name === 'AbortError') return; descargar(); }
   };
@@ -3444,9 +3444,11 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
           <canvas ref={canvasRef} style={{ width: '100%', maxWidth: formato === 'story' ? 250 : 330, borderRadius: 12, border: '1px solid var(--border)', display: 'inline-block' }} />
           {tainted && <p style={{ fontSize: 11, color: 'var(--warning, #d97706)', marginTop: 8 }}>Vista previa lista. Si la descarga falla, es por permisos del servidor de fotos.</p>}
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>{puedeCompartir ? 'Tocá “Compartir” y elegí Instagram, TikTok, Stories, etc. O descargá la imagen.' : 'Descargá la imagen y subila a tu historia o post de Instagram / Facebook / TikTok.'}</p>
+          {url && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Para historias de Instagram: subí la imagen y agregá el <b>sticker de link</b> con este enlace (copialo abajo).</p>}
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cerrar</button>
+          {url && <button className="btn btn-outline" onClick={async () => { try { await navigator.clipboard.writeText(url); toast('Link copiado'); } catch (e) { toast(url); } }}>Copiar link</button>}
           {puedeCompartir && <button className="btn btn-primary" onClick={compartir}>Compartir</button>}
           <button className={`btn ${puedeCompartir ? 'btn-outline' : 'btn-primary'}`} onClick={descargar}>Descargar</button>
         </div>
@@ -3719,7 +3721,7 @@ function ProductDetailPage() {
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
             <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>Crear imagen para redes</button>
           </div>
-          {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} onClose={() => setShowRedes(false)} />}
+          {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} url={shareUrl} onClose={() => setShowRedes(false)} />}
 
           {p.sku && !p.sku.startsWith('RXZ-') && <p className="pdp-sku">SKU: {p.sku}</p>}
           {p.notas && <div className="pdp-note">📝 {p.notas}</div>}
@@ -4377,7 +4379,7 @@ function CobrosModal({ onClose }) {
               </div>
               <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Últimos pagos</h4>
               {(!data.ultimos || data.ultimos.length === 0)
-                ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Todavía no registraste pagos. Entrá a una tienda y tocá "💰 Pagos" para registrar el primero.</div>
+                ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Todavía no registraste pagos. Entrá a una tienda y tocá "Pagos" para registrar el primero.</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {data.ultimos.map(p => (
                       <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 13 }}>
@@ -4755,7 +4757,7 @@ function AdminOwner() {
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button className="btn btn-outline" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditando(t)}>Editar</button>
-                    {t.id !== 1 && <button className="btn btn-outline" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setPagoTenant(t)}>💰 Pagos</button>}
+                    {t.id !== 1 && <button className="btn btn-outline" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setPagoTenant(t)}>Pagos</button>}
                     {t.id !== 1 && (t.estado === 'suspendido'
                       ? <button className="btn" style={{ fontSize: 12, padding: '6px 12px', background: '#16a34a', color: '#fff' }} onClick={() => cambiarEstado(t, 'activo')}>Activar</button>
                       : <button className="btn" style={{ fontSize: 12, padding: '6px 12px', background: '#dc2626', color: '#fff' }} onClick={() => cambiarEstado(t, 'suspendido')}>Suspender</button>
@@ -7443,14 +7445,14 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           </div>
 
           {/* Items */}
-          <h4>Items {!editing && <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} style={{ marginLeft: 8 }}>✏️ Editar</button>}</h4>
+          <h4>Items {!editing && <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} style={{ marginLeft: 8 }}>Editar</button>}</h4>
           {loadingItems ? <p>Cargando...</p> : (
             <table className="admin-table" style={{ marginBottom: 12 }}>
               <thead><tr><th>Producto</th><th style={{width:60}}>Cant</th><th style={{width:80}}>Precio</th><th style={{width:80}}>Subtotal</th>{editing && <th style={{width:40}}></th>}</tr></thead>
               <tbody>
                 {items.map((i, idx) => (
                   <tr key={idx}>
-                    <td>{itemName(i)}</td>
+                    <td>{itemName(i)}{i.variante_combinacion ? <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{i.variante_combinacion}</div> : null}</td>
                     <td>{editing ? <input type="number" value={i.qty} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, qty: Number(e.target.value) } : it))} style={{ width: 50 }} /> : i.qty}</td>
                     <td>{editing ? <input type="number" value={i.precio_unitario} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, precio_unitario: Number(e.target.value) } : it))} style={{ width: 70 }} /> : fmtARS(i.precio_unitario)}</td>
                     <td>{fmtARS((i.precio_unitario || 0) * (i.qty || 0))}</td>
@@ -7488,7 +7490,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
           {/* PAGOS MIXTOS */}
           <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
-            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>💰 Pagos</div>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>Pagos</div>
             {pagos.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Sin pagos registrados todavía.</p>
             ) : (
@@ -9439,7 +9441,7 @@ function AdminConfig() {
           ℹ️ El nombre, logo, favicon y WhatsApp de la tienda ahora se editan desde <strong>Personalizar tienda</strong> (con vista previa). Acá quedan solo los ajustes internos del negocio.
         </div>
         <div className="form-group"><label className="form-label">Nombre del negocio (interno, para remitos)</label><input value={c.nombre_negocio || ''} onChange={e => setC({ ...c, nombre_negocio: e.target.value })} /></div>
-        <div className="form-group"><label className="form-label">📧 Email para avisos de venta</label><input type="email" value={c.email_ventas || ''} onChange={e => setC({ ...c, email_ventas: e.target.value })} placeholder="tucorreo@gmail.com" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Te llega un mail cada vez que entra una venta online, con link directo a la orden. En el celular la app de mail te avisa.</small></div>
+        <div className="form-group"><label className="form-label">Email para avisos de venta</label><input type="email" value={c.email_ventas || ''} onChange={e => setC({ ...c, email_ventas: e.target.value })} placeholder="tucorreo@gmail.com" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Te llega un mail cada vez que entra una venta online, con link directo a la orden. En el celular la app de mail te avisa.</small></div>
         <div className="form-group"><label className="form-label">Lista para vitrina (mayorista sin login)</label>
           <select value={c.vitrina_lista || ''} onChange={e => setC({ ...c, vitrina_lista: e.target.value })}>
             <option value="">Sin vitrina</option>{listas.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
