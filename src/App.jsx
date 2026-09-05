@@ -2896,7 +2896,7 @@ function PedidoExitoModal({ exito, config, onClose }) {
     <div className="modal-overlay" style={{ zIndex: 3500 }}>
       <div className="modal" style={{ maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
         <div className="modal-body" style={{ padding: '32px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 58, marginBottom: 8 }}>✅</div>
+          <div style={{ marginBottom: 8 }}><CheckCircle size={58} color="var(--success, #16a34a)" strokeWidth={2.5} style={{ display: 'inline-block' }} /></div>
           <h2 style={{ fontSize: 23, fontWeight: 900, margin: '0 0 4px' }}>¡Pedido confirmado!</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 16px' }}>Anotá tu número de pedido</p>
           <div style={{ background: 'var(--bg-card)', borderRadius: 14, padding: '16px 20px', marginBottom: 14 }}>
@@ -2905,7 +2905,7 @@ function PedidoExitoModal({ exito, config, onClose }) {
             <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>Total: {fmtARS(exito.total)}</div>
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>Enviános el pedido por WhatsApp y coordinamos el pago y la entrega al toque.</p>
-          {waUrl ? <a className="btn btn-success" href={waUrl} target="_blank" rel="noopener noreferrer" style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 800, marginBottom: 10, display: 'block' }}>📱 Enviar pedido por WhatsApp</a> : null}
+          {waUrl ? <a className="btn btn-success" href={waUrl} target="_blank" rel="noopener noreferrer" style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 800, marginBottom: 10, display: 'block' }}>Enviar pedido por WhatsApp</a> : null}
           <button className="btn btn-outline" onClick={onClose} style={{ width: '100%', padding: 12 }}>Volver a la tienda</button>
         </div>
       </div>
