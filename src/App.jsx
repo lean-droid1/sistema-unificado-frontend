@@ -3408,10 +3408,12 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
   const [tainted, setTainted] = useState(false);
   useEffect(() => {
     if (!imageUrl) { setImgEl(null); return; }
+    // Traer la foto por el proxy propio (evita el bloqueo CORS al descargar)
+    const src = /^https?:\/\//i.test(imageUrl) ? ('/api/img?url=' + encodeURIComponent(imageUrl)) : imageUrl;
     const im = new Image(); im.crossOrigin = 'anonymous';
     im.onload = () => { setImgEl(im); setTainted(false); };
     im.onerror = () => { const im2 = new Image(); im2.onload = () => { setImgEl(im2); setTainted(true); }; im2.onerror = () => setImgEl(null); im2.src = imageUrl; };
-    im.src = imageUrl;
+    im.src = src;
   }, [imageUrl]);
   useEffect(() => {
     const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, imgEl, nombre: producto.nombre || producto.modelo || '', precioStr, precioViejo, envioGratis, storeName, dominio }); };
