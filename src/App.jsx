@@ -2672,8 +2672,10 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
 
   const validarPaso = () => {
     if (pasoActual === 'Contacto') {
-      if (!contacto.nombre.trim()) { toast('Poné el nombre', 'error'); return false; }
-      if (!contacto.telefono.trim()) { toast('Poné un teléfono de contacto', 'error'); return false; }
+      if (!contacto.nombre.trim() || contacto.nombre.trim().length < 3) { toast('Poné tu nombre completo', 'error'); return false; }
+      const telDigitos = (contacto.telefono || '').replace(/\D/g, '');
+      if (telDigitos.length < 8) { toast('Poné un teléfono válido, con característica (ej: 11 2345 6789)', 'error'); return false; }
+      if (contacto.email && contacto.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contacto.email.trim())) { toast('El email no es válido', 'error'); return false; }
     }
     if (pasoActual === 'Entrega') {
       // Validar dirección solo si es envío
@@ -3817,7 +3819,8 @@ function RegisterPage() {
   const [form, setForm] = useState({ nombre: '', usuario: '', password: '', telefono: '', email: '', nombre_fantasia: '' });
   const submit = async () => {
     if (!form.nombre.trim() || !form.usuario.trim() || !form.password) { toast('Completá nombre, usuario y contraseña', 'error'); return; }
-    if (!form.telefono.trim()) { toast('El teléfono es obligatorio (lo necesitamos para contactarte por tu pedido)', 'error'); return; }
+    if ((form.telefono || '').replace(/\D/g, '').length < 8) { toast('Poné un teléfono válido, con característica (ej: 11 2345 6789)', 'error'); return; }
+    if (!form.email.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())) { toast('Poné un email válido', 'error'); return; }
     try { const r = await api.register(form); toast(r && r.aprobado ? '¡Cuenta creada! Ya podés ingresar.' : 'Registro enviado. Esperá la aprobación del admin.'); nav('login'); } catch (e) { toast(e.message, 'error'); }
   };
   return (
@@ -3831,7 +3834,7 @@ function RegisterPage() {
         <div className="form-group"><label className="form-label">USUARIO *</label><input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">CONTRASEÑA *</label><input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">TELÉFONO / WHATSAPP *</label><input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
-        <div className="form-group"><label className="form-label">EMAIL</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">EMAIL *</label><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">NOMBRE DE FANTASÍA</label><input value={form.nombre_fantasia} onChange={e => setForm({ ...form, nombre_fantasia: e.target.value })} placeholder="Opcional" /></div>
         <button className="btn btn-primary" style={{ width: '100%', marginTop: 16, padding: 14, borderRadius: 12, background: 'var(--primary)', borderColor: 'var(--primary)' }} onClick={submit}>CREAR CUENTA</button>
         <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>¿Ya tenés cuenta? <a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: 'var(--primary)', fontWeight: 700 }}>Iniciá sesión</a></p>
