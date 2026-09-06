@@ -17,6 +17,30 @@ const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 
 // Un ítem del carrito es en cripto/dólar si su variante quedó marcada así
 const esUSDT = (i) => !!i && (i.variante_moneda === 'USDT' || i.variante_moneda === 'USD');
 const monedaItem = (i) => (i && i.variante_moneda) || 'ARS';
+// ─── PROMOCIONES: helper compartido (se aplica en toda la tienda) ───
+function promoDe(product, promos, seccionId) {
+  if (!product || !promos || !promos.length) return null;
+  const secId = seccionId != null ? String(seccionId) : (product.seccion_id != null ? String(product.seccion_id) : '');
+  return promos.find(pr => {
+    const secs = String(pr.secciones_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    const aplicaSec = !secs.length || (secId && secs.includes(secId));
+    const prods = String(pr.productos_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    const aplicaProd = !prods.length || prods.includes(String(product.id));
+    const aplicaCat = !pr.categoria || pr.categoria === product.categoria;
+    return aplicaSec && aplicaProd && aplicaCat;
+  }) || null;
+}
+// Aplica la promo a un precio base en pesos. Devuelve {final, original, pct, nombre} o null.
+function aplicarPromo(base, product, promos, seccionId, moneda) {
+  if ((moneda && moneda !== 'ARS') || !(base > 0)) return null;
+  const pr = promoDe(product, promos, seccionId);
+  if (!pr) return null;
+  let final = base;
+  if (pr.tipo === 'porcentaje') final = Math.round(base * (1 - Number(pr.valor) / 100));
+  else if (pr.tipo === 'monto_fijo') final = Math.max(0, base - Number(pr.valor));
+  if (final >= base) return null;
+  return { final, original: base, pct: Math.round((1 - final / base) * 100), nombre: pr.nombre };
+}
 
 // ─── SEO: meta tags dinámicos por página ───
 function upsertMeta(selector, attr, key, content) {
@@ -572,6 +596,8 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [notifyProduct, setNotifyProduct] = useState(null);
+  const [promosGlobal, setPromosGlobal] = useState([]);
+  useEffect(() => { api.getPromocionesActivas().then(pr => setPromosGlobal(Array.isArray(pr) ? pr : [])).catch(() => {}); }, []);
   const [menuItems, setMenuItems] = useState([]);
   const [redesSociales, setRedesSociales] = useState([]);
   const [badges, setBadges] = useState([]);
@@ -977,7 +1003,7 @@ export default function App() {
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
     testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); },
     globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch,
-    notifyProduct, setNotifyProduct
+    notifyProduct, setNotifyProduct, promos: promosGlobal
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
@@ -2056,7 +2082,7 @@ function ComerciappLanding({ onLogin, onRegister }) {
 }
 
 function Landing() {
-  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct } = useContext(Ctx);
+  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct, promos } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
   const [secProds, setSecProds] = useState({});
   const [sliders, setSliders] = useState([]);
@@ -2106,6 +2132,8 @@ function Landing() {
     const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
     const tieneOferta = p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
     const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
+    const efectivo = tieneOferta ? Number(p.precio_oferta) : Number(precio);
+    const promoInfo = !p.usa_variantes ? aplicarPromo(efectivo, p, promos, secId, 'ARS') : null;
     const umbralGratis = Number(config?.[`envio_gratis_desde_${secId}`]) || 0;
     const precioRefGratis = tieneOferta ? Number(p.precio_oferta) : Number(precio);
     const envioGratisCard = p.envio_gratis || (umbralGratis > 0 && precioRefGratis >= umbralGratis);
@@ -2126,8 +2154,8 @@ function Landing() {
             ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
-          {tieneOferta && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{descPct}% OFF</span>}
-          {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 10 + (tieneOferta ? 30 : 0), left: 10, background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
+          {(tieneOferta || promoInfo) && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{tieneOferta ? descPct : promoInfo.pct}% OFF</span>}
+          {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 10 + ((tieneOferta || promoInfo) ? 30 : 0), left: 10, background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
           {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10 + (tieneOferta ? 30 : 0) + (envioGratisCard ? 30 : 0), left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
           {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
           {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--warning)', color: '#000', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
@@ -2136,7 +2164,12 @@ function Landing() {
           <div className="product-cat">{p.categoria || ''}</div>
           <div className="product-name" style={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>{p.nombre || p.modelo}</div>
           <div style={{ marginBottom: 8 }}>
-            {tieneOferta ? (
+            {promoInfo ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(efectivo)}</span>
+                <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(promoInfo.final)}</span>
+              </div>
+            ) : tieneOferta ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
                 <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
@@ -2447,16 +2480,8 @@ function SectionPage() {
     if (esDropshipping && user?.es_revendedor && user.descuento_revendedor > 0) {
       return { original: precio, final: Math.round(precio * (1 - user.descuento_revendedor / 100)), descuento: user.descuento_revendedor, esRevendedor: true };
     }
-    for (const promo of promos) {
-      const aplicaProd = !promo.productos_ids || promo.productos_ids.split(',').map(Number).includes(p.id);
-      const aplicaCat = !promo.categoria || promo.categoria === p.categoria;
-      if (aplicaProd && aplicaCat) {
-        const orig = precio;
-        if (promo.tipo === 'porcentaje') precio = Math.round(precio * (1 - promo.valor / 100));
-        else if (promo.tipo === 'monto_fijo') precio = Math.max(0, precio - promo.valor);
-        if (precio !== orig) return { original: orig, final: precio, descuento: Math.round((1 - precio / orig) * 100), promo: promo.nombre };
-      }
-    }
+    const promoInfo = aplicarPromo(precio, p, promos, p.seccion_id || sec?.id, 'ARS');
+    if (promoInfo) return { original: promoInfo.original, final: promoInfo.final, descuento: promoInfo.pct, promo: promoInfo.nombre };
     return { original: null, final: precio };
   };
 
@@ -3472,6 +3497,7 @@ function ProductDetailPage() {
   const [qty, setQty] = useState(1);
   const [metodosPago, setMetodosPago] = useState([]);
   const [gallery, setGallery] = useState([]);
+  const [promos, setPromos] = useState([]);
   const [variantes, setVariantes] = useState([]);
   const [atributos, setAtributos] = useState([]);
   const [selOpts, setSelOpts] = useState({});
@@ -3499,6 +3525,7 @@ function ProductDetailPage() {
       setSelOpts({});
     }).catch(() => { setUsaVariantes(false); setAtributos([]); setVariantes([]); });
     if (user) api.getFavoritos().then(favs => setIsFav(favs.some(f => f.producto_id === p.id))).catch(() => {});
+    api.getPromocionesActivas(p.seccion_id || sec?.id).then(pr => setPromos(pr || [])).catch(() => setPromos([]));
   }, [p?.id, sec?.id]);
 
   if (!p) return <Landing />;
@@ -3510,9 +3537,13 @@ function ProductDetailPage() {
   const fullSel = tieneVariantes && atributos.length > 0 && atributos.every(a => selOpts[a.nombre]);
   const matched = fullSel ? variantes.find(v => atributos.every(a => (v.combinacion || {})[a.nombre] === selOpts[a.nombre])) : null;
   const varMin = variantes.length ? variantes.reduce((m, v) => varPrecio(v) < varPrecio(m) ? v : m, variantes[0]) : null;
-  const precioFinal = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : (p.precioFinal || precioBase));
+  const precioSinPromo = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : (p.precioFinal || precioBase));
   const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : 'ARS');
-  const precioOriginal = p.precioOriginal;
+  // Promoción activa (helper compartido, respeta sección/categoría/productos; solo pesos)
+  const promoInfoProd = aplicarPromo(precioSinPromo, p, promos, p.seccion_id || sec?.id, monedaFinal);
+  let precioFinal = promoInfoProd ? promoInfoProd.final : precioSinPromo;
+  const hayPromo = !!promoInfoProd;
+  const precioOriginal = hayPromo ? precioSinPromo : p.precioOriginal;
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const umbralGratis = Number(config['envio_gratis_desde_' + (p.seccion_id || sec?.id)]) || 0;
   const envioGratisProd = !p.excluir_envio_gratis && (!!p.envio_gratis || (umbralGratis > 0 && precioFinal >= umbralGratis));
@@ -9210,7 +9241,7 @@ function AdminSlider() {
 // SEARCH RESULTS PAGE
 // ═══════════════════════════════════════════════════════════
 function SearchResultsPage() {
-  const { globalSearch, setGlobalSearch, globalResults, doGlobalSearch, nav, toast, addToCart, getPrice, userLista, config, user, secciones } = useContext(Ctx);
+  const { globalSearch, setGlobalSearch, globalResults, doGlobalSearch, nav, toast, addToCart, getPrice, userLista, config, user, secciones, promos } = useContext(Ctx);
   const [favIds, setFavIds] = useState(new Set());
   useEffect(() => { if (user) api.getFavoritos().then(fs => setFavIds(new Set(fs.map(f => f.producto_id)))).catch(() => {}); }, [user]);
   const toggleFav = async (pid) => { try { if (favIds.has(pid)) { await api.removeFavorito(pid); setFavIds(prev => { const n = new Set(prev); n.delete(pid); return n; }); toast('Quitado de favoritos'); } else { await api.addFavorito(pid); setFavIds(prev => new Set(prev).add(pid)); toast('Agregado a favoritos'); } } catch {} };
@@ -9240,6 +9271,8 @@ function SearchResultsPage() {
               {r.productos.map(p => {
                 const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
                 const tieneOferta = p.precio_oferta && Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base);
+                const efectivo = tieneOferta ? Number(p.precio_oferta) : Number(precio);
+                const promoInfo = !p.usa_variantes ? aplicarPromo(efectivo, p, promos, sec.id, 'ARS') : null;
                 const sinStock = p.stock === 0 && !p.permitir_sin_stock && !p.es_digital;
                 return (
                   <div key={p.id} className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -9254,7 +9287,12 @@ function SearchResultsPage() {
                       <div className="product-cat">{p.categoria || ''}</div>
                       <div className="product-name" style={{ flex: 1, cursor: 'pointer', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>{p.nombre || p.modelo}</div>
                       <div style={{ marginBottom: 8 }}>
-                        {tieneOferta ? (
+                        {promoInfo ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(efectivo)}</span>
+                            <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(promoInfo.final)}</span>
+                          </div>
+                        ) : tieneOferta ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
                             <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
