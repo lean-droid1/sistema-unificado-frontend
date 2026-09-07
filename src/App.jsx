@@ -3624,6 +3624,7 @@ function ProductDetailPage() {
         <div className="pdp-info">
           <div className="pdp-cat">{p.categoria}</div>
           <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
+          {user?.rol === 'admin' && <div style={{ fontSize: 11, color: '#e11', border: '1px dashed #e11', borderRadius: 6, padding: '4px 8px', margin: '4px 0' }}>debug promo → cantidad: {promos.length} · match: {promoInfoProd ? 'SÍ (' + promoInfoProd.pct + '%)' : 'NO'} · secProducto: {String(p.seccion_id)} · secsPromo: [{promos.map(x => x.secciones_ids).join(' | ')}]</div>}
 
           <div className="pdp-price">
             {tieneVariantes && !matched ? (
