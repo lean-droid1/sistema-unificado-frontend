@@ -18,28 +18,25 @@ const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 
 const esUSDT = (i) => !!i && (i.variante_moneda === 'USDT' || i.variante_moneda === 'USD');
 const monedaItem = (i) => (i && i.variante_moneda) || 'ARS';
 // ─── PROMOCIONES: helper compartido (se aplica en toda la tienda) ───
-function promoDe(product, promos, seccionId) {
-  if (!product || !promos || !promos.length) return null;
-  const secId = seccionId != null ? String(seccionId) : (product.seccion_id != null ? String(product.seccion_id) : '');
-  return promos.find(pr => {
-    const secs = String(pr.secciones_ids || '').split(',').map(s => s.trim()).filter(Boolean);
-    const aplicaSec = !secs.length || (secId && secs.includes(secId));
-    const prods = String(pr.productos_ids || '').split(',').map(s => s.trim()).filter(Boolean);
-    const aplicaProd = !prods.length || prods.includes(String(product.id));
-    const aplicaCat = !pr.categoria || pr.categoria === product.categoria;
-    return aplicaSec && aplicaProd && aplicaCat;
-  }) || null;
-}
-// Aplica la promo a un precio base en pesos. Devuelve {final, original, pct, nombre} o null.
+// Entre TODAS las promos que aplican (sección/categoría/producto) elige la que MÁS baja el precio.
+// Ignora las de envío gratis (no afectan el precio). Solo pesos.
 function aplicarPromo(base, product, promos, seccionId, moneda) {
-  if ((moneda && moneda !== 'ARS') || !(base > 0)) return null;
-  const pr = promoDe(product, promos, seccionId);
-  if (!pr) return null;
-  let final = base;
-  if (pr.tipo === 'porcentaje') final = Math.round(base * (1 - Number(pr.valor) / 100));
-  else if (pr.tipo === 'monto_fijo') final = Math.max(0, base - Number(pr.valor));
-  if (final >= base) return null;
-  return { final, original: base, pct: Math.round((1 - final / base) * 100), nombre: pr.nombre };
+  if ((moneda && moneda !== 'ARS') || !(base > 0) || !product || !promos || !promos.length) return null;
+  const secId = seccionId != null ? String(seccionId) : (product.seccion_id != null ? String(product.seccion_id) : '');
+  let mejor = null;
+  for (const pr of promos) {
+    if (pr.tipo !== 'porcentaje' && pr.tipo !== 'monto_fijo') continue;
+    const secs = String(pr.secciones_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (secs.length && !(secId && secs.includes(secId))) continue;
+    const prods = String(pr.productos_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (prods.length && !prods.includes(String(product.id))) continue;
+    if (pr.categoria && pr.categoria !== product.categoria) continue;
+    let final = base;
+    if (pr.tipo === 'porcentaje') final = Math.round(base * (1 - Number(pr.valor) / 100));
+    else if (pr.tipo === 'monto_fijo') final = Math.max(0, base - Number(pr.valor));
+    if (final < base && (!mejor || final < mejor.final)) mejor = { final, original: base, pct: Math.round((1 - final / base) * 100), nombre: pr.nombre };
+  }
+  return mejor;
 }
 
 // ─── SEO: meta tags dinámicos por página ───
@@ -3624,7 +3621,6 @@ function ProductDetailPage() {
         <div className="pdp-info">
           <div className="pdp-cat">{p.categoria}</div>
           <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
-          {user?.rol === 'admin' && <div style={{ fontSize: 11, color: '#e11', border: '1px dashed #e11', borderRadius: 6, padding: '4px 8px', margin: '4px 0' }}>debug promo → cantidad: {promos.length} · match: {promoInfoProd ? 'SÍ (' + promoInfoProd.pct + '%)' : 'NO'} · secProducto: {String(p.seccion_id)} · secsPromo: [{promos.map(x => x.secciones_ids).join(' | ')}]</div>}
 
           <div className="pdp-price">
             {tieneVariantes && !matched ? (
@@ -7225,7 +7221,10 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   // Pagos mixtos: cuenta_como = lo que tacha de la deuda, recibido = plata real
   const totalSaldado = pagos.reduce((s, p) => s + Number(p.cuenta_como || 0), 0);
   const totalRecibido = pagos.reduce((s, p) => s + Number(p.recibido || 0), 0);
-  const saldoPedido = Number(o.total || 0) - totalSaldado;
+  // Total real reconstruido desde los ítems (fuente de verdad). El o.total guardado puede quedar corrupto.
+  const totalItems = (items || []).reduce((s, i) => s + Number(i.precio_unitario || i.precio_base || 0) * Number(i.cantidad || i.qty || 1), 0);
+  const totalPedido = totalItems > 0 ? (totalItems - Number(o.descuento || 0) + Number(o.costo_envio || 0)) : Number(o.total || 0);
+  const saldoPedido = totalPedido - totalSaldado;
   const ajustesMetodo = parseJSON(config.ajustes_metodo) || {};
   const previewRecibido = (() => { const cta = Number(nuevoPago.cuenta_como) || 0; const pct = Number(nuevoPago.ajuste_pct) || 0; return Math.round(cta * (1 + pct / 100)); })();
   const cargarPagos = async () => { try { const p = await api.getPagos(o.id); setPagos(p || []); } catch {} };
@@ -8345,15 +8344,15 @@ function AdminPromociones() {
   const [promos, setPromos] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [edit, setEdit] = useState(null);
-  const [form, setForm] = useState({ nombre: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', productos_ids: '' });
+  const [form, setForm] = useState({ nombre: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', productos_ids: '', fecha_desde: '', fecha_hasta: '' });
   const [prodSearch, setProdSearch] = useState('');
   const [prodResults, setProdResults] = useState([]);
   const [selProds, setSelProds] = useState([]);
 
   useEffect(() => { api.getPromociones().then(setPromos); }, []);
 
-  const openNew = () => { setEdit(null); setForm({ nombre: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', productos_ids: '' }); setSelProds([]); setShowForm(true); };
-  const openEdit = (p) => { setEdit(p); setForm({ nombre: p.nombre, tipo: p.tipo, valor: p.valor, secciones_ids: p.secciones_ids || '', categoria: p.categoria || '', productos_ids: p.productos_ids || '' }); setSelProds([]); setShowForm(true); };
+  const openNew = () => { setEdit(null); setForm({ nombre: '', tipo: 'porcentaje', valor: 0, secciones_ids: '', categoria: '', productos_ids: '', fecha_desde: '', fecha_hasta: '' }); setSelProds([]); setShowForm(true); };
+  const openEdit = (p) => { setEdit(p); setForm({ nombre: p.nombre, tipo: p.tipo, valor: p.valor, secciones_ids: p.secciones_ids || '', categoria: p.categoria || '', productos_ids: p.productos_ids || '', fecha_desde: (p.fecha_desde || '').slice(0,10), fecha_hasta: (p.fecha_hasta || '').slice(0,10) }); setSelProds([]); setShowForm(true); };
 
   const searchProds = async (q) => { setProdSearch(q); if (q.length >= 2) { const r = await api.buscarProductosAdmin(q); setProdResults(r); } else setProdResults([]); };
 
@@ -8410,6 +8409,11 @@ function AdminPromociones() {
                 {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 120, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '4px 8px', cursor: 'pointer', fontSize: 13 }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span>📦</span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
                 {selProds.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>{selProds.map(p => <span key={p.id} style={{ background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontSize: 12, cursor: 'pointer' }} onClick={() => setSelProds(selProds.filter(sp => sp.id !== p.id))}>{p.nombre || p.modelo} ✕</span>)}</div>}
               </div>
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Desde (opcional)</label><input type="date" value={form.fecha_desde} onChange={e => setForm({ ...form, fecha_desde: e.target.value })} /></div>
+                <div className="form-group"><label className="form-label">Hasta (opcional)</label><input type="date" value={form.fecha_hasta} onChange={e => setForm({ ...form, fecha_hasta: e.target.value })} /></div>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: -4 }}>Dejá las fechas vacías para que la promo esté siempre activa. Poné una fecha de fin para una promo puntual.</p>
             </div>
             <div className="modal-footer"><button className="btn btn-outline" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div>
           </div>
