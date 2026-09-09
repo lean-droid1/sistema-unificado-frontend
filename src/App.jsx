@@ -2671,7 +2671,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
   });
   const [entrega, setEntrega] = useState({
     tipo: (typeof localStorage !== 'undefined' && localStorage.getItem('gm_entrega_tipo')) || 'retiro', // 'retiro' | 'envio'
-    calle: '', numero: '', piso: '', localidad: '', cp: '',
+    calle: '', numero: '', piso: '', localidad: '', cp: '', dni: '',
   });
   const [facturacion, setFacturacion] = useState({
     necesita: false, tipo: 'consumidor_final', razon_social: user?.nombre_fantasia || user?.nombre || '',
@@ -2704,6 +2704,9 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
       if (entrega.tipo === 'envio') {
         if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim() || !entrega.cp.trim()) {
           toast('Completá la dirección de envío (calle, número, localidad y código postal)', 'error'); return false;
+        }
+        if (!entrega.dni || (entrega.dni + '').replace(/\D/g, '').length < 7) {
+          toast('Poné el DNI de quien recibe (lo exige el correo para el envío)', 'error'); return false;
         }
       }
       // Compra mínima:
@@ -2794,6 +2797,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
                     <div className="form-group" style={{ flex: 2 }}><label className="form-label">Localidad *</label><input value={entrega.localidad} onChange={e => setEntrega({ ...entrega, localidad: e.target.value })} /></div>
                   </div>
                   <div className="form-group"><label className="form-label">Código postal *</label><input value={entrega.cp} onChange={e => setEntrega({ ...entrega, cp: e.target.value })} style={{ maxWidth: 160 }} /></div>
+                  <div className="form-group"><label className="form-label">DNI de quien recibe *</label><input value={entrega.dni} onChange={e => setEntrega({ ...entrega, dni: e.target.value })} placeholder="Sin puntos" style={{ maxWidth: 200 }} /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>El correo lo pide para entregar el paquete.</small></div>
                   {envioTotal > 0 && <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>Costo de envío estimado: {fmtARS(envioTotal)}</p>}
                 </div>
               )}
@@ -2888,7 +2892,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
               )}
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 <div><strong>Contacto:</strong> {contacto.nombre} · {contacto.telefono}</div>
-                <div><strong>Entrega:</strong> {entrega.tipo === 'retiro' ? 'Retiro en el local' : `Envío a ${entrega.calle} ${entrega.numero}${entrega.piso ? ` (${entrega.piso})` : ''}, ${entrega.localidad} (CP ${entrega.cp})`}</div>
+                <div><strong>Entrega:</strong> {entrega.tipo === 'retiro' ? 'Retiro en el local' : `Envío a ${entrega.calle} ${entrega.numero}${entrega.piso ? ` (${entrega.piso})` : ''}, ${entrega.localidad} (CP ${entrega.cp})${entrega.dni ? ` · DNI ${entrega.dni}` : ''}`}</div>
                 <div><strong>Pago:</strong> {metodoPago}</div>
                 {facturacion.necesita && <div><strong>Factura:</strong> {facturacion.razon_social} · {facturacion.cuit_dni}</div>}
               </div>
@@ -7345,7 +7349,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const _dEnvio = datosEnvio; const _dFact = datosFact;
     let entregaLinea = `${o.tipo_entrega === 'retiro' ? 'Retiro en local' : 'Envío'}${o.direccion ? ` — ${o.direccion}` : ''}`;
     if (_dEnvio?.entrega) {
-      if (_dEnvio.entrega.tipo === 'envio') entregaLinea = `Envío a: ${_dEnvio.entrega.calle} ${_dEnvio.entrega.numero}${_dEnvio.entrega.piso ? `, ${_dEnvio.entrega.piso}` : ''}, ${_dEnvio.entrega.localidad} (CP ${_dEnvio.entrega.cp})`;
+      if (_dEnvio.entrega.tipo === 'envio') entregaLinea = `Envío a: ${_dEnvio.entrega.calle} ${_dEnvio.entrega.numero}${_dEnvio.entrega.piso ? `, ${_dEnvio.entrega.piso}` : ''}, ${_dEnvio.entrega.localidad} (CP ${_dEnvio.entrega.cp})${_dEnvio.entrega.dni ? ` · DNI ${_dEnvio.entrega.dni}` : ''}`;
       else entregaLinea = 'Retiro en el local';
     }
     const contactoLinea = _dEnvio?.contacto ? `${_dEnvio.contacto.nombre || ''}${_dEnvio.contacto.telefono ? ` · ${_dEnvio.contacto.telefono}` : ''}` : '';
@@ -7624,7 +7628,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
                 <div style={{ marginBottom: datosFact ? 8 : 0 }}>
                   <strong>{datosEnvio.entrega.tipo === 'envio' ? '📦 Envío a:' : '🏪 Retiro en el local'}</strong>
                   {datosEnvio.entrega.tipo === 'envio' && (
-                    <span> {datosEnvio.entrega.calle} {datosEnvio.entrega.numero}{datosEnvio.entrega.piso ? `, ${datosEnvio.entrega.piso}` : ''}, {datosEnvio.entrega.localidad} (CP {datosEnvio.entrega.cp})</span>
+                    <span> {datosEnvio.entrega.calle} {datosEnvio.entrega.numero}{datosEnvio.entrega.piso ? `, ${datosEnvio.entrega.piso}` : ''}, {datosEnvio.entrega.localidad} (CP {datosEnvio.entrega.cp}){datosEnvio.entrega.dni ? ` · DNI ${datosEnvio.entrega.dni}` : ''}</span>
                   )}
                 </div>
               )}
