@@ -2938,7 +2938,7 @@ function PedidoExitoModal({ exito, config, onClose }) {
 }
 
 function CartPage() {
-  const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
+  const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config, getPrice, userLista, promos } = useContext(Ctx);
   const [cupon, setCupon] = useState('');
   const [descuento, setDescuento] = useState(0);
   const [metodoPago, setMetodoPago] = useState('');
@@ -2977,7 +2977,12 @@ function CartPage() {
             const esVar = !!it.variante_id;
             const sinStock = !prod.permitir_sin_stock && !prod.es_digital && Number(prod.stock) < it.qty;
             const precioViejo = Number(it.precio_unitario || it.precio_base);
-            const precioNuevo = esVar ? Number(it.precio_unitario || it.precio_base) : Number(prod.precio_base);
+            const precioNuevo = esVar ? Number(it.precio_unitario || it.precio_base) : (() => {
+              let base = getPrice ? Number(getPrice(prod.precio_base, userLista, prod.id)) : Number(prod.precio_base);
+              if (Number(prod.precio_oferta) > 0 && Number(prod.precio_oferta) < base) base = Number(prod.precio_oferta);
+              const pInfo = aplicarPromo(base, prod, promos, prod.seccion_id, 'ARS');
+              return pInfo ? pInfo.final : base;
+            })();
             if (sinStock) {
               if (Number(prod.stock) <= 0) { cambios.push(`"${prod.nombre || prod.modelo}" se quedó sin stock y se quitó`); continue; }
               cambios.push(`"${prod.nombre || prod.modelo}": solo quedan ${prod.stock}, se ajustó la cantidad`);
