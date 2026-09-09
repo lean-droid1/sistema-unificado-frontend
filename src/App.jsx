@@ -3041,6 +3041,7 @@ function CartPage() {
 
   const subtotal = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
   const subtotalUSDT = allItems.filter(i => esUSDT(i)).reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+  const ahorroDesc = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + Math.max(0, Number(i.precio_base || 0) - Number(i.precio_unitario || 0)) * i.qty, 0);
   // Solo contar el envío de secciones que REALMENTE tienen items en el carrito
   // (evita costos fantasma de una sección que quedó en el estado tras vaciarse).
   const seccionesConItemsIds = new Set(allItems.map(i => i.seccion_id));
@@ -3284,7 +3285,7 @@ function CartPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{i.nombre || i.modelo}</div>
                   {i.variante_label && <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>{i.variante_label}</div>}
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {fmtMon(i.precio_unitario || i.precio_base, monedaItem(i))} c/u</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {Number(i.precio_base) > Number(i.precio_unitario) && !esUSDT(i) ? <><span style={{ textDecoration: 'line-through' }}>{fmtARS(i.precio_base)}</span> <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{fmtARS(i.precio_unitario)}</span></> : fmtMon(i.precio_unitario || i.precio_base, monedaItem(i))} c/u</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
@@ -3344,6 +3345,7 @@ function CartPage() {
             })}
           </div>
         )}
+        {ahorroDesc > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuentos aplicados</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(ahorroDesc)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
         {costoEnvioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Envío</span><span style={{ fontWeight: 700 }}>{fmtARS(costoEnvioTotal)}</span></div>}
         {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuento</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(descuento)}</span></div>}
@@ -7502,7 +7504,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
                   <tr key={idx}>
                     <td>{itemName(i)}{i.variante_combinacion ? <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{i.variante_combinacion}</div> : null}</td>
                     <td>{editing ? <input type="number" value={i.qty} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, qty: Number(e.target.value) } : it))} style={{ width: 50 }} /> : i.qty}</td>
-                    <td>{editing ? <input type="number" value={i.precio_unitario} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, precio_unitario: Number(e.target.value) } : it))} style={{ width: 70 }} /> : fmtARS(i.precio_unitario)}</td>
+                    <td>{editing ? <input type="number" value={i.precio_unitario} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, precio_unitario: Number(e.target.value) } : it))} style={{ width: 70 }} /> : (Number(i.precio_base) > Number(i.precio_unitario) ? <div><span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 12 }}>{fmtARS(i.precio_base)}</span> <span style={{ fontWeight: 700 }}>{fmtARS(i.precio_unitario)}</span><div style={{ fontSize: 11, color: 'var(--success)' }}>-{Math.round((1 - Number(i.precio_unitario) / Number(i.precio_base)) * 100)}% aplicado</div></div> : fmtARS(i.precio_unitario))}</td>
                     <td>{fmtARS((i.precio_unitario || 0) * (i.qty || 0))}</td>
                     {editing && <td><button className="btn btn-danger btn-sm" onClick={() => setItems(items.filter((_, j) => j !== idx))} style={{ padding: '2px 6px' }}>✕</button></td>}
                   </tr>
