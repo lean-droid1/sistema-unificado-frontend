@@ -15,19 +15,30 @@ function resolveTenant(host, tienda) {
   return '';
 }
 
+function ogImage(url) {
+  if (!url) return '';
+  // Cloudinary: servir una versión liviana y en formato JPG (WhatsApp/FB no cargan las originales pesadas)
+  if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
+    return url.replace('/upload/', '/upload/w_1200,h_630,c_pad,b_white,q_auto:good,f_jpg/');
+  }
+  return url;
+}
 function render(res, { title, desc, image, canonical, type, price, storeName }) {
+  const img = ogImage(image);
   const html = `<!DOCTYPE html><html><head>
 <meta charset="utf-8">
 <meta property="og:type" content="${type || 'website'}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
-<meta property="og:image" content="${esc(image)}">
+<meta property="og:image" content="${esc(img)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="og:url" content="${esc(canonical)}">
 <meta property="og:site_name" content="${esc(storeName)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(desc)}">
-<meta name="twitter:image" content="${esc(image)}">
+<meta name="twitter:image" content="${esc(img)}">
 ${price > 0 ? `<meta property="product:price:amount" content="${price}"><meta property="product:price:currency" content="ARS">` : ''}
 <title>${esc(title)}${storeName ? ' — ' + esc(storeName) : ''}</title>
 </head><body>
