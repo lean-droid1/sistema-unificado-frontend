@@ -14,6 +14,15 @@ const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits:
 const fmtARS = n => `$${fmt(n)}`;
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
 const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
+// --- Blindaje de precios/totales (evita totales x100 por data vieja o corrupta) ---
+const puItem = (i) => {
+  const base = Number(i?.precio_base) || 0;
+  const pu = Number(i?.precio_unitario ?? base) || 0;
+  if (base > 0 && pu > base * 5) return base;
+  return pu > 0 ? pu : base;
+};
+const envioSano = (costo, sub) => { const c = Math.max(0, Number(costo) || 0); return c <= Math.max(300000, Number(sub) || 0) ? c : 0; };
+const descSano = (desc, sub) => Math.min(Math.max(0, Number(desc) || 0), Math.max(0, Number(sub) || 0));
 // Un ítem del carrito es en cripto/dólar si su variante quedó marcada así
 const esUSDT = (i) => !!i && (i.variante_moneda === 'USDT' || i.variante_moneda === 'USD');
 const monedaItem = (i) => (i && i.variante_moneda) || 'ARS';
@@ -640,7 +649,7 @@ export default function App() {
     const items = Object.entries(cart).flatMap(([secId, its]) => Array.isArray(its) ? its.filter(i => i.qty > 0).map(i => ({ ...i, seccion_id: Number(secId) })) : []);
     if (!user || !items.length) return;
     abandonoTimer.current = setTimeout(() => {
-      const total = items.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+      const total = items.reduce((s, i) => s + puItem(i) * i.qty, 0);
       api.guardarCarritoAbandonado({
         usuario_id: user.id, email: user.email || '', telefono: user.telefono || user.whatsapp || '',
         items: items.map(i => ({ nombre: i.nombre || i.modelo, qty: i.qty, precio: i.precio_unitario || i.precio_base })),
@@ -965,7 +974,8 @@ export default function App() {
     preciosFijos.forEach(pf => { pfMap[`${pf.producto_id}_${pf.lista_precio_id}`] = pf.precio_fijo; });
     const k = `${pid}_${lista.id}`;
     if (pfMap[k] != null && pfMap[k] > 0) return Number(pfMap[k]);
-    return Math.round((Number(base) || 0) * (lista.multiplicador || 1) * 100) / 100;
+    const mult = (Number(lista.multiplicador) > 0 && Number(lista.multiplicador) <= 10) ? Number(lista.multiplicador) : 1;
+    return Math.round((Number(base) || 0) * mult * 100) / 100;
   };
   const userLista = useMemo(() => user?.lista_precio_id ? listas.find(l => l.id === user.lista_precio_id) : null, [user, listas]);
 
@@ -2681,10 +2691,10 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
   const [notas, setNotas] = useState('');
 
   // Totales (los ítems en USDT van aparte, no se suman a los pesos)
-  const subtotalTodo = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
-  const subtotalUSDT = allItems.filter(esUSDT).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
-  const envioTotal = seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0);
-  const totalFinal = subtotalTodo - (seccionesConItems.length === 1 ? descuento : 0) + (entrega.tipo === 'envio' ? envioTotal : 0);
+  const subtotalTodo = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
+  const subtotalUSDT = allItems.filter(esUSDT).reduce((s, i) => s + puItem(i) * i.qty, 0);
+  const envioTotal = envioSano(seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0), subtotalTodo);
+  const totalFinal = Math.max(0, subtotalTodo - descSano(seccionesConItems.length === 1 ? descuento : 0, subtotalTodo) + (entrega.tipo === 'envio' ? envioTotal : 0));
 
   // El paso de facturación es opcional según config del panel (checkout_factura !== 'off')
   const facturaActiva = config.checkout_factura !== 'off';
@@ -2869,7 +2879,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
                 {allItems.map((i, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                     <span>{i.qty}× {i.nombre || i.modelo}{i.variante_label ? ` (${i.variante_label})` : ''}</span>
-                    <span style={{ fontWeight: 600 }}>{fmtMon((i.precio_unitario || i.precio_base) * i.qty, monedaItem(i))}</span>
+                    <span style={{ fontWeight: 600 }}>{fmtMon(puItem(i) * i.qty, monedaItem(i))}</span>
                   </div>
                 ))}
                 <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, fontSize: 13 }}>
@@ -3043,9 +3053,9 @@ function CartPage() {
     );
   }
 
-  const subtotal = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
-  const subtotalUSDT = allItems.filter(i => esUSDT(i)).reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
-  const ahorroDesc = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + Math.max(0, Number(i.precio_base || 0) - Number(i.precio_unitario || 0)) * i.qty, 0);
+  const subtotal = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
+  const subtotalUSDT = allItems.filter(i => esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
+  const ahorroDesc = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + Math.max(0, Number(i.precio_base || 0) - puItem(i)) * i.qty, 0);
   // Solo contar el envío de secciones que REALMENTE tienen items en el carrito
   // (evita costos fantasma de una sección que quedó en el estado tras vaciarse).
   const seccionesConItemsIds = new Set(allItems.map(i => i.seccion_id));
@@ -3053,7 +3063,7 @@ function CartPage() {
     if (!seccionesConItemsIds.has(Number(secId)) && !seccionesConItemsIds.has(secId)) return s;
     return s + (Number(e?.costo) || 0);
   }, 0);
-  const total = Math.max(0, subtotal - descuento + costoEnvioTotal);
+  const total = Math.max(0, subtotal - descSano(descuento, subtotal) + envioSano(costoEnvioTotal, subtotal));
 
   // Info de compra mínima por sección (NO bloquea el carrito: el mínimo aplica
   // solo si eligen ENVÍO, y eso se valida en el paso Entrega del checkout).
@@ -3074,11 +3084,11 @@ function CartPage() {
     try {
       const pedidos = seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
-        const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        const secSubtotal = secItems.reduce((s, i) => s + puItem(i) * i.qty, 0);
         return {
           seccion_id: sec.id, tipo: 'presupuesto', estado: 'pendiente', metodo_pago: metodoPago, notas,
           subtotal: secSubtotal, descuento: 0, total: secSubtotal,
-          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
+          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: puItem(i), precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
         };
       }).filter(pp => pp.items.length);
       for (const p of pedidos) await api.createPedido(p);
@@ -3116,7 +3126,7 @@ function CartPage() {
   // se valida en el paso "Entrega" y solo si eligen envío (retiro no tiene mínimo).
   const abrirCheckout = () => {
     if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
-    const totalCarrito = allItems.reduce((s, i) => s + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
+    const totalCarrito = allItems.reduce((s, i) => s + puItem(i) * i.qty, 0);
     trackEvent('begin_checkout', 'InitiateCheckout', { value: totalCarrito, currency: 'ARS', num_items: allItems.length });
     setShowCheckout(true);
   };
@@ -3131,18 +3141,18 @@ function CartPage() {
     const datosFactJSON = dc.facturacion && dc.facturacion.necesita ? JSON.stringify(dc.facturacion) : '';
     const pedidos = seccionesConItems.map(sec => {
       const secItems = allItems.filter(i => i.seccion_id === sec.id);
-      const secSubtotal = secItems.reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+      const secSubtotal = secItems.reduce((s, i) => s + puItem(i) * i.qty, 0);
       const secEnvio = envio[sec.id];
       const tieneReserva = secItems.some(i => i._preventa);
       return {
         seccion_id: sec.id, metodo_pago: dc.metodoPago || metodoPago,
         notas: tieneReserva ? `${dc.notas || notas} [RESERVA/PREVENTA — requiere seña]`.trim() : (dc.notas || notas), cupon_codigo: cupon,
         subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
-        total: secSubtotal - (seccionesConItems.length === 1 ? descuento : 0) + (secEnvio?.costo || 0),
-        costo_envio: secEnvio?.costo || 0, metodo_envio: secEnvio?.nombre || '', cp_destino: dc.entrega?.cp || '',
+        total: Math.max(0, secSubtotal - descSano(seccionesConItems.length === 1 ? descuento : 0, secSubtotal) + envioSano(secEnvio?.costo || 0, secSubtotal)),
+        costo_envio: envioSano(secEnvio?.costo || 0, secSubtotal), metodo_envio: secEnvio?.nombre || '', cp_destino: dc.entrega?.cp || '',
         estado_pago: tieneReserva ? 'senado' : 'impago',
         datos_envio: datosEnvioJSON, datos_facturacion: datosFactJSON,
-        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: i.precio_unitario || i.precio_base, precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
+        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: puItem(i), precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
       };
     }).filter(pp => pp.items.length);
     try {
@@ -3212,8 +3222,8 @@ function CartPage() {
 
       {seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
-        const secSubtotal = secItems.filter(i => !esUSDT(i)).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
-        const secSubtotalUSDT = secItems.filter(esUSDT).reduce((s, i) => s + (i.precio_unitario || i.precio_base) * i.qty, 0);
+        const secSubtotal = secItems.filter(i => !esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
+        const secSubtotalUSDT = secItems.filter(esUSDT).reduce((s, i) => s + puItem(i) * i.qty, 0);
         const gratisDesde = Number(config[`envio_gratis_desde_${sec.id}`]) || 0;
         const faltaGratis = gratisDesde > 0 ? Math.max(0, gratisDesde - secSubtotal) : 0;
         const pctGratis = gratisDesde > 0 ? Math.min(100, (secSubtotal / gratisDesde) * 100) : 0;
@@ -3296,7 +3306,7 @@ function CartPage() {
                   <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v), i.variante_id); }} style={{ width: 48, padding: '6px 4px', fontWeight: 800, fontSize: 13, textAlign: 'center', border: 'none', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderRadius: 0, background: 'transparent' }} />
                   <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                 </div>
-                <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtMon((i.precio_unitario || i.precio_base) * i.qty, monedaItem(i))}</span>
+                <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtMon(puItem(i) * i.qty, monedaItem(i))}</span>
                 <button onClick={() => removeFromCart(sec.id, i.id, i.variante_id)} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
               </div>
             ))}
