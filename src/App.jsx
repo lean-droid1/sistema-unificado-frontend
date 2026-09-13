@@ -5780,16 +5780,38 @@ function AdminDashboard() {
   const [stockBajo, setStockBajo] = useState([]);
 
   const loadStats = async () => {
-    try { const s = await api.getStats(adminSeccion, desde, hasta); setStats(s); } catch {}
+    try {
+      const s = await api.getStats({ seccion_id: adminSeccion, ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}), is_test: 'false' });
+      setStats(s || {});
+    } catch {}
   };
   useEffect(() => { loadStats(); }, [adminSeccion, desde, hasta]);
   useEffect(() => { api.getStockBajo().then(setStockBajo).catch(() => {}); }, []);
 
+  const pct = (stats.ventas_mes_anterior > 0)
+    ? Math.round((stats.ventas_mes_actual - stats.ventas_mes_anterior) / stats.ventas_mes_anterior * 100)
+    : null;
+
+  const aCobrarN = stats.pedidos_a_cobrar || 0;
   const kpis = [
-    { label: 'PEDIDOS', value: stats.total_pedidos || 0, icon: '📦', color: 'var(--primary)', bg: 'var(--primary-light)' },
-    { label: 'VENTAS', value: fmtARS(stats.total_ventas || 0), icon: '💰', color: 'var(--success)', bg: '#dcfce7' },
-    { label: 'PRODUCTOS', value: stats.total_productos || 0, icon: '🏷️', color: 'var(--primary)', bg: '#fff3d4' },
-    { label: 'USUARIOS', value: stats.total_usuarios || 0, icon: '👥', color: '#8b5cf6', bg: '#ede9fe' },
+    { label: 'VENTAS COBRADAS', value: fmtARS(stats.total_ventas || 0), color: 'var(--success)', sub: 'solo pedidos pagados' },
+    { label: 'A COBRAR', value: fmtARS(stats.total_a_cobrar || 0), color: 'var(--accent, #e8a13a)', sub: `${aCobrarN} pedido${aCobrarN !== 1 ? 's' : ''} pendiente${aCobrarN !== 1 ? 's' : ''}` },
+    { label: 'PEDIDOS', value: stats.total_pedidos || 0, color: 'var(--primary)', sub: `${stats.pedidos_pagados || 0} pagados` },
+    { label: 'TICKET PROMEDIO', value: fmtARS(Math.round(stats.ticket_promedio || 0)), color: 'var(--primary)', sub: 'por pedido pagado' },
+  ];
+  const kpis2 = [
+    { label: 'PRODUCTOS', value: stats.total_productos || 0 },
+    { label: 'USUARIOS', value: stats.total_usuarios || 0 },
+    { label: 'CARRITOS DEJADOS', value: stats.carritos_abandonados || 0 },
+  ];
+
+  const estados = stats.pedidos_por_estado || {};
+  const estadoDefs = [
+    { k: 'pendiente', l: 'Pendientes', c: 'var(--text-muted)' },
+    { k: 'preparado', l: 'Preparados', c: '#8b5cf6' },
+    { k: 'listo', l: 'Listos', c: 'var(--primary)' },
+    { k: 'enviado', l: 'Enviados', c: '#0ea5e9' },
+    { k: 'entregado', l: 'Entregados', c: 'var(--success)' },
   ];
 
   return (
@@ -5799,23 +5821,125 @@ function AdminDashboard() {
         <div style={{ display: 'flex', gap: 8 }}>
           <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={{ padding: '8px 12px', fontSize: 13, borderRadius: 8, width: 140 }} />
           <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={{ padding: '8px 12px', fontSize: 13, borderRadius: 8, width: 140 }} />
+          {(desde || hasta) && <button className="btn btn-outline btn-sm" onClick={() => { setDesde(''); setHasta(''); }}>Limpiar</button>}
         </div>
       </div>
 
       <div className="stats-grid">
         {kpis.map(k => (
-          <div key={k.label} className="stat-card" style={{ borderRadius: 20, padding: '24px 20px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: 12, right: 16, width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{k.icon}</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{k.value}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6 }}>{k.label}</div>
+          <div key={k.label} className="stat-card" style={{ borderRadius: 20, padding: '22px 20px', borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{k.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: k.color, letterSpacing: '-0.02em', lineHeight: 1.1, marginTop: 8 }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+              {k.label === 'VENTAS COBRADAS' && pct !== null
+                ? <span style={{ fontWeight: 800, color: pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>{pct >= 0 ? '+' : ''}{pct}% vs mes anterior</span>
+                : <span>{k.sub}</span>}
+            </div>
           </div>
         ))}
+      </div>
+
+      <div className="stats-grid" style={{ marginTop: 14 }}>
+        {kpis2.map(k => (
+          <div key={k.label} className="stat-card" style={{ borderRadius: 16, padding: '16px 18px' }}>
+            <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.02em' }}>{k.value}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{ padding: 18, marginTop: 20, borderRadius: 18 }}>
+        <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Pedidos por estado</h4>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {estadoDefs.map(e => (
+            <div key={e.k} style={{ flex: '1 1 90px', minWidth: 90, background: 'var(--bg-subtle, rgba(0,0,0,0.03))', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: e.c }}>{estados[e.k] || 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{e.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {stats.ventas_por_dia?.length > 0 && (
+        <div className="card" style={{ padding: 24, marginTop: 20, borderRadius: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h4 style={{ fontWeight: 800, fontSize: 16 }}>Ventas cobradas por día</h4>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>últimos {Math.min(14, stats.ventas_por_dia.length)} días</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
+            {stats.ventas_por_dia.slice(0, 14).reverse().map((d, i) => {
+              const max = Math.max(...stats.ventas_por_dia.map(x => Number(x.total) || 0), 1);
+              const h = Number(d.total) > 0 ? (Number(d.total) / max * 140) : 4;
+              return (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: '100%', background: 'linear-gradient(180deg, #4A69E2 0%, #232321 120%)', borderRadius: 6, height: h, minHeight: 4 }} title={`$${fmt(d.total)}`} />
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 20 }}>
+        {stats.top_productos?.length > 0 && (
+          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
+            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Productos más vendidos</h4>
+            {stats.top_productos.slice(0, 10).map((p, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><b style={{ color: 'var(--text-muted)' }}>{i + 1}.</b> {p.nombre}</span>
+                <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{p.cantidad} u.</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {stats.top_categorias?.length > 0 && (
+          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
+            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Categorías que más facturan</h4>
+            {(() => { const max = Math.max(...stats.top_categorias.map(c => Number(c.total) || 0), 1); return stats.top_categorias.slice(0, 8).map((c, i) => (
+              <div key={i} style={{ padding: '6px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.categoria}</span>
+                  <span style={{ fontWeight: 700 }}>{fmtARS(c.total)}</span>
+                </div>
+                <div style={{ height: 6, background: 'var(--border-light)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.round((Number(c.total) || 0) / max * 100)}%`, background: 'var(--primary)', borderRadius: 4 }} />
+                </div>
+              </div>
+            )); })()}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+        {stats.ventas_por_metodo?.length > 0 && (
+          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
+            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Cobrado por método de pago</h4>
+            {stats.ventas_por_metodo.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                <span>{m.metodo} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({m.cantidad})</span></span>
+                <span style={{ fontWeight: 700 }}>{fmtARS(m.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {stats.ventas_por_seccion?.length > 0 && (
+          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
+            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Cobrado por sección</h4>
+            {stats.ventas_por_seccion.map((s, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                <span>{s.seccion}</span>
+                <span style={{ fontWeight: 700 }}>{fmtARS(s.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {stockBajo.length > 0 && (
         <div style={{ background: 'var(--warning-light, rgba(245,180,60,0.1))', border: '1.5px solid var(--warning, #e8a13a)', borderRadius: 16, padding: 18, marginTop: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-            <strong style={{ fontSize: 15 }}>⚠️ {stockBajo.length} producto{stockBajo.length !== 1 ? 's' : ''} con stock bajo</strong>
+            <strong style={{ fontSize: 15 }}>{stockBajo.length} producto{stockBajo.length !== 1 ? 's' : ''} con stock bajo</strong>
             <button className="btn btn-outline btn-sm" onClick={() => setAdminTab('productos')}>Ver en productos</button>
           </div>
           <div style={{ maxHeight: 200, overflowY: 'auto' }}>
@@ -5826,26 +5950,6 @@ function AdminDashboard() {
               </div>
             ))}
             {stockBajo.length > 15 && <div style={{ fontSize: 12, color: 'var(--text-muted)', paddingTop: 6 }}>y {stockBajo.length - 15} más...</div>}
-          </div>
-        </div>
-      )}
-      {stats.ventas_por_dia?.length > 0 && (
-        <div className="card" style={{ padding: 24, marginTop: 20, borderRadius: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 style={{ fontWeight: 800, fontSize: 16 }}>Ventas por día</h4>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{stats.ventas_por_dia.length} días</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
-            {stats.ventas_por_dia.slice(0, 14).reverse().map((d, i) => {
-              const max = Math.max(...stats.ventas_por_dia.map(x => x.total));
-              const h = max > 0 ? (d.total / max * 140) : 5;
-              return (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: '100%', background: 'linear-gradient(180deg, #4A69E2 0%, #232321 120%)', borderRadius: 6, height: h, minHeight: 4, transition: 'height 0.3s' }} title={`$${fmt(d.total)}`} />
-                  <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
