@@ -136,6 +136,7 @@ export async function deleteAllProductos() { return f('/api/productos/all', { me
 export async function buscarProductosAdmin(q) { return f(`/api/productos/buscar?q=${encodeURIComponent(q)}`); }
 export async function getProductoPorCodigo(codigo) { return f(`/api/productos/por-codigo/${encodeURIComponent(codigo)}`); }
 export async function generarCodigos(seccion_id) { return f('/api/productos/generar-codigos', { method: 'POST', body: JSON.stringify({ seccion_id }) }); }
+export async function rehostFotosRxz(limit = 15) { return f('/api/productos/rehost-imagenes', { method: 'POST', body: JSON.stringify({ limit }) }); }
 
 // imagenes variantes
 export async function getProductoImagenes(productoId) { return f(`/api/producto-imagenes/${productoId}`); }

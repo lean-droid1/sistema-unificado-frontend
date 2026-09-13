@@ -6050,6 +6050,7 @@ function AdminCategorias() {
 function AdminProductos() {
   const { adminSeccion, secciones, toast } = useContext(Ctx);
   const [productos, setProductos] = useState([]);
+  const [reparandoFotos, setReparandoFotos] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const [busq, setBusq] = useState('');
   const [pagina, setPagina] = useState(1);
@@ -6146,6 +6147,31 @@ function AdminProductos() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  // Mueve a Cloudinary las fotos que todavía apuntan a rxz (arregla las rotas de depósito).
+  const repararFotosRxz = async () => {
+    if (reparandoFotos) return;
+    setReparandoFotos(true);
+    toast('Reparando fotos de depósito…');
+    try {
+      let totalMig = 0, vueltas = 0;
+      while (vueltas < 300) {
+        vueltas++;
+        const r = await api.rehostFotosRxz(20);
+        totalMig += r.migradas || 0;
+        if ((r.migradas || 0) === 0 || (r.restantes || 0) === 0) {
+          if ((r.restantes || 0) === 0 && totalMig > 0) toast(`Listo: ${totalMig} imágenes movidas a Cloudinary`);
+          else if ((r.restantes || 0) === 0) toast('No había fotos de rxz para reparar');
+          else if (totalMig === 0) toast(`No se pudo mover ninguna (Cloudinary no pudo bajarlas de rxz). Quedan ${r.restantes}.`, 'error');
+          else toast(`Movidas ${totalMig}. Quedan ${r.restantes} que fallaron.`, 'warning');
+          break;
+        }
+        toast(`Movidas ${totalMig}… quedan ${r.restantes}`);
+      }
+      load();
+    } catch (e) { toast(e.message, 'error'); }
+    setReparandoFotos(false);
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
@@ -6159,6 +6185,7 @@ function AdminProductos() {
           }}>🏷️ Generar códigos</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowPriceAdj(true)}>💲 Ajustar precios</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}>📜 Historial</button>
+          <button className="btn btn-outline btn-sm" onClick={repararFotosRxz} disabled={reparandoFotos} title="Mueve a Cloudinary las fotos que aún apuntan a rxz (arregla las rotas de depósito)">{reparandoFotos ? 'Reparando…' : 'Reparar fotos'}</button>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
