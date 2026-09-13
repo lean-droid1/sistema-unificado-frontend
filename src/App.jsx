@@ -5848,6 +5848,17 @@ function AdminDashboard() {
         ))}
       </div>
 
+      {stats.usdt && ((stats.usdt.total_ventas || 0) > 0 || (stats.usdt.pedidos || 0) > 0 || (stats.usdt.total_a_cobrar || 0) > 0) && (
+        <div className="card" style={{ padding: 18, marginTop: 14, borderRadius: 18, borderTop: '3px solid #10b981' }}>
+          <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: '#10b981' }}>Ventas en USDT</h4>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <div><div style={{ fontSize: 22, fontWeight: 900, color: '#10b981' }}>USDT {fmt(stats.usdt.total_ventas || 0)}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cobrado</div></div>
+            <div><div style={{ fontSize: 22, fontWeight: 900 }}>USDT {fmt(stats.usdt.total_a_cobrar || 0)}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>A cobrar</div></div>
+            <div><div style={{ fontSize: 22, fontWeight: 900 }}>{stats.usdt.pedidos || 0}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pedidos ({stats.usdt.pedidos_pagados || 0} pagados)</div></div>
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 18, marginTop: 20, borderRadius: 18 }}>
         <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Pedidos por estado</h4>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -8253,6 +8264,15 @@ function AdminCaja() {
             </div>
             <small style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginTop: 8 }}>La diferencia entre "vendido" y "en caja" son los descuentos que otorgaste. Al contar la plata física, tiene que darte el total "en caja".</small>
           </div>
+          {data.usdt && ((data.usdt.total_recibido || 0) > 0 || (data.usdt.porMetodo && data.usdt.porMetodo.length > 0)) && (
+            <div style={{ background: 'var(--bg-card)', border: '1px solid #10b981', borderRadius: 12, padding: 16, marginTop: 12 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8, color: '#10b981' }}>Caja USDT (aparte)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, marginBottom: 6 }}><span>Total cobrado</span><strong style={{ color: '#10b981' }}>USDT {fmt(data.usdt.total_recibido || 0)}</strong></div>
+              {(data.usdt.porMetodo || []).map(m => (
+                <div key={m.metodo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderTop: '1px solid var(--border-light)', textTransform: 'capitalize' }}><span>{m.metodo}</span><strong>USDT {fmt(m.recibido)}</strong></div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -8328,6 +8348,17 @@ function AdminReportes() {
               </div>
             ))}
           </div>
+          {rep.usdt && ((rep.usdt.facturado || 0) > 0 || (rep.usdt.pedidos || 0) > 0) && (
+            <div className="card" style={{ padding: 18, marginTop: 8, marginBottom: 24, borderTop: '3px solid #10b981' }}>
+              <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10, color: '#10b981' }}>Ventas en USDT (aparte)</h4>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Facturado</div><div style={{ fontSize: 22, fontWeight: 900 }}>USDT {fmt(rep.usdt.facturado)}</div></div>
+                <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Ganancia</div><div style={{ fontSize: 22, fontWeight: 900, color: '#10b981' }}>USDT {fmt(rep.usdt.ganancia)}</div></div>
+                <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Pedidos</div><div style={{ fontSize: 22, fontWeight: 900 }}>{rep.usdt.pedidos}</div></div>
+                <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Unidades</div><div style={{ fontSize: 22, fontWeight: 900 }}>{rep.usdt.unidades}</div></div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
