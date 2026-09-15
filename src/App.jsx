@@ -3969,7 +3969,7 @@ function AccountPanel() {
     setSaving(false);
   };
 
-  const estadoColor = { pendiente: 'var(--accent)', preparando: 'var(--primary)', listo: 'var(--success)', entregado: '#666', cancelado: 'var(--danger)' };
+  const estadoColor = { pendiente: 'var(--accent)', preparando: 'var(--primary)', listo: 'var(--success)', enviado: '#0ea5e9', entregado: '#666', cancelado: 'var(--danger)' };
 
   return (
     <div style={{ maxWidth: 600, margin: '48px auto', padding: '0 16px' }}>
@@ -7269,8 +7269,8 @@ function AdminPedidos({ filtroTipo }) {
   })();
 
   const tabs = [{ id: 'pedidos', label: 'Pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }, { id: 'cancelados', label: 'Cancelados' }, { id: 'archivados', label: 'Archivados' }];
-  const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
-  const colores = { pendiente: 'var(--warning)', preparando: 'var(--primary)', listo: '#8b5cf6', entregado: 'var(--success)', cancelado: 'var(--danger)' };
+  const estados = ['pendiente', 'preparando', 'listo', 'enviado', 'entregado', 'cancelado'];
+  const colores = { pendiente: 'var(--warning)', preparando: 'var(--primary)', listo: '#8b5cf6', enviado: '#0ea5e9', entregado: 'var(--success)', cancelado: 'var(--danger)' };
 
   // Export Excel con detalle por ítem (2 hojas: Resumen + Detalle)
   const exportExcel = async () => {
@@ -7371,6 +7371,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [ajuste, setAjuste] = useState(0); // + recargo, - descuento
   const [pagos, setPagos] = useState(initOrder.pagos || []);
   const [historial, setHistorial] = useState([]);
+  const [tracking, setTracking] = useState(initOrder.codigo_seguimiento || '');
   const cargarHistorial = async () => { try { const h = await api.getHistorialPedido(o.id); setHistorial(h || []); } catch {} };
   useEffect(() => { cargarHistorial(); }, [o.id]);
   const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
@@ -7468,7 +7469,10 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   };
 
   const [notif, setNotif] = useState(null); // {mensaje, telefono} → cartelito para avisar al cliente
-  const pedirAviso = (mensaje) => { if (mensaje && o.usuario_telefono) setNotif({ mensaje, telefono: '54' + String(o.usuario_telefono).replace(/\D/g, '') }); };
+  const telPedido = () => { const t = o.usuario_telefono || (datosEnvio && datosEnvio.contacto && datosEnvio.contacto.telefono) || ''; const d = String(t).replace(/\D/g, ''); return d ? (d.startsWith('54') ? d : '54' + d) : ''; };
+  const pedirAviso = (mensaje) => { const d = telPedido(); if (mensaje && d) setNotif({ mensaje, telefono: d }); };
+  const guardarTracking = async () => { try { await api.updatePedido(o.id, { codigo_seguimiento: tracking.trim() }); setO({ ...o, codigo_seguimiento: tracking.trim() }); toast('Seguimiento guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const enviarTrackingWA = async () => { const cod = tracking.trim(); if (!cod) return; if (cod !== (o.codigo_seguimiento || '')) await guardarTracking(); if (!telPedido()) { toast('Este pedido no tiene teléfono del cliente', 'error'); return; } pedirAviso(`¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue despachado 🚚. Código de seguimiento: ${cod}`); };
 
   const changeEstado = async (estado) => {
     try {
@@ -7479,6 +7483,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       const mensajes = {
         preparando: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} está siendo preparado 📦`,
         listo: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} está listo ✅`,
+        enviado: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue despachado 🚚${(tracking || o.codigo_seguimiento) ? `. Código de seguimiento: ${tracking || o.codigo_seguimiento}` : ''}`,
         entregado: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue entregado 🎉 ¡Gracias por tu compra!`,
         cancelado: `Hola ${o.usuario_nombre || ''}, tu pedido #${o.id} fue cancelado. Cualquier duda escribinos.`,
       };
@@ -7582,7 +7587,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     };
   };
 
-  const estados = ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'];
+  const estados = ['pendiente', 'preparando', 'listo', 'enviado', 'entregado', 'cancelado'];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -7620,6 +7625,12 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             <select value={o.estado} onChange={e => changeEstado(e.target.value)} style={{ width: 140 }}>
               {estados.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
+            <div style={{ flexBasis: '100%', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+              <label style={{ fontSize: 13, fontWeight: 600 }}>Seguimiento:</label>
+              <input value={tracking} onChange={e => setTracking(e.target.value)} placeholder="Código de seguimiento" style={{ width: 200, padding: '6px 10px', fontSize: 13 }} />
+              <button className="btn btn-outline btn-sm" onClick={guardarTracking} disabled={tracking.trim() === (o.codigo_seguimiento || '')}>Guardar</button>
+              <button className="btn btn-success btn-sm" onClick={enviarTrackingWA} disabled={!tracking.trim()}>Enviar por WhatsApp</button>
+            </div>
             {/* Assign client */}
             <select value={o.usuario_id || ''} onChange={async e => { try { await api.updatePedido(o.id, { usuario_id: Number(e.target.value) }); toast('Cliente asignado'); const full = await api.getPedido(o.id); setO(full); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 180 }}>
               <option value="">Asignar cliente...</option>
