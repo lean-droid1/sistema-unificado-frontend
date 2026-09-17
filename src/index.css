@@ -200,8 +200,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ─── ADMIN LAYOUT (KICKS SIDEBAR) ─── */
-.admin-layout { display: flex; min-height: calc(100vh - 60px); }
-.admin-sidebar { width: 240px; background: var(--primary-dark); color: #fff; padding: 20px 16px; position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; flex-shrink: 0; }
+.admin-layout { display: flex; min-height: calc(var(--app-vh, 1vh) * 100 - 60px); }
+.admin-sidebar { width: 240px; background: var(--primary-dark); color: #fff; padding: 20px 16px; position: sticky; top: 56px; height: calc(var(--app-vh, 1vh) * 100 - 56px); overflow-y: auto; flex-shrink: 0; }
 .admin-sidebar h3 { color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px; margin-bottom: 12px; }
 .admin-sidebar select { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; }
 .admin-sidebar select option { background: var(--primary-dark); color: #fff; }
@@ -225,7 +225,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .admin-content { flex: 1; padding: 24px 32px; max-width: 1500px; }
 @media (max-width: 768px) {
   .admin-layout { flex-direction: column; }
-  .admin-sidebar { display: none; position: fixed; top: 0; left: 0; width: 280px; height: 100vh; z-index: 150; border-right: none; padding: 20px 16px; }
+  .admin-sidebar { display: none; position: fixed; top: 0; left: 0; width: 280px; height: calc(var(--app-vh, 1vh) * 100); z-index: 150; border-right: none; padding: 20px 16px; }
   .admin-sidebar.open { display: block; }
   .admin-nav { flex-direction: column; flex-wrap: nowrap; gap: 2px; }
   .admin-content { padding: 16px; }
@@ -269,7 +269,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 
 .product-card.vitrina .product-info { text-align: center; }
 .popup-modal { max-width: 400px; padding: 24px; text-align: center; border-radius: var(--radius); }
-.main-content { min-height: calc(100vh - 120px); }
+.main-content { min-height: calc(var(--app-vh, 1vh) * 100 - 120px); }
 
 /* ═══════════════════════════════════════════════════════════
    ═══════════════════════════════════════════════════════════ */
@@ -569,7 +569,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 }
 
 /* ── EDITOR VISUAL (personalizar tienda) ── */
-.editor-visual { display: flex; flex-direction: column; height: calc(100vh - 130px); min-height: 520px; }
+.editor-visual { display: flex; flex-direction: column; height: calc(var(--app-vh, 1vh) * 100 - 130px); min-height: 520px; }
 .editor-topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
 .editor-body { display: flex; gap: 16px; flex: 1; min-height: 0; }
 .editor-panel { width: 380px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
