@@ -1013,7 +1013,7 @@ export default function App() {
     notifyProduct, setNotifyProduct, promos: promosGlobal
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" /></div>;
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(var(--app-vh, 1vh) * 100)' }}><div className="spinner" /></div>;
   // Modo mantenimiento: si está activo y NO sos admin, se bloquea TODA la tienda (no se puede escapar navegando).
   // Se renderiza ANTES del Ctx.Provider, así que usa una versión autocontenida (sin useContext).
   if (enMantenimiento) return <MaintenanceBlock effectiveDark={effectiveDark} config={config} design={design} />;
@@ -1548,7 +1548,7 @@ function MaintenanceBlock({ effectiveDark, config, design }) {
   const logo = design?.logo_url || config?.logo || '';
   const nombre = design?.nombre_tienda || config?.nombre_negocio || '';
   const wa = (config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
-  const wrap = { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg, #111)' };
+  const wrap = { minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg, #111)' };
   const inp = { width: '100%', padding: 12, fontSize: 15, marginBottom: 10, borderRadius: 10, border: '1px solid var(--border, #444)', background: 'var(--card-bg, #1a1a1a)', color: 'var(--text, #fff)' };
 
   const doLogin = async () => {
@@ -1601,7 +1601,7 @@ function MaintenancePage() {
   const nombre = design?.nombre_tienda || config?.nombre_negocio || '';
   const wa = (config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg)' }}>
+    <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg)' }}>
       {logo ? <img src={logo} alt={nombre} style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 16, marginBottom: 16 }} /> : null}
       <div style={{ fontSize: 52, marginBottom: 8 }}>🔧</div>
       <h1 style={{ fontSize: 26, fontWeight: 900, margin: '0 0 10px' }}>Estamos en mantenimiento</h1>
@@ -1791,7 +1791,7 @@ function ComerciappLoginPage({ forgot, onVolver, onForgot, onLogin }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {/* nav ComerciApp */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         <button onClick={onVolver} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: 22, color: 'var(--text-primary)' }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></button>
@@ -1880,7 +1880,7 @@ function CrearTiendaPage({ onListo, onVolver }) {
 
   if (ok) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
+      <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
         <div className="card" style={{ maxWidth: 460, padding: 36, textAlign: 'center' }}>
           <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
           <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>¡Tu tienda está lista!</h2>
@@ -1897,7 +1897,7 @@ function CrearTiendaPage({ onListo, onVolver }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '24px 16px' }}>
+    <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', background: 'var(--bg)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 480, margin: '0 auto' }}>
         <button className="btn btn-sm btn-outline" style={{ marginBottom: 16 }} onClick={onVolver}>← Volver</button>
         <div className="card" style={{ padding: 28 }}>
@@ -1992,7 +1992,7 @@ function ComerciappLanding({ onLogin, onRegister }) {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+    <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', background: 'var(--bg)', color: 'var(--text-primary)' }}>
       {/* NAV */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', maxWidth: 1200, margin: '0 auto', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontWeight: 900, fontSize: 22 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
@@ -4716,7 +4716,7 @@ function OwnerStats({ stats }) {
 
 function PanelPlataforma({ onLogout }) {
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', background: 'var(--bg)' }}>
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ fontWeight: 900, fontSize: 20 }}>Comerci<span style={{ color: 'var(--primary)' }}>App</span></div>
