@@ -3567,13 +3567,15 @@ function ProductDetailPage() {
   const fullSel = tieneVariantes && atributos.length > 0 && atributos.every(a => selOpts[a.nombre]);
   const matched = fullSel ? variantes.find(v => atributos.every(a => (v.combinacion || {})[a.nombre] === selOpts[a.nombre])) : null;
   const varMin = variantes.length ? variantes.reduce((m, v) => varPrecio(v) < varPrecio(m) ? v : m, variantes[0]) : null;
-  const precioSinPromo = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : (p.precioFinal || precioBase));
+  const precioSinPromo = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : precioBase);
   const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : 'ARS');
-  // Promoción activa (helper compartido, respeta sección/categoría/productos; solo pesos)
-  const promoInfoProd = aplicarPromo(precioSinPromo, p, promos, p.seccion_id || sec?.id, monedaFinal);
-  let precioFinal = promoInfoProd ? promoInfoProd.final : precioSinPromo;
-  const hayPromo = !!promoInfoProd;
-  const precioOriginal = hayPromo ? precioSinPromo : p.precioOriginal;
+  // Si venimos del listado con el precio ya calculado (promo/oferta/revendedor aplicados), lo respetamos tal cual
+  // y NO volvemos a aplicar la promo (evita el doble descuento al abrir el producto).
+  const usarNav = !tieneVariantes && !matched && Number(p.precioFinal) > 0;
+  const promoInfoProd = usarNav ? null : aplicarPromo(precioSinPromo, p, promos, p.seccion_id || sec?.id, monedaFinal);
+  let precioFinal = usarNav ? Number(p.precioFinal) : (promoInfoProd ? promoInfoProd.final : precioSinPromo);
+  const hayPromo = usarNav ? (Number(p.precioOriginal) > 0 && Number(p.precioOriginal) > precioFinal) : !!promoInfoProd;
+  const precioOriginal = usarNav ? (Number(p.precioOriginal) > 0 ? Number(p.precioOriginal) : null) : (hayPromo ? precioSinPromo : p.precioOriginal);
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const umbralGratis = Number(config['envio_gratis_desde_' + (p.seccion_id || sec?.id)]) || 0;
   const envioGratisProd = !p.excluir_envio_gratis && (!!p.envio_gratis || (umbralGratis > 0 && precioFinal >= umbralGratis));
