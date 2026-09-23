@@ -2137,7 +2137,7 @@ function Landing() {
   // Product card component
   const ProductCard = ({ p, secId }) => {
     const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
-    const tieneOferta = p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
+    const tieneOferta = !p.es_preventa && p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
     const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
     const efectivo = tieneOferta ? Number(p.precio_oferta) : Number(precio);
     const promoInfo = !p.usa_variantes ? aplicarPromo(efectivo, p, promos, secId, 'ARS') : null;
@@ -2161,7 +2161,7 @@ function Landing() {
             ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
-          {(tieneOferta || promoInfo) && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{tieneOferta ? descPct : promoInfo.pct}% OFF</span>}
+          {!p.es_preventa && (tieneOferta || promoInfo) && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{tieneOferta ? descPct : promoInfo.pct}% OFF</span>}
           {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 10 + ((tieneOferta || promoInfo) ? 30 : 0), left: 10, background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
           {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10 + (tieneOferta ? 30 : 0) + (envioGratisCard ? 30 : 0), left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
           {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
@@ -2170,7 +2170,7 @@ function Landing() {
         <div className="product-info" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div className="product-cat">{p.categoria || ''}</div>
           <div className="product-name" style={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>{p.nombre || p.modelo}</div>
-          <div style={{ marginBottom: 8 }}>
+          {!p.es_preventa && <div style={{ marginBottom: 8 }}>
             {promoInfo ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(efectivo)}</span>
@@ -2186,7 +2186,7 @@ function Landing() {
             ) : (
               precio > 0 && <span className="price-new">{fmtARS(precio)}</span>
             )}
-          </div>
+          </div>}
           {p.es_preventa ? (() => {
             const pct = Number(p.preventa_descuento_pct) || 0;
             const precioReserva = pct > 0 ? Math.round(Number(p.precio_base) * (1 - pct / 100)) : Number(p.precio_base);
@@ -3643,7 +3643,7 @@ function ProductDetailPage() {
           <div className="pdp-cat">{p.categoria}</div>
           <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
 
-          <div className="pdp-price">
+          {!p.es_preventa && <div className="pdp-price">
             {tieneVariantes && !matched ? (
               <span className="pdp-price-new">desde {fmtMon(precioFinal, monedaFinal)}</span>
             ) : matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? (
@@ -3659,9 +3659,9 @@ function ProductDetailPage() {
             ) : (
               <span className="pdp-price-new">{fmtMon(precioFinal, monedaFinal)}</span>
             )}
-          </div>
+          </div>}
 
-          {preciosMetodo.length > 0 && (
+          {!p.es_preventa && preciosMetodo.length > 0 && (
             <div className="pdp-payments">
               {preciosMetodo.map(pm => (
                 <div key={pm.nombre} className="pdp-payment-row">
