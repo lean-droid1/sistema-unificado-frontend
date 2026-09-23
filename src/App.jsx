@@ -2620,7 +2620,7 @@ function SectionPage() {
                 {/* Badges */}
                 <div className="product-badges">
                   {envioGratis && <span className="pbadge pbadge-shipping" style={{ background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
-                  {precio.original && <span className="pbadge pbadge-discount">{precio.descuento}% OFF</span>}
+                  {p.es_preventa ? <span className="pbadge" style={{ background: 'var(--accent)', color: '#fff' }}>PREVENTA</span> : precio.original && <span className="pbadge pbadge-discount">{precio.descuento}% OFF</span>}
                 </div>
                 {sinStock && <div className="sin-stock-overlay">SIN STOCK</div>}
               </div>
@@ -2628,7 +2628,13 @@ function SectionPage() {
                 <div className="product-cat">{p.categoria}</div>
                 <div className="product-name">{p.nombre || p.modelo}</div>
                 <div className="product-price">
-                  {p.usa_variantes && Number(p.precio_desde) > 0 ? (
+                  {p.es_preventa ? (() => {
+                    const pctPv = Number(p.preventa_descuento_pct) || 0;
+                    const reserva = pctPv > 0 ? Math.round(Number(p.precio_base) * (1 - pctPv / 100)) : Number(p.precio_base);
+                    return pctPv > 0
+                      ? <><span className="price-old">{fmtARS(p.precio_base)}</span> <span className="price-new" style={{ color: 'var(--success)' }}>{fmtARS(reserva)}</span> <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 800, marginLeft: 4 }}>-{pctPv}%</span></>
+                      : <span className="price-new">{fmtARS(reserva)}</span>;
+                  })() : p.usa_variantes && Number(p.precio_desde) > 0 ? (
                     <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
                   ) : precio.original ? (
                     <><span className="price-old">{fmtARS(precio.original)}</span> <span className="price-new">{fmtARS(precio.final)}</span></>
@@ -2638,7 +2644,13 @@ function SectionPage() {
                   {precio.esRevendedor && <span style={{ fontSize: 11, color: 'var(--success)' }}> (Revendedor -{precio.descuento}%)</span>}
                   {esMayorista && dolarBlue && precio.final > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>USD {fmt(Math.round(precio.final / dolarBlue * 100) / 100)}</div>}
                 </div>
-                {p.usa_variantes ? (
+                {p.es_preventa ? (() => {
+                  const pctPv = Number(p.preventa_descuento_pct) || 0;
+                  const reserva = pctPv > 0 ? Math.round(Number(p.precio_base) * (1 - pctPv / 100)) : Number(p.precio_base);
+                  const cupoPv = Number(p.preventa_cupo) || 0, reservadoPv = Number(p.preventa_reservado) || 0;
+                  if (cupoPv > 0 && reservadoPv >= cupoPv) return <button className="btn product-add-btn" disabled style={{ opacity: 0.6 }}>Preventa agotada</button>;
+                  return <button className="btn product-add-btn" style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }} onClick={(e) => { e.stopPropagation(); const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(sec.id, { ...p, _preventa: true, _precioReserva: reserva }, 1, reserva); toast('Reserva agregada al carrito'); }}>RESERVAR{pctPv > 0 ? ` a ${fmtARS(reserva)}` : ''} <Ico n="cart" s={14} /></button>;
+                })() : p.usa_variantes ? (
                   <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
                     VER OPCIONES <Ico n="cart" s={14} />
                   </button>
