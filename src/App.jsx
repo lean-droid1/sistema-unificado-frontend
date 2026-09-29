@@ -722,8 +722,11 @@ export default function App() {
         if (carritoParam) {
           try {
             let payload;
-            try { payload = JSON.parse(decodeURIComponent(atob(carritoParam))); }
-            catch { payload = JSON.parse(atob(carritoParam)); } // fallback sin encodeURIComponent
+            // Restaurar base64url -> base64 (y + que algun cliente dejo como espacio), con padding
+            const _b64 = carritoParam.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
+            const _padded = _b64 + '='.repeat((4 - (_b64.length % 4)) % 4);
+            try { payload = JSON.parse(decodeURIComponent(atob(_padded))); }
+            catch { payload = JSON.parse(atob(_padded)); } // fallback sin encodeURIComponent
             const nuevoCart = {};
             for (const it of (payload || [])) {
               const prod = await api.getProducto(it.p).catch(() => null);
@@ -3115,7 +3118,7 @@ function CartPage() {
   const compartirCarrito = () => {
     // Codificar items mínimos en la URL: [{s:secId, p:prodId, q:qty}]
     const payload = allItems.map(i => ({ s: i.seccion_id, p: i.id, q: i.qty }));
-    const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+    const encoded = btoa(encodeURIComponent(JSON.stringify(payload))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');  // base64url: seguro para compartir por WhatsApp/celular
     const link = `${window.location.origin}${window.location.pathname}?carrito=${encoded}`;
     let txt = `🛒 *Carrito armado para vos*\n\n`;
     seccionesConItems.forEach(sec => {
