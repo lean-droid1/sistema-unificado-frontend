@@ -2941,7 +2941,7 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
 function PedidoExitoModal({ exito, config, onClose }) {
   const nums = exito.nums || [];
   const numStr = nums.map(n => `#${String(n).padStart(4, '0')}`).join(', ');
-  const wa = (config?.whatsapp || config?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const wa = (config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '').replace(/[^0-9]/g, '');
   const nombre = exito.contacto?.nombre || '';
   const msg = `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${fmtARS(exito.total)}. Quiero coordinar el pago y la entrega.`;
   const waUrl = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}` : '';
