@@ -1080,3 +1080,4 @@ body.con-barra-compra .wa-widget { bottom: 86px !important; }
 .popup-pie h3 { margin: 0; font-size: 18px; line-height: 1.25; }
 .popup-pie .btn { width: 100%; }
 @media (max-width: 480px) { .popup-flecha { width: 30px; height: 30px; } }
+.prod-tag-pend { display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; margin-left: 6px; vertical-align: middle; background: transparent !important; color: var(--warning, #d97706) !important; border: 1px solid currentColor; }

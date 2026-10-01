@@ -6,6 +6,18 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
 
+// Cloudinary: pide cada imagen al tamaño en que se muestra, en WebP/AVIF y con calidad automática.
+// Una foto de 2 MB pasa a pesar ~40 KB en la grilla. Las URLs que no son de Cloudinary quedan igual.
+const CLD_RE = /^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/i;
+function imgOpt(url, w) {
+  const u = String(url || '');
+  const m = u.match(CLD_RE);
+  if (!m || !w) return u;
+  if (/^[a-z]{1,3}_[^/]*\//i.test(m[2])) return u; // ya trae transformaciones propias
+  return `${m[1]}f_auto,q_auto,c_limit,w_${Math.round(w)}/${m[2]}`;
+}
+const imgSet = (url, w) => (CLD_RE.test(String(url || '')) ? `${imgOpt(url, w)} 1x, ${imgOpt(url, w * 2)} 2x` : undefined);
+
 // ═══════════════════════════════════════════════════════════
 // App.jsx — Sistema Unificado v4 (COMPLETO)
 // ═══════════════════════════════════════════════════════════
@@ -1164,7 +1176,7 @@ function HeaderSearch() {
             <>
               {flat.map(p => (
                 <button key={`${p.secId}-${p.id}`} className="search-dd-item" onClick={() => goProduct(p)}>
-                  {p.imagen ? <img src={p.imagen} alt="" /> : <div className="search-dd-noimg"><Ico n="cart" s={18} /></div>}
+                  {p.imagen ? <img src={imgOpt(p.imagen, 96)} alt="" /> : <div className="search-dd-noimg"><Ico n="cart" s={18} /></div>}
                   <div className="search-dd-info">
                     <div className="search-dd-name">{p.nombre || p.modelo}</div>
                     <div className="search-dd-sec">{p.secNombre}</div>
@@ -1222,7 +1234,7 @@ function Header() {
       {/* ROW 1: logo + buscador + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
-          {design.logo_url ? <img src={design.logo_url} alt={design.nombre_tienda || 'Inicio'} className="header-logo-img" /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+          {design.logo_url ? <img src={imgOpt(design.logo_url, 400)} alt={design.nombre_tienda || 'Inicio'} className="header-logo-img" /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
         </button>
         {/* Buscador inline (siempre visible, al lado del logo) */}
         {showSearch && (
@@ -2156,7 +2168,7 @@ function Landing() {
         </button>
         <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', p)}>
           {p.imagen
-            ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
+            ? <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" />
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
           {/* Etiquetas en una fila (antes se apilaban y tapaban la foto) */}
@@ -2251,8 +2263,8 @@ function Landing() {
                 onClick={() => s.url_destino && window.open(s.url_destino, '_blank')}>
                 {/* En celular usa la imagen para celular si la cargaron (si no, muestra la misma entera, sin cortarla) */}
                 <picture>
-                  {s.imagen_mobile && <source media="(max-width: 768px)" srcSet={s.imagen_mobile} />}
-                  <img src={s.imagen} alt={s.titulo || ''} className="hero-slide-img" />
+                  {s.imagen_mobile && <source media="(max-width: 768px)" srcSet={imgOpt(s.imagen_mobile, 900)} />}
+                  <img src={imgOpt(s.imagen, 1600)} alt={s.titulo || ''} className="hero-slide-img" />
                 </picture>
                 {(s.titulo || s.subtitulo) && (
                   <div className="hero-slide-overlay">
@@ -2540,7 +2552,7 @@ function SectionPage() {
         <div className="product-grid">
           {productos.map(p => (
             <div key={p.id} className="product-card vitrina">
-              {p.imagen && <img src={p.imagen} alt="" className="product-img" />}
+              {p.imagen && <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" />}
               <div className="product-info">
                 <div className="product-name">{p.nombre || p.modelo}</div>
                 <div className="product-cat">{p.categoria}</div>
@@ -2658,7 +2670,7 @@ function SectionPage() {
           return (
             <div key={p.id} className={`product-card ${sinStock ? 'sin-stock' : ''}`}>
               <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
-                {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}><Package size={44} style={{ verticalAlign: '-2px' }} /></div>}
+                {p.imagen ? <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}><Package size={44} style={{ verticalAlign: '-2px' }} /></div>}
                 {/* Badges */}
                 <div className="product-badges">
                   {envioGratis && <span className="pbadge pbadge-envio"><Truck size={10} strokeWidth={2.5} /> Gratis</span>}
@@ -3283,7 +3295,7 @@ function CartPage() {
               const base = si ? si.precio_base : Number(i.precio_base) || 0;
               return (
                 <div key={lineKey(i.id, i.variante_id)} className="cart-line">
-                  {i.imagen ? <img src={i.imagen} alt="" className="cart-line-img" /> : <div className="cart-line-img ph"><Smartphone size={20} /></div>}
+                  {i.imagen ? <img src={imgOpt(i.imagen, 160)} alt="" className="cart-line-img" /> : <div className="cart-line-img ph"><Smartphone size={20} /></div>}
                   <div className="cart-line-info">
                     <div className="cart-line-name">{i.nombre || i.modelo}</div>
                     {i.variante_label && <div className="cart-line-var">{i.variante_label}</div>}
@@ -3634,12 +3646,12 @@ function ProductDetailPage() {
           <div className="pdp-main-img">
             {p.envio_gratis && <span className="pdp-free-badge">ENVÍO GRATIS</span>}
             <button className={`card-fav pdp-fav${isFav ? ' active' : ''}`} onClick={toggleFav}><Ico n="heart" s={18} fill={isFav} /></button>
-            {mainImg ? <img src={mainImg} alt={p.nombre || ''} /> : <div className="pdp-noimg"><Ico n="cart" s={64} /></div>}
+            {mainImg ? <img src={imgOpt(mainImg, 900)} srcSet={imgSet(mainImg, 900)} alt={p.nombre || ''} /> : <div className="pdp-noimg"><Ico n="cart" s={64} /></div>}
           </div>
           {allImages.length > 1 && (
             <div className="pdp-thumbs">
               {allImages.map((img, i) => (
-                <img key={i} src={img} alt="" onClick={() => setMainImg(img)} className={mainImg === img ? 'active' : ''} />
+                <img key={i} src={imgOpt(img, 140)} alt="" loading="lazy" onClick={() => setMainImg(img)} className={mainImg === img ? 'active' : ''} />
               ))}
             </div>
           )}
@@ -3805,7 +3817,7 @@ function ProductDetailPage() {
           <div className="carousel-track relacionados-track">
             {relacionados.map(rp => (
               <div key={rp.id} className="card carousel-item relacionado-card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => { window.__secId = rp.seccion_id; nav('product', rp); }}>
-                {rp.imagen ? <img src={rp.imagen} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ico n="cart" s={28} /></div>}
+                {rp.imagen ? <img src={imgOpt(rp.imagen, 320)} srcSet={imgSet(rp.imagen, 320)} alt="" loading="lazy" decoding="async" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ico n="cart" s={28} /></div>}
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rp.nombre || rp.modelo}</div>
                 <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{rp.usa_variantes ? 'Ver opciones' : rp.es_preventa ? `Reservá a ${fmtARS(Number(rp.preventa_descuento_pct) > 0 ? Math.round(Number(rp.precio_base) * (1 - Number(rp.preventa_descuento_pct) / 100)) : rp.precio_base)}` : (precioFinalCliente(rp, promos, rp.seccion_id) > 0 ? fmtARS(precioFinalCliente(rp, promos, rp.seccion_id)) : 'Consultar precio')}</div>
               </div>
@@ -5501,7 +5513,7 @@ function AdminVentaManual() {
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
             {resultados.map(p => (
               <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
-                {p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}><Package size={15} style={{ verticalAlign: '-2px' }} /></div>}
+                {p.imagen ? <img src={imgOpt(p.imagen, 80)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}><Package size={15} style={{ verticalAlign: '-2px' }} /></div>}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></div>
                   {p.seccion_nombre && <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: p.seccion_color || '#888', display: 'inline-block' }}></span>{p.seccion_nombre}</div>}
@@ -6183,7 +6195,7 @@ function AdminCategorias() {
 }
 
 function AdminProductos() {
-  const { adminSeccion, secciones, toast } = useContext(Ctx);
+  const { adminSeccion, secciones, toast, user } = useContext(Ctx);
   const [productos, setProductos] = useState([]);
   const [reparandoFotos, setReparandoFotos] = useState(false);
   const [categorias, setCategorias] = useState([]);
@@ -6355,7 +6367,7 @@ function AdminProductos() {
           }}><Tag size={15} /> Generar códigos de barras</button>
           <button className="mas-item" onClick={() => setShowPriceAdj(true)}><DollarSign size={15} /> Ajustar precios en masa</button>
           <button className="mas-item" onClick={() => setShowHistory(true)}><History size={15} /> Historial de precios</button>
-          <button className="mas-item" onClick={repararFotosRxz} disabled={reparandoFotos} title="Mueve a Cloudinary las fotos que aún apuntan a rxz (arregla las rotas de depósito)"><RefreshCw size={15} /> {reparandoFotos ? 'Reparando fotos…' : 'Reparar fotos del depósito'}</button>
+          {user?.es_owner && <button className="mas-item" onClick={repararFotosRxz} disabled={reparandoFotos} title="Mueve a Cloudinary las fotos que aún apuntan a rxz (arregla las rotas de depósito)"><RefreshCw size={15} /> {reparandoFotos ? 'Reparando fotos…' : 'Reparar fotos del depósito'}</button>}
             </div>}
           </div>
         </div>
@@ -6408,9 +6420,9 @@ function AdminProductos() {
             <div key={p.id} className={`prod-card${seleccion.has(p.id) ? ' sel' : ''}${p.visible === false ? ' oculto' : ''}`}>
               <div className="prod-card-top">
                 <input type="checkbox" checked={seleccion.has(p.id)} onChange={() => toggleSel(p.id)} aria-label="Seleccionar" />
-                {p.imagen ? <img src={p.imagen} alt="" className="prod-card-img" /> : <div className="prod-card-img ph"><Package size={18} /></div>}
+                {p.imagen ? <img src={imgOpt(p.imagen, 120)} alt="" loading="lazy" className="prod-card-img" /> : <div className="prod-card-img ph"><Package size={18} /></div>}
                 <div className="prod-card-info" onClick={() => setEditProd(p)}>
-                  <div className="prod-card-name">{p.nombre || p.modelo}{p.es_preventa && <span className="prod-tag">Preventa</span>}</div>
+                  <div className="prod-card-name">{p.nombre || p.modelo}{p.es_preventa && <span className="prod-tag">Preventa</span>}{p.pendiente_aprobacion && p.visible === false && <span className="prod-tag prod-tag-pend" title="Nuevo del proveedor: aprobalo desde el bot o activalo acá">Sin aprobar</span>}</div>
                   <div className="prod-card-meta">{[p.categoria, secFiltro === 'all' ? secNombre : '', p.sku && !String(p.sku).startsWith('RXZ-') ? p.sku : ''].filter(Boolean).join(' · ')}</div>
                 </div>
               </div>
@@ -6441,8 +6453,8 @@ function AdminProductos() {
               <Fragment key={p.id}>
               <tr style={{ opacity: p.visible === false ? 0.5 : 1, background: seleccion.has(p.id) ? 'var(--primary-light)' : undefined }}>
                 <td><input type="checkbox" checked={seleccion.has(p.id)} onChange={() => toggleSel(p.id)} /></td>
-                <td>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : '—'}</td>
-                <td><strong style={{ cursor: 'pointer' }} onClick={() => setEditProd(p)}>{p.nombre || p.modelo}</strong>{p.es_preventa && <span style={{ fontSize: 9, background: 'var(--accent)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 800, marginLeft: 6, verticalAlign: 'middle' }}>PREVENTA</span>}<br/><small style={{ color: 'var(--text-muted)' }}>{p.sku || ''}</small></td>
+                <td>{p.imagen ? <img src={imgOpt(p.imagen, 80)} alt="" loading="lazy" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : '—'}</td>
+                <td><strong style={{ cursor: 'pointer' }} onClick={() => setEditProd(p)}>{p.nombre || p.modelo}</strong>{p.pendiente_aprobacion && p.visible === false && <span className="prod-tag prod-tag-pend" title="Nuevo del proveedor: aprobalo desde el bot o activalo acá">Sin aprobar</span>}{p.es_preventa && <span style={{ fontSize: 9, background: 'var(--accent)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 800, marginLeft: 6, verticalAlign: 'middle' }}>PREVENTA</span>}<br/><small style={{ color: 'var(--text-muted)' }}>{p.sku || ''}</small></td>
                 <td>{p.categoria}</td>
                 {secFiltro === 'all' && <td><span style={{ fontSize: 11, background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>{secNombre}</span></td>}
                 <td>{campoNum(p, 'precio_base', { label: 'Precio' })}</td>
@@ -6537,7 +6549,7 @@ function GaleriaFotos({ items, uploading, onFiles, onRemove, onMove }) {
           onDragEnd={() => { dragIdx.current = null; }}
           onDragOver={e => e.preventDefault()}
           onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragOver(false); const from = dragIdx.current; dragIdx.current = null; if (from != null) { if (from !== idx) onMove(from, idx); } else soltarArchivos(e); }}>
-          <img src={it.url} alt="" draggable={false} />
+          <img src={imgOpt(it.url, 240)} alt="" draggable={false} />
           {idx === 0 && <span className="gal-badge">Principal</span>}
           <button type="button" className="gal-del" onClick={() => onRemove(idx)} aria-label="Quitar foto" title="Quitar"><X size={13} /></button>
           <div className="gal-move">
@@ -8932,7 +8944,7 @@ function AdminPopups() {
       {popups.length === 0 && <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Todavía no hay pop-ups.</div>}
       {popups.map(p => { const imgs = imagenesPopup(p); return (
         <div key={p.id} className="card popup-row">
-          <div className="popup-row-thumbs">{imgs.slice(0, 3).map((u, k) => <img key={k} src={u} alt="" />)}{!imgs.length && <span className="popup-row-sin"><Camera size={18} /></span>}</div>
+          <div className="popup-row-thumbs">{imgs.slice(0, 3).map((u, k) => <img key={k} src={imgOpt(u, 100)} alt="" />)}{!imgs.length && <span className="popup-row-sin"><Camera size={18} /></span>}</div>
           <div className="popup-row-info"><strong>{p.titulo || 'Sin título'}</strong><span>{imgs.length} {imgs.length === 1 ? 'imagen' : 'imágenes'}{p.url_destino ? ' · con enlace' : ''}</span></div>
           <button type="button" className={`chip-estado ${p.activo ? 'on' : 'off'}`} onClick={() => toggleActivo(p)} title="Activar / desactivar">{p.activo ? 'Activo' : 'Inactivo'}</button>
           <div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => abrir(p)} aria-label="Editar"><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" aria-label="Eliminar" onClick={async () => { if (!confirm('¿Eliminar este pop-up?')) return; await api.deletePopup(p.id); cargar(); }}><Ico n="trash" s={15} /></button></div>
@@ -8970,7 +8982,7 @@ function PopupPromo({ popup, onClose }) {
         <button type="button" className="popup-cerrar" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
         {imgs.length > 0 && (
           <div className="popup-media" onTouchStart={e => { toque.current = e.touches[0].clientX; }} onTouchEnd={e => { if (toque.current == null || imgs.length < 2) return; const dx = e.changedTouches[0].clientX - toque.current; toque.current = null; if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1); }}>
-            {imgs.map((u, k) => <img key={k} src={u} alt={popup.titulo || ''} className={k === i ? 'activa' : ''} onClick={abrirDestino} style={{ cursor: destino ? 'pointer' : 'default' }} />)}
+            {imgs.map((u, k) => <img key={k} src={imgOpt(u, 900)} alt={popup.titulo || ''} className={k === i ? 'activa' : ''} onClick={abrirDestino} style={{ cursor: destino ? 'pointer' : 'default' }} />)}
             {imgs.length > 1 && <>
               <button type="button" className="popup-flecha izq" onClick={() => ir(-1)} aria-label="Anterior"><ChevronLeft size={20} /></button>
               <button type="button" className="popup-flecha der" onClick={() => ir(1)} aria-label="Siguiente"><ChevronRight size={20} /></button>
@@ -9828,7 +9840,7 @@ function SearchResultsPage() {
                     {user && <button className={`card-fav${favIds.has(p.id) ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}><Ico n="heart" s={16} fill={favIds.has(p.id)} /></button>}
                     <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>
                       {p.imagen
-                        ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
+                        ? <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" />
                         : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>}
                       {sinStock && <span style={{ position: 'absolute', top: 10, left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill, 20px)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
                     </div>
@@ -9878,7 +9890,7 @@ function FavoritosPage() {
           {favs.map(f => (
             <div key={f.id} className="card" style={{ overflow: 'hidden' }}>
               <div style={{ cursor: 'pointer' }} onClick={() => nav('section', f.seccion_id)}>
-                {f.imagen ? <img src={f.imagen} alt="" style={{ width: '100%', height: 160, objectFit: 'contain', background: 'var(--bg)', padding: 8 }} /> : <div style={{ height: 160, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#ccc' }}><Smartphone size={15} style={{ verticalAlign: '-2px' }} /></div>}
+                {f.imagen ? <img src={imgOpt(f.imagen, 360)} alt="" loading="lazy" style={{ width: '100%', height: 160, objectFit: 'contain', background: 'var(--bg)', padding: 8 }} /> : <div style={{ height: 160, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#ccc' }}><Smartphone size={15} style={{ verticalAlign: '-2px' }} /></div>}
               </div>
               <div style={{ padding: 12 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>{f.categoria}</div>
