@@ -198,6 +198,7 @@ export async function archivarPedido(id) { return f(`/api/pedidos/${id}/archivar
 export async function desarchivarPedido(id) { return f(`/api/pedidos/${id}/desarchivar`, { method: 'POST' }); }
 export async function deletePedido(id) { return f(`/api/pedidos/${id}`, { method: 'DELETE' }); }
 export async function getStats(params={}) { const p=new URLSearchParams(params); return f(`/api/stats?${p}`); }
+export async function getStatsDetalle(params={}) { const p=new URLSearchParams(Object.entries(params).filter(([,v]) => v !== undefined && v !== null && v !== '')); return f(`/api/stats/detalle?${p}`); }
 
 // cupones promos etc
 export async function getCupones() { return f('/api/cupones'); }

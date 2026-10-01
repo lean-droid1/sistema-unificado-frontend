@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -5804,200 +5804,342 @@ function AdminReglasCompra() {
 }
 
 // ─── ADMIN: Dashboard ───
+// ─── DASHBOARD: cada número se puede tocar y muestra lo que lo forma ───
+const RANGOS_DASH = [
+  { k: 'todo', t: 'Todo' }, { k: 'hoy', t: 'Hoy' }, { k: '7', t: '7 días' }, { k: '30', t: '30 días' },
+  { k: 'mes', t: 'Este mes' }, { k: 'mes_ant', t: 'Mes anterior' }, { k: 'custom', t: 'Elegir fechas' },
+];
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const fechaDia = (txt) => { const [y, m, d] = String(txt).slice(0, 10).split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
+function rangoFechas(k, desdeC, hastaC) {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const menos = (n) => { const d = new Date(hoy); d.setDate(d.getDate() - n); return d; };
+  if (k === 'hoy') return { desde: ymd(hoy), hasta: ymd(hoy) + 'T23:59:59' };
+  if (k === '7') return { desde: ymd(menos(6)), hasta: '' };
+  if (k === '30') return { desde: ymd(menos(29)), hasta: '' };
+  if (k === 'mes') return { desde: ymd(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), hasta: '' };
+  if (k === 'mes_ant') return { desde: ymd(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)), hasta: ymd(new Date(hoy.getFullYear(), hoy.getMonth(), 0)) + 'T23:59:59' };
+  if (k === 'custom') return { desde: desdeC || '', hasta: hastaC ? hastaC + 'T23:59:59' : '' };
+  return { desde: '', hasta: '' };
+}
+const ESTADOS_DASH = [
+  { k: 'pendiente', l: 'Pendientes', c: 'var(--warning)' }, { k: 'preparando', l: 'Preparando', c: 'var(--primary)' },
+  { k: 'listo', l: 'Listos', c: '#8b5cf6' }, { k: 'enviado', l: 'Enviados', c: '#0ea5e9' }, { k: 'entregado', l: 'Entregados', c: 'var(--success)' },
+];
+const colorEstadoDash = (e) => (ESTADOS_DASH.find(x => x.k === e) || {}).c || 'var(--text-muted)';
+
 function AdminDashboard() {
-  const { adminSeccion, setAdminTab } = useContext(Ctx);
-  const [stats, setStats] = useState({});
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const { adminSeccion, setAdminTab, toast } = useContext(Ctx);
+  const [stats, setStats] = useState(null);
+  const [rango, setRango] = useState(() => { try { return localStorage.getItem('gm_dash_rango') || 'todo'; } catch { return 'todo'; } });
+  const [desdeC, setDesdeC] = useState(''); const [hastaC, setHastaC] = useState('');
   const [stockBajo, setStockBajo] = useState([]);
+  const [pila, setPila] = useState(null);           // detalle abierto: [{ tipo, titulo, valor }] (se puede profundizar)
+  const [pedidoAbierto, setPedidoAbierto] = useState(null);
+  const [prodEdit, setProdEdit] = useState(null);
+  const [recarga, setRecarga] = useState(0);
+  const { desde, hasta } = rangoFechas(rango, desdeC, hastaC);
+  const filtros = { seccion_id: adminSeccion, desde, hasta, is_test: 'false' };
 
   const loadStats = async () => {
-    try {
-      const s = await api.getStats({ seccion_id: adminSeccion, ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}), is_test: 'false' });
-      setStats(s || {});
-    } catch {}
+    try { const s = await api.getStats({ seccion_id: adminSeccion, ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}), is_test: 'false' }); setStats(s || {}); }
+    catch { setStats(prev => prev || {}); }
   };
-  useEffect(() => { loadStats(); }, [adminSeccion, desde, hasta]);
-  useEffect(() => { api.getStockBajo().then(setStockBajo).catch(() => {}); }, []);
+  useEffect(() => { loadStats(); }, [adminSeccion, desde, hasta, recarga]);
+  useEffect(() => { api.getStockBajo().then(setStockBajo).catch(() => {}); }, [recarga]);
+  const elegirRango = (k) => { setRango(k); try { localStorage.setItem('gm_dash_rango', k); } catch {} };
+  const abrir = (tipo, titulo, valor) => setPila([{ tipo, titulo, valor }]);
+  const verPedido = async (p) => { try { setPedidoAbierto(await api.getPedido(p.id)); } catch (e) { toast(e.message, 'error'); } };
+  const editarProducto = async (id) => { try { setProdEdit(await api.getProducto(id)); } catch (e) { toast(e.message, 'error'); } };
 
-  const pct = (stats.ventas_mes_anterior > 0)
-    ? Math.round((stats.ventas_mes_actual - stats.ventas_mes_anterior) / stats.ventas_mes_anterior * 100)
-    : null;
-
-  const aCobrarN = stats.pedidos_a_cobrar || 0;
+  const st = stats || {};
+  const pct = (st.ventas_mes_anterior > 0) ? Math.round((st.ventas_mes_actual - st.ventas_mes_anterior) / st.ventas_mes_anterior * 100) : null;
+  const g = st.ganancia || {};
+  const hoyS = st.hoy || {};
+  const aCobrarN = st.pedidos_a_cobrar || 0;
+  const periodo = rango === 'todo' ? 'desde el inicio' : (RANGOS_DASH.find(r => r.k === rango) || {}).t?.toLowerCase();
   const kpis = [
-    { label: 'VENTAS COBRADAS', value: fmtARS(stats.total_ventas || 0), color: 'var(--success)', sub: 'solo pedidos pagados' },
-    { label: 'A COBRAR', value: fmtARS(stats.total_a_cobrar || 0), color: 'var(--accent, #e8a13a)', sub: `${aCobrarN} pedido${aCobrarN !== 1 ? 's' : ''} pendiente${aCobrarN !== 1 ? 's' : ''}` },
-    { label: 'PEDIDOS', value: stats.total_pedidos || 0, color: 'var(--primary)', sub: `${stats.pedidos_pagados || 0} pagados` },
-    { label: 'TICKET PROMEDIO', value: fmtARS(Math.round(stats.ticket_promedio || 0)), color: 'var(--primary)', sub: 'por pedido pagado' },
+    { k: 'cobrados', titulo: 'Ventas cobradas', label: 'Ventas cobradas', value: fmtARS(st.total_ventas || 0), color: 'var(--success)',
+      sub: pct !== null && rango === 'todo' ? <>Este mes {fmtARS(st.ventas_mes_actual || 0)} <span className={pct >= 0 ? 'dash-up' : 'dash-down'}>{pct >= 0 ? '+' : ''}{pct}%</span> vs mismos días del mes pasado</> : `${st.pedidos_pagados || 0} pedidos pagados` },
+    { k: 'a_cobrar', titulo: 'Pedidos a cobrar', label: 'A cobrar', value: fmtARS(st.total_a_cobrar || 0), color: 'var(--accent, #e8a13a)', sub: `${aCobrarN} pedido${aCobrarN !== 1 ? 's' : ''} con saldo` },
+    { k: 'ganancia', titulo: 'Ganancia por producto', label: 'Ganancia estimada', value: g.facturado_con_costo > 0 ? fmtARS(Math.round(g.ganancia || 0)) : 'Sin datos', color: '#10b981',
+      sub: g.facturado_con_costo > 0 ? `margen ${g.margen_pct}% · ${g.cobertura_pct}% de lo vendido tiene costo` : 'cargá el precio de costo en los productos' },
+    { k: 'pedidos', titulo: 'Pedidos', label: 'Pedidos', value: st.total_pedidos || 0, color: 'var(--primary)', sub: `ticket promedio ${fmtARS(Math.round(st.ticket_promedio || 0))}` },
+    { k: 'hoy', titulo: 'Pedidos de hoy', label: 'Hoy', value: fmtARS(hoyS.total || 0), color: 'var(--primary)', sub: `${hoyS.pedidos || 0} pedido${hoyS.pedidos !== 1 ? 's' : ''} · cobrado ${fmtARS(hoyS.cobrado || 0)}` },
   ];
-  const kpis2 = [
-    { label: 'PRODUCTOS', value: stats.total_productos || 0 },
-    { label: 'USUARIOS', value: stats.total_usuarios || 0 },
-    { label: 'CARRITOS DEJADOS', value: stats.carritos_abandonados || 0 },
+  const minis = [
+    { label: 'Productos', value: st.total_productos || 0, go: () => setAdminTab('productos') },
+    { label: 'Sin stock', value: st.productos_sin_stock || 0, alerta: (st.productos_sin_stock || 0) > 0, go: () => setAdminTab('productos') },
+    { label: 'Clientes nuevos', value: st.clientes_nuevos || 0, sub: (desde || hasta) ? 'en el período' : 'últimos 30 días', go: () => abrir('clientes_nuevos', 'Clientes nuevos') },
+    { label: 'Clientes por aprobar', value: st.clientes_por_aprobar || 0, alerta: (st.clientes_por_aprobar || 0) > 0, go: () => setAdminTab('usuarios') },
+    { label: 'Carritos dejados', value: st.carritos_abandonados || 0, go: () => setAdminTab('carritos') },
   ];
+  const estados = st.pedidos_por_estado || {};
 
-  const estados = stats.pedidos_por_estado || {};
-  const estadoDefs = [
-    { k: 'pendiente', l: 'Pendientes', c: 'var(--text-muted)' },
-    { k: 'preparado', l: 'Preparados', c: '#8b5cf6' },
-    { k: 'listo', l: 'Listos', c: 'var(--primary)' },
-    { k: 'enviado', l: 'Enviados', c: '#0ea5e9' },
-    { k: 'entregado', l: 'Entregados', c: 'var(--success)' },
-  ];
+  // Ventas por día: 14 días seguidos (los días sin ventas también aparecen)
+  const fin = hasta ? fechaDia(hasta) : new Date(); fin.setHours(0, 0, 0, 0);
+  const porDia = Object.fromEntries((st.ventas_por_dia || []).map(x => [String(x.fecha).slice(0, 10), x]));
+  const serie = Array.from({ length: 14 }, (_, n) => { const d = new Date(fin); d.setDate(d.getDate() - (13 - n)); const f = ymd(d); const x = porDia[f] || {}; return { f, d, total: Number(x.total) || 0, pedidos: Number(x.pedidos) || 0, vendido: Number(x.vendido) || 0 }; });
+  const maxDia = Math.max(1, ...serie.map(x => x.total));
+  const suma14 = serie.reduce((a, x) => a + x.total, 0);
+  const DIAS_SEM = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <h3 style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-0.03em' }}>Dashboard</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={{ padding: '8px 12px', fontSize: 13, borderRadius: 8, width: 140 }} />
-          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={{ padding: '8px 12px', fontSize: 13, borderRadius: 8, width: 140 }} />
-          {(desde || hasta) && <button className="btn btn-outline btn-sm" onClick={() => { setDesde(''); setHasta(''); }}>Limpiar</button>}
+    <div className="dash">
+      <div className="dash-head">
+        <h3>Dashboard</h3>
+        <div className="dash-rangos" role="group" aria-label="Período">
+          {RANGOS_DASH.map(r => <button key={r.k} type="button" className={rango === r.k ? 'on' : ''} onClick={() => elegirRango(r.k)}>{r.t}</button>)}
         </div>
+        {rango === 'custom' && (
+          <div className="dash-fechas">
+            <input type="date" value={desdeC} onChange={e => setDesdeC(e.target.value)} aria-label="Desde" />
+            <input type="date" value={hastaC} onChange={e => setHastaC(e.target.value)} aria-label="Hasta" />
+          </div>
+        )}
       </div>
+      {!stats && <div className="dash-cargando">Cargando…</div>}
 
-      <div className="stats-grid">
+      <div className="dash-kpis">
         {kpis.map(k => (
-          <div key={k.label} className="stat-card" style={{ borderRadius: 20, padding: '22px 20px', borderTop: `3px solid ${k.color}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{k.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: k.color, letterSpacing: '-0.02em', lineHeight: 1.1, marginTop: 8 }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-              {k.label === 'VENTAS COBRADAS' && pct !== null
-                ? <span style={{ fontWeight: 800, color: pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>{pct >= 0 ? '+' : ''}{pct}% vs mes anterior</span>
-                : <span>{k.sub}</span>}
-            </div>
-          </div>
+          <button key={k.k} type="button" className="dash-kpi" style={{ '--k': k.color }} onClick={() => abrir(k.k, k.titulo)}>
+            <span className="dash-kpi-label">{k.label}<ChevronRight size={15} /></span>
+            <span className="dash-kpi-valor">{k.value}</span>
+            <span className="dash-kpi-sub">{k.sub}</span>
+          </button>
         ))}
       </div>
 
-      <div className="stats-grid" style={{ marginTop: 14 }}>
-        {kpis2.map(k => (
-          <div key={k.label} className="stat-card" style={{ borderRadius: 16, padding: '16px 18px' }}>
-            <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.02em' }}>{k.value}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>{k.label}</div>
-          </div>
+      <div className="dash-minis">
+        {minis.map(m => (
+          <button key={m.label} type="button" className={`dash-mini${m.alerta ? ' alerta' : ''}`} onClick={m.go}>
+            <span className="dash-mini-valor">{m.value}</span>
+            <span className="dash-mini-label">{m.label}{m.sub ? <small> · {m.sub}</small> : null}</span>
+          </button>
         ))}
       </div>
 
-      {stats.usdt && ((stats.usdt.total_ventas || 0) > 0 || (stats.usdt.pedidos || 0) > 0 || (stats.usdt.total_a_cobrar || 0) > 0) && (
-        <div className="card" style={{ padding: 18, marginTop: 14, borderRadius: 18, borderTop: '3px solid #10b981' }}>
-          <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: '#10b981' }}>Ventas en USDT</h4>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            <div><div style={{ fontSize: 22, fontWeight: 900, color: '#10b981' }}>USDT {fmt(stats.usdt.total_ventas || 0)}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cobrado</div></div>
-            <div><div style={{ fontSize: 22, fontWeight: 900 }}>USDT {fmt(stats.usdt.total_a_cobrar || 0)}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>A cobrar</div></div>
-            <div><div style={{ fontSize: 22, fontWeight: 900 }}>{stats.usdt.pedidos || 0}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pedidos ({stats.usdt.pedidos_pagados || 0} pagados)</div></div>
+      {st.usdt && ((st.usdt.total_ventas || 0) > 0 || (st.usdt.pedidos || 0) > 0 || (st.usdt.total_a_cobrar || 0) > 0) && (
+        <div className="dash-card" style={{ borderTop: '3px solid #10b981' }}>
+          <h4>Ventas en USDT</h4>
+          <div className="dash-usdt">
+            <div><b>USDT {fmt(st.usdt.total_ventas || 0)}</b><span>Cobrado</span></div>
+            <div><b>USDT {fmt(st.usdt.total_a_cobrar || 0)}</b><span>A cobrar</span></div>
+            <div><b>{st.usdt.pedidos || 0}</b><span>Pedidos ({st.usdt.pedidos_pagados || 0} pagados)</span></div>
           </div>
         </div>
       )}
 
-      <div className="card" style={{ padding: 18, marginTop: 20, borderRadius: 18 }}>
-        <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Pedidos por estado</h4>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {estadoDefs.map(e => (
-            <div key={e.k} style={{ flex: '1 1 90px', minWidth: 90, background: 'var(--bg-subtle, rgba(0,0,0,0.03))', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 900, color: e.c }}>{estados[e.k] || 0}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{e.l}</div>
-            </div>
+      <div className="dash-card">
+        <div className="dash-card-head"><h4>Pedidos por estado</h4><span>{periodo}</span></div>
+        <div className="dash-estados">
+          {ESTADOS_DASH.map(e => (
+            <button key={e.k} type="button" className="dash-estado" style={{ '--k': e.c }} onClick={() => abrir('estado', e.l, e.k)} disabled={!estados[e.k]}>
+              <b>{estados[e.k] || 0}</b><span>{e.l}</span>
+            </button>
           ))}
         </div>
       </div>
 
-      {stats.ventas_por_dia?.length > 0 && (
-        <div className="card" style={{ padding: 24, marginTop: 20, borderRadius: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 style={{ fontWeight: 800, fontSize: 16 }}>Ventas cobradas por día</h4>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>últimos {Math.min(14, stats.ventas_por_dia.length)} días</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
-            {stats.ventas_por_dia.slice(0, 14).reverse().map((d, i) => {
-              const max = Math.max(...stats.ventas_por_dia.map(x => Number(x.total) || 0), 1);
-              const h = Number(d.total) > 0 ? (Number(d.total) / max * 140) : 4;
-              return (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: '100%', background: 'linear-gradient(180deg, #4A69E2 0%, #232321 120%)', borderRadius: 6, height: h, minHeight: 4 }} title={`$${fmt(d.total)}`} />
-                  <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>{new Date(d.fecha).getDate()}/{new Date(d.fecha).getMonth() + 1}</span>
-                </div>
-              );
-            })}
-          </div>
+      <div className="dash-card">
+        <div className="dash-card-head"><h4>Cobrado por día</h4><span>{fmtARS(suma14)} en estos 14 días · tocá un día para ver sus pedidos</span></div>
+        <div className="dash-bars">
+          {serie.map(x => (
+            <button key={x.f} type="button" className={`dash-bar${x.pedidos ? '' : ' vacio'}`} disabled={!x.pedidos} onClick={() => abrir('dia', `Pedidos del ${x.d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}`, x.f)} aria-label={`${x.d.toLocaleDateString('es-AR')}: cobrado ${fmtARS(x.total)}`}>
+              <span className="dash-tip"><b>{fmtARS(x.total)}</b> cobrado<br />{x.pedidos} pedido{x.pedidos !== 1 ? 's' : ''} · {fmtARS(x.vendido)} vendido</span>
+              <span className="dash-bar-area"><span className="dash-bar-fill" style={{ height: `${Math.max(x.total / maxDia * 100, x.pedidos ? 3 : 1.5)}%` }} /></span>
+              <span className="dash-bar-dia">{DIAS_SEM[x.d.getDay()]}</span>
+              <span className="dash-bar-fecha">{x.d.getDate()}/{x.d.getMonth() + 1}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 20 }}>
-        {stats.top_productos?.length > 0 && (
-          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
-            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Productos más vendidos</h4>
-            {stats.top_productos.slice(0, 10).map((p, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><b style={{ color: 'var(--text-muted)' }}>{i + 1}.</b> {p.nombre}</span>
-                <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{p.cantidad} u.</span>
-              </div>
+      <div className="dash-grid2">
+        {st.top_productos?.length > 0 && (
+          <div className="dash-card">
+            <div className="dash-card-head"><h4>Más vendidos</h4><span>unidades cobradas</span></div>
+            {st.top_productos.slice(0, 10).map((p, i) => (
+              <button key={i} type="button" className="dash-fila" onClick={() => abrir('producto', p.nombre, p.nombre)}>
+                <span className="dash-fila-txt"><b className="dash-num">{i + 1}</b>{p.nombre}</span>
+                <span className="dash-fila-val">{p.cantidad} u.<ChevronRight size={14} /></span>
+              </button>
             ))}
           </div>
         )}
-        {stats.top_categorias?.length > 0 && (
-          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
-            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Categorías que más facturan</h4>
-            {(() => { const max = Math.max(...stats.top_categorias.map(c => Number(c.total) || 0), 1); return stats.top_categorias.slice(0, 8).map((c, i) => (
-              <div key={i} style={{ padding: '6px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.categoria}</span>
-                  <span style={{ fontWeight: 700 }}>{fmtARS(c.total)}</span>
-                </div>
-                <div style={{ height: 6, background: 'var(--border-light)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.round((Number(c.total) || 0) / max * 100)}%`, background: 'var(--primary)', borderRadius: 4 }} />
-                </div>
-              </div>
+        {st.top_categorias?.length > 0 && (
+          <div className="dash-card">
+            <div className="dash-card-head"><h4>Categorías que más facturan</h4></div>
+            {(() => { const max = Math.max(...st.top_categorias.map(c => Number(c.total) || 0), 1); return st.top_categorias.slice(0, 8).map((c, i) => (
+              <button key={i} type="button" className="dash-fila dash-fila-barra" onClick={() => abrir('categoria', c.categoria, c.categoria)}>
+                <span className="dash-fila-txt">{c.categoria}</span>
+                <span className="dash-fila-val">{fmtARS(c.total)}<ChevronRight size={14} /></span>
+                <span className="dash-mini-barra"><span style={{ width: `${Math.round((Number(c.total) || 0) / max * 100)}%` }} /></span>
+              </button>
             )); })()}
           </div>
         )}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
-        {stats.ventas_por_metodo?.length > 0 && (
-          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
-            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Cobrado por método de pago</h4>
-            {stats.ventas_por_metodo.map((m, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                <span>{m.metodo} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({m.cantidad})</span></span>
-                <span style={{ fontWeight: 700 }}>{fmtARS(m.total)}</span>
-              </div>
+        {st.ventas_por_metodo?.length > 0 && (
+          <div className="dash-card">
+            <div className="dash-card-head"><h4>Por método de pago</h4><span>cobrado</span></div>
+            {st.ventas_por_metodo.map((m, i) => (
+              <button key={i} type="button" className="dash-fila" onClick={() => abrir('metodo', `Pagos con ${m.metodo}`, m.metodo)}>
+                <span className="dash-fila-txt">{m.metodo} <small>{m.cantidad} pedido{Number(m.cantidad) !== 1 ? 's' : ''}</small></span>
+                <span className="dash-fila-val">{fmtARS(m.total)}<ChevronRight size={14} /></span>
+              </button>
             ))}
           </div>
         )}
-        {stats.ventas_por_seccion?.length > 0 && (
-          <div className="card" style={{ padding: 20, borderRadius: 18 }}>
-            <h4 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Cobrado por sección</h4>
-            {stats.ventas_por_seccion.map((s, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                <span>{s.seccion}</span>
-                <span style={{ fontWeight: 700 }}>{fmtARS(s.total)}</span>
-              </div>
+        {st.ventas_por_seccion?.length > 0 && (
+          <div className="dash-card">
+            <div className="dash-card-head"><h4>Por tienda</h4><span>cobrado</span></div>
+            {st.ventas_por_seccion.map((x, i) => (
+              <button key={i} type="button" className="dash-fila" onClick={() => abrir('seccion', `Pedidos de ${x.seccion}`, x.seccion_id)}>
+                <span className="dash-fila-txt">{x.seccion} <small>{x.cantidad} pedido{Number(x.cantidad) !== 1 ? 's' : ''}</small></span>
+                <span className="dash-fila-val">{fmtARS(x.total)}<ChevronRight size={14} /></span>
+              </button>
             ))}
           </div>
         )}
       </div>
 
       {stockBajo.length > 0 && (
-        <div style={{ background: 'var(--warning-light, rgba(245,180,60,0.1))', border: '1.5px solid var(--warning, #e8a13a)', borderRadius: 16, padding: 18, marginTop: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-            <strong style={{ fontSize: 15 }}>{stockBajo.length} producto{stockBajo.length !== 1 ? 's' : ''} con stock bajo</strong>
-            <button className="btn btn-outline btn-sm" onClick={() => setAdminTab('productos')}>Ver en productos</button>
-          </div>
-          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-            {stockBajo.slice(0, 15).map(p => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                <span>{p.nombre || p.modelo} {p.seccion_nombre && <span style={{ fontSize: 10, background: 'var(--border)', padding: '1px 6px', borderRadius: 4 }}>{p.seccion_nombre}</span>}</span>
-                <span style={{ fontWeight: 700, color: p.stock <= 0 ? 'var(--danger)' : 'var(--accent)' }}>{p.stock} / min {p.stock_minimo}</span>
-              </div>
+        <div className="dash-card dash-stock">
+          <div className="dash-card-head"><h4>{stockBajo.length} producto{stockBajo.length !== 1 ? 's' : ''} con stock bajo</h4><button className="btn btn-outline btn-sm" onClick={() => setAdminTab('productos')}>Ver en productos</button></div>
+          <div className="dash-stock-lista">
+            {stockBajo.slice(0, 20).map(p => (
+              <button key={p.id} type="button" className="dash-fila" onClick={() => editarProducto(p.id)} title="Editar producto">
+                <span className="dash-fila-txt">{p.nombre || p.modelo} {p.seccion_nombre && <small>{p.seccion_nombre}</small>}</span>
+                <span className="dash-fila-val" style={{ color: p.stock <= 0 ? 'var(--danger)' : 'var(--accent)' }}>{p.stock} / mín {p.stock_minimo}<ChevronRight size={14} /></span>
+              </button>
             ))}
-            {stockBajo.length > 15 && <div style={{ fontSize: 12, color: 'var(--text-muted)', paddingTop: 6 }}>y {stockBajo.length - 15} más...</div>}
+            {stockBajo.length > 20 && <div className="dash-nota">y {stockBajo.length - 20} más…</div>}
           </div>
         </div>
       )}
+
+      {pila && !pedidoAbierto && (
+        <DashDetalle pila={pila} setPila={setPila} filtros={filtros} recarga={recarga} onVerPedido={verPedido}
+          onIrA={(tab) => { setPila(null); setAdminTab(tab); }} />
+      )}
+      {pedidoAbierto && <OrderDetailModal order={pedidoAbierto} onClose={() => { setPedidoAbierto(null); setRecarga(x => x + 1); }} />}
+      {prodEdit && <ProductModal product={prodEdit} onClose={() => { setProdEdit(null); setRecarga(x => x + 1); }} />}
     </div>
   );
+}
+
+// Panel con el detalle de un número del dashboard. Se puede profundizar (categoría → producto → pedidos).
+function DashDetalle({ pila, setPila, filtros, recarga, onVerPedido, onIrA }) {
+  const actual = pila[pila.length - 1];
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let vivo = true; setData(null); setError('');
+    api.getStatsDetalle({ ...filtros, tipo: actual.tipo, valor: actual.valor })
+      .then(d => { if (vivo) setData(d); }).catch(e => { if (vivo) setError(e.message || 'No se pudo cargar'); });
+    return () => { vivo = false; };
+  }, [actual.tipo, actual.valor, filtros.desde, filtros.hasta, filtros.seccion_id, recarga]);
+  const cerrar = () => setPila(null);
+  const atras = () => setPila(pila.slice(0, -1));
+  const profundizar = (tipo, titulo, valor) => setPila([...pila, { tipo, titulo, valor }]);
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') { if (pila.length > 1) atras(); else cerrar(); } };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  });
+  const r = (data && data.resumen) || {};
+  const recordarPago = (e, p) => {
+    e.stopPropagation();
+    const tel = telWaPedido(p); if (!tel) return;
+    window.open(waLink(tel, `Hola ${p.usuario_nombre || ''}, ¿cómo estás? Te escribo por tu pedido ${numOrden(p)}: queda un saldo de ${fmtARS(p.saldo)}. Cuando puedas me avisás y te paso los datos para abonarlo.`), '_blank');
+  };
+  const saludarCliente = (e, c) => { e.stopPropagation(); if (c.telefono) window.open(waLink(c.telefono, `Hola ${c.nombre || ''}, gracias por registrarte en nuestra tienda. Cualquier consulta escribime por acá.`), '_blank'); };
+  const fila = (onClick, hijos, k) => <div key={k} className="dd-fila" role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === 'Enter') onClick(); }}>{hijos}</div>;
+
+  return createPortal(
+    <div className="dd-overlay" onClick={cerrar}>
+      <aside className="dd-panel" onClick={e => e.stopPropagation()} role="dialog" aria-label={actual.titulo}>
+        <header className="dd-head">
+          {pila.length > 1 && <button type="button" className="dd-icono" onClick={atras} aria-label="Volver"><ArrowLeft size={18} /></button>}
+          <div className="dd-titulos">
+            <span className="dd-sup">{pila.length > 1 ? pila[pila.length - 2].titulo : 'Dashboard'}</span>
+            <h4>{actual.titulo}</h4>
+          </div>
+          <button type="button" className="dd-icono" onClick={cerrar} aria-label="Cerrar"><X size={18} /></button>
+        </header>
+        {data && (
+          <div className="dd-resumen">
+            {data.modo === 'pedidos' && <>
+              <span><b>{r.cantidad}</b> pedido{r.cantidad !== 1 ? 's' : ''}</span>
+              <span>Total <b>{fmtARS(r.total)}</b></span>
+              {r.cobrado > 0 && <span className="ok">Cobrado <b>{fmtARS(r.cobrado)}</b></span>}
+              {r.saldo > 0 && <span className="warn">A cobrar <b>{fmtARS(r.saldo)}</b></span>}
+            </>}
+            {data.modo === 'productos' && <>
+              <span><b>{r.cantidad}</b> producto{r.cantidad !== 1 ? 's' : ''} · {r.unidades} u.</span>
+              <span>Facturado <b>{fmtARS(r.total)}</b></span>
+              {r.cantidad > r.sin_costo && <span className="ok">Ganancia <b>{fmtARS(Math.round(r.ganancia))}</b></span>}
+              {r.sin_costo > 0 && <span className="warn">{r.sin_costo} sin precio de costo</span>}
+            </>}
+            {data.modo === 'clientes' && <>
+              <span><b>{r.cantidad}</b> cliente{r.cantidad !== 1 ? 's' : ''}</span>
+              <span className="ok">{r.compraron} ya compraron</span>
+            </>}
+          </div>
+        )}
+        <div className="dd-lista">
+          {!data && !error && <div className="dd-vacio">Cargando…</div>}
+          {error && <div className="dd-vacio">{error}</div>}
+          {data && !data.filas.length && <div className="dd-vacio">No hay nada para mostrar con estos filtros.</div>}
+          {data && data.modo === 'pedidos' && data.filas.map(p => fila(() => onVerPedido(p), <>
+            <div className="dd-fila-main">
+              <div className="dd-fila-l1"><strong>{numOrden(p)}</strong><span>{p.usuario_nombre || '(sin nombre)'}{p.nombre_fantasia ? ` · ${p.nombre_fantasia}` : ''}</span></div>
+              <div className="dd-fila-l2">
+                {p.seccion_nombre && <span className="kb-sec" style={{ background: p.seccion_color || 'var(--primary)' }}>{p.seccion_nombre}</span>}
+                <span className="dd-estado" style={{ '--k': colorEstadoDash(p.estado) }}>{p.estado}</span>
+                <span className={`kb-pago ${p.estado_pago}`}>{p.estado_pago}</span>
+                {p.cantidad_producto ? <span className="dd-fecha">{p.cantidad_producto} u.</span> : null}
+                <span className="dd-fecha">{fechaCortaPed(p.created_at)}</span>
+              </div>
+            </div>
+            <div className="dd-fila-r">
+              <b>{fmtARS(p.total)}</b>
+              {Number(p.saldo) > 0 && <span className="dd-saldo">debe {fmtARS(p.saldo)}</span>}
+              {Number(p.saldo) > 0 && telWaPedido(p) && <button type="button" className="dd-wa" onClick={e => recordarPago(e, p)}><MessageCircle size={13} /> Recordar</button>}
+            </div>
+          </>, p.id))}
+          {data && data.modo === 'productos' && data.filas.map((x, i) => fila(() => profundizar('producto', x.nombre, x.nombre), <>
+            <div className="dd-fila-main">
+              <div className="dd-fila-l1"><span className="dd-nombre">{x.nombre}</span></div>
+              <div className="dd-fila-l2">
+                <span className="dd-fecha">{x.cantidad} u.</span>
+                {x.costo === null ? <span className="dd-sincosto">sin precio de costo</span> : <span className="dd-fecha">costo {fmtARS(x.costo)}</span>}
+              </div>
+            </div>
+            <div className="dd-fila-r">
+              <b>{fmtARS(x.total)}</b>
+              {x.ganancia !== null && <span className={x.ganancia >= 0 ? 'dd-gan' : 'dd-perd'}>{x.ganancia >= 0 ? '+' : ''}{fmtARS(Math.round(x.ganancia))}</span>}
+            </div>
+          </>, i))}
+          {data && data.modo === 'clientes' && data.filas.map(c => fila(() => onIrA('usuarios'), <>
+            <div className="dd-fila-main">
+              <div className="dd-fila-l1"><strong>{c.nombre || c.usuario}</strong>{!c.aprobado && <span className="dd-sincosto">por aprobar</span>}</div>
+              <div className="dd-fila-l2"><span className="dd-fecha">{c.telefono || c.email || c.usuario}</span><span className="dd-fecha">alta {fechaCortaPed(c.created_at)}</span></div>
+            </div>
+            <div className="dd-fila-r">
+              <b>{c.compras} compra{c.compras !== 1 ? 's' : ''}</b>
+              {c.telefono && <button type="button" className="dd-wa" onClick={e => saludarCliente(e, c)}><MessageCircle size={13} /> Escribir</button>}
+            </div>
+          </>, c.id))}
+          {data && data.modo === 'pedidos' && r.cantidad > data.filas.length && <div className="dd-vacio">Se muestran los {data.filas.length} más recientes de {r.cantidad}.</div>}
+        </div>
+        <footer className="dd-pie">
+          {data && data.modo === 'pedidos' && <button type="button" className="btn btn-outline btn-sm" onClick={() => onIrA('pedidos')}>Ir a Pedidos</button>}
+          {data && data.modo === 'productos' && r.sin_costo > 0 && <button type="button" className="btn btn-outline btn-sm" onClick={() => onIrA('productos')}>Cargar precios de costo</button>}
+          {data && data.modo === 'clientes' && <button type="button" className="btn btn-outline btn-sm" onClick={() => onIrA('usuarios')}>Ir a Clientes</button>}
+          <span className="dd-ayuda">Tocá una fila para ver más</span>
+        </footer>
+      </aside>
+    </div>, document.body);
 }
 
 // ─── ADMIN: Productos (inline editable table) ───
