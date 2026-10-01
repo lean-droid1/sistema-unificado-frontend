@@ -600,6 +600,8 @@ export default function App() {
   useEffect(() => {
     if (initDone.current) return;
     initDone.current = true;
+    // Seguro: si algo tarda mucho, mostrar la web igual (los datos que falten llegan después)
+    const seguro = setTimeout(() => setLoading(false), 12000);
     (async () => {
       try {
         const [secs, cfg, des, menu, redes, lsts, pf, plan] = await Promise.all([
@@ -698,6 +700,7 @@ export default function App() {
           if (!esAdmin) setEnMantenimiento(true); // bloquea a TODO no-admin; el login del admin va DENTRO del bloque
         }
       } catch (e) { console.error('Init error:', e); }
+      clearTimeout(seguro);
       setLoading(false);
     })();
   }, []);
@@ -1178,8 +1181,6 @@ function Header() {
   const showSearch = !['admin','login','register','forgot','maintenance'].includes(page);
   const barrasTop = (barras || []).filter(b => b.activo && b.posicion === 'top');
   const barrasSearch = (barras || []).filter(b => b.activo && b.posicion === 'search');
-  // Celular: una sola barra con todas las frases (antes eran dos y ocupaban media pantalla)
-  const barraUnida = (barrasTop[0] || barrasSearch[0]) ? { ...(barrasTop[0] || barrasSearch[0]), id: 'unida', frases: [...barrasTop, ...barrasSearch].map(b => b.frases || '').join(' | ') } : null;
   // Menú de tiendas: avisar con un difuminado cuando hay más para deslizar
   const secnavRef = useRef(null);
   const [secnavFade, setSecnavFade] = useState({ izq: false, der: false });
@@ -1188,10 +1189,9 @@ function Header() {
 
   return (
     <>
-    {showSearch && (barrasTop.length > 0 || barrasSearch.length > 0) && (
+    {showSearch && barrasTop.length > 0 && (
       <div className="header-topbars">
-        <div className="desktop-block">{barrasTop.map(b => <TextBar key={b.id} barra={b} />)}</div>
-        <div className="mobile-block">{barraUnida && <TextBar barra={barraUnida} />}</div>
+        {barrasTop.map(b => <TextBar key={b.id} barra={b} />)}
       </div>
     )}
     <header className="header">
@@ -1281,6 +1281,8 @@ function Header() {
         </div>
       )}
     </header>
+    {/* Celular: la segunda barra va debajo del menú de tiendas y se va al bajar (no ocupa lugar fijo) */}
+    {showSearch && barrasSearch.length > 0 && <div className="mobile-block header-afterbars">{barrasSearch.map(b => <TextBar key={b.id} barra={b} />)}</div>}
     </>
   );
 }

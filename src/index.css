@@ -909,3 +909,5 @@ body.con-barra-compra .wa-widget { bottom: 86px !important; }
   .pdp-qty button { padding: 0 12px; }
 }
 @media (max-width: 400px) { .solo-ancho { display: none; } }
+.header-afterbars { background: var(--header-bg); padding-bottom: 6px; border-bottom: 1px solid var(--border-light); }
+.header-logo { min-width: 0; max-width: 42vw; overflow: hidden; }

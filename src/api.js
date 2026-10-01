@@ -34,7 +34,16 @@ async function f(url, opts = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (TENANT_SLUG) headers['X-Tenant'] = TENANT_SLUG;
   if (opts.body instanceof FormData) delete headers['Content-Type'];
-  const r = await fetch(`${BASE}${url}`, { ...opts, headers });
+  // Límite de espera: si el servidor no contesta, se corta y se muestra un error (antes la web quedaba cargando para siempre)
+  const limite = opts.body instanceof FormData ? 90000 : 25000;
+  const fetchConLimite = (u, o) => {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const t = ctrl ? setTimeout(() => ctrl.abort(), limite) : null;
+    return fetch(u, ctrl ? { ...o, signal: ctrl.signal } : o)
+      .catch(e => { if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Probá de nuevo.'); throw e; })
+      .finally(() => { if (t) clearTimeout(t); });
+  };
+  const r = await fetchConLimite(`${BASE}${url}`, { ...opts, headers });
   if (r.status === 401 && token && !url.includes('/login') && !url.includes('/refresh-token')) {
     // try refresh once
     if (!refreshPromise) {
@@ -47,7 +56,7 @@ async function f(url, opts = {}) {
       const newToken = await refreshPromise;
       if(newToken){
         headers['Authorization'] = `Bearer ${newToken}`;
-        const r2 = await fetch(`${BASE}${url}`, { ...opts, headers });
+        const r2 = await fetchConLimite(`${BASE}${url}`, { ...opts, headers });
         if(!r2.ok){ const err=await r2.json().catch(()=>({error:r2.statusText})); throw new Error(err.error||r2.statusText); }
         return r2.json();
       }
