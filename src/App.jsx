@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -7371,6 +7371,8 @@ function AdminPedidos({ filtroTipo }) {
   const [desdePed, setDesdePed] = useState(''); const [hastaPed, setHastaPed] = useState('');
   const [avisoPed, setAvisoPed] = useState(null); // { mensaje, telefono } → ¿avisar al cliente?
   const [ocupado, setOcupado] = useState(null); // id del pedido que se está guardando
+  const [vista, setVista] = useState(() => { try { return localStorage.getItem('gm_ped_vista') || 'lista'; } catch { return 'lista'; } });
+  const cambiarVista = (v) => { setVista(v); try { localStorage.setItem('gm_ped_vista', v); } catch {} };
   // Cambiar de tab si cambia el filtro desde el sidebar
   useEffect(() => { if (filtroTipo === 'presupuestos') setOrdTab('presupuestos'); else if (filtroTipo === 'pedidos') setOrdTab('pedidos'); }, [filtroTipo]);
 
@@ -7496,8 +7498,14 @@ function AdminPedidos({ filtroTipo }) {
           <button className="btn btn-outline btn-sm" onClick={exportExcel}><BarChart3 size={15} style={{ verticalAlign: '-2px' }} /> Exportar Excel</button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         {tabs.map(t => <button key={t.id} className={`btn btn-sm ${ordTab === t.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => changeTab(t.id)}>{t.label}</button>)}
+        {ordTab === 'pedidos' && (
+          <div className="vista-toggle" role="group" aria-label="Vista">
+            <button type="button" className={vista === 'lista' ? 'on' : ''} onClick={() => cambiarVista('lista')} title="Lista"><LayoutList size={16} /><span>Lista</span></button>
+            <button type="button" className={vista === 'tablero' ? 'on' : ''} onClick={() => cambiarVista('tablero')} title="Tablero por estado"><SquareKanban size={16} /><span>Tablero</span></button>
+          </div>
+        )}
       </div>
       <div className="ped-filtros">
         <input placeholder="Buscar por nº, cliente o teléfono..." value={busqPed} onChange={e => setBusqPed(e.target.value)} className="ped-busq" />
@@ -7552,7 +7560,10 @@ function AdminPedidos({ filtroTipo }) {
           </div>
         </div>
       )}
-      {pedidosFiltrados.map(p => (
+      {ordTab === 'pedidos' && vista === 'tablero' && pedidosFiltrados.length > 0 && (
+        <TableroPedidos pedidos={pedidosFiltrados} colores={colores} ocupado={ocupado} epDe={epDe} onMover={cambiarEstadoRapido} onVer={setViewOrder} />
+      )}
+      {!(ordTab === 'pedidos' && vista === 'tablero') && pedidosFiltrados.map(p => (
         <div key={p.id} className={`card ped-row${ocupado === p.id ? ' ocupado' : ''}`} style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
@@ -7586,6 +7597,71 @@ function AdminPedidos({ filtroTipo }) {
       {pedidos.length === 0 && <div className="empty-state"><h3>No hay {ordTab}</h3></div>}
       {viewOrder && <OrderDetailModal order={viewOrder} onClose={() => { setViewOrder(null); load(); }} />}
       {showPresupuesto && <PresupuestoModal onClose={() => { setShowPresupuesto(false); changeTab('presupuestos'); }} />}
+    </div>
+  );
+}
+
+// ─── Tablero de pedidos por estado (arrastrar entre columnas en compu; botón "Pasar a…" en celu) ───
+const TABLERO_COLS = [
+  { k: 'pendiente', t: 'Pendientes' }, { k: 'preparando', t: 'Preparando' }, { k: 'listo', t: 'Listos' },
+  { k: 'enviado', t: 'Enviados' }, { k: 'entregado', t: 'Entregados' },
+];
+const fechaCortaPed = (d) => {
+  const f = new Date(d); if (isNaN(f)) return '';
+  const hoy = new Date(); const ayer = new Date(); ayer.setDate(hoy.getDate() - 1);
+  const hh = f.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  if (f.toDateString() === hoy.toDateString()) return `Hoy ${hh}`;
+  if (f.toDateString() === ayer.toDateString()) return `Ayer ${hh}`;
+  return f.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+};
+function TableroPedidos({ pedidos, colores, ocupado, epDe, onMover, onVer }) {
+  const [sobre, setSobre] = useState(null);
+  const arrastrando = useRef(null);
+  const MAX_ENTREGADOS = 30;
+  return (
+    <div className="kb">
+      {TABLERO_COLS.map((col, ci) => {
+        const lista = pedidos.filter(p => p.estado === col.k);
+        const suma = lista.reduce((a, p) => a + (Number(p.total) || 0), 0);
+        const visibles = col.k === 'entregado' ? lista.slice(0, MAX_ENTREGADOS) : lista;
+        const sig = TABLERO_COLS[ci + 1];
+        return (
+          <section key={col.k} className={`kb-col${sobre === col.k ? ' over' : ''}`} style={{ '--kb-c': colores[col.k] }}
+            onDragOver={e => { if (arrastrando.current) { e.preventDefault(); if (sobre !== col.k) setSobre(col.k); } }}
+            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setSobre(null); }}
+            onDrop={e => { e.preventDefault(); setSobre(null); const p = arrastrando.current; arrastrando.current = null; if (p && p.estado !== col.k) onMover(p, col.k); }}>
+            <header className="kb-head">
+              <span className="kb-dot" />
+              <span className="kb-titulo">{col.t}</span>
+              <span className="kb-n">{lista.length}</span>
+              {lista.length > 0 && <span className="kb-sum">{fmtARS(suma)}</span>}
+            </header>
+            <div className="kb-list">
+              {visibles.map(p => {
+                const ep = epDe(p);
+                return (
+                  <article key={p.id} className={`kb-card${ocupado === p.id ? ' ocupado' : ''}`} draggable
+                    onDragStart={e => { arrastrando.current = p; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(p.id)); } catch {} }}
+                    onDragEnd={() => { arrastrando.current = null; setSobre(null); }}
+                    onClick={() => onVer(p)}>
+                    <div className="kb-card-top"><strong>{numOrden(p)}</strong><span className="kb-total">{fmtARS(p.total)}</span></div>
+                    <div className="kb-cli">{p.usuario_nombre || '(sin nombre)'}{p.nombre_fantasia ? ` · ${p.nombre_fantasia}` : ''}</div>
+                    <div className="kb-meta">
+                      {p.seccion_nombre && <span className="kb-sec" style={{ background: p.seccion_color || 'var(--primary)' }}>{p.seccion_nombre}</span>}
+                      <span className={`kb-pago ${ep}`}>{ep}</span>
+                      {p.is_test && <span className="kb-pago test">test</span>}
+                      <span className="kb-fecha">{fechaCortaPed(p.created_at)}</span>
+                    </div>
+                    {sig && <button type="button" className="kb-next" disabled={ocupado === p.id} onClick={e => { e.stopPropagation(); onMover(p, sig.k); }}>Pasar a {sig.t.toLowerCase()} <ChevronRight size={13} /></button>}
+                  </article>
+                );
+              })}
+              {!lista.length && <div className="kb-vacio">Sin pedidos</div>}
+              {lista.length > visibles.length && <div className="kb-vacio">y {lista.length - visibles.length} más (usá la vista Lista)</div>}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
