@@ -313,6 +313,7 @@ export async function getCarritosAbandonados() { return f('/api/carritos-abandon
 export async function recuperarCarrito(id) { return f(`/api/carritos-abandonados/${id}/recuperar`, { method: 'POST' }); }
 export async function deleteCarritoAbandonado(id) { return f(`/api/carritos-abandonados/${id}`, { method: 'DELETE' }); }
 export async function guardarCarritoAbandonado(data) { return f('/api/carritos-abandonados', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getOfertas(limit) { return f(`/api/productos/ofertas?limit=${limit || 16}`); }
 export async function getNovedades(seccion_id, limit) { return f(`/api/productos/novedades?limit=${limit || 12}${seccion_id && seccion_id !== 'all' ? `&seccion_id=${seccion_id}` : ''}`); }
 
 export function trackEvent(eventName, params = {}) { if (typeof window.gtag === 'function') window.gtag('event', eventName, params); }

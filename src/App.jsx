@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -55,7 +55,7 @@ function aplicarPromo(base, product, promos, seccionId, moneda) {
     let final = base;
     if (pr.tipo === 'porcentaje') final = Math.round(base * (1 - Number(pr.valor) / 100));
     else if (pr.tipo === 'monto_fijo') final = Math.max(0, base - Number(pr.valor));
-    if (final < base && (!mejor || final < mejor.final)) mejor = { final, original: base, pct: Math.round((1 - final / base) * 100), nombre: pr.nombre };
+    if (final < base && (!mejor || final < mejor.final)) mejor = { final, original: base, pct: Math.round((1 - final / base) * 100), nombre: pr.nombre, hasta: pr.fecha_hasta || null };
   }
   return mejor;
 }
@@ -489,7 +489,8 @@ export default function App() {
       if (['cart', 'favoritos', 'contacto', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
       if (r.page === 'product' || r.page === 'search') return 'landing';
     }
-    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance'].includes(sv)) return 'landing'; return sv;
+    // Búsqueda/producto/sección dependen de la URL: sin ella se abría una búsqueda vacía al entrar al inicio
+    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance','search','product','section'].includes(sv)) return 'landing'; return sv;
   });
   const [loading, setLoading] = useState(true);
   const [enMantenimiento, setEnMantenimiento] = useState(false); // true = bloquear la tienda a visitantes (no admin)
@@ -855,6 +856,20 @@ export default function App() {
     setJsonLd(ld);
   }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading]);
 
+  // Favoritos (uno solo para toda la tienda: el corazón queda igual en todas las tarjetas)
+  const [favIds, setFavIds] = useState(() => new Set());
+  useEffect(() => { if (!user) { setFavIds(new Set()); return; } api.getFavoritos().then(fs => setFavIds(new Set((fs || []).map(f => f.producto_id)))).catch(() => {}); }, [user?.id]);
+  const toggleFav = async (pid) => {
+    if (!user) { toast('Ingresá a tu cuenta para guardar favoritos'); nav('login'); return; }
+    const tenia = favIds.has(pid);
+    setFavIds(prev => { const n = new Set(prev); if (tenia) n.delete(pid); else n.add(pid); return n; });
+    try { if (tenia) await api.removeFavorito(pid); else await api.addFavorito(pid); }
+    catch { setFavIds(prev => { const n = new Set(prev); if (tenia) n.add(pid); else n.delete(pid); return n; }); toast('No se pudo actualizar favoritos', 'error'); }
+  };
+  const [vistaRapida, setVistaRapida] = useState(null);
+  const [carritoAbierto, setCarritoAbierto] = useState(false);
+  const [avisoCarrito, setAvisoCarrito] = useState(null);
+
   // Cart helpers
   const cartForSection = (secId) => cart[secId] || [];
   const cartCount = secciones.reduce((s, sec) => {
@@ -876,12 +891,10 @@ export default function App() {
       const stockMax = sinTope ? Infinity : Number(product.stock ?? Infinity);
       if (existing) {
         const nuevaQty = existing.qty + qty;
-        if (!sinTope && nuevaQty > stockMax) {
-          existing.qty = Math.max(1, stockMax);
-          toast(stockMax > 0 ? `Solo hay ${stockMax} en stock` : 'Sin stock disponible', 'warning');
-        } else {
-          existing.qty = nuevaQty;
-        }
+        let q = nuevaQty;
+        if (!sinTope && nuevaQty > stockMax) { q = Math.max(1, stockMax); toast(stockMax > 0 ? `Solo hay ${stockMax} en stock` : 'Sin stock disponible', 'warning'); }
+        const idx = items.indexOf(existing);
+        items[idx] = { ...existing, qty: q };
       }
       else {
         const qtyInicial = (!sinTope && qty > stockMax) ? Math.max(1, stockMax) : qty;
@@ -889,7 +902,7 @@ export default function App() {
       }
       return { ...prev, [realSec]: items };
     });
-    toast('Agregado al carrito');
+    setAvisoCarrito({ n: Date.now(), secId: realSec, nombre: (product.nombre || product.modelo || '') + (varLabel ? ` · ${varLabel}` : ''), imagen: (variante && variante.imagen) || product.imagen || '' });
     trackEvent('add_to_cart', 'AddToCart', { value: (precio || product.precio_base) * qty, currency: 'ARS', content_name: product.nombre || product.modelo });
   };
   const removeFromCart = (secId, productId, varId = null) => {
@@ -992,6 +1005,7 @@ export default function App() {
     redesSociales, setRedesSociales, badges, setBadges, barras, setBarras, listas, setListas,
     preciosFijos, setPreciosFijos, miPlan, setMiPlan, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
+    favIds, toggleFav, vistaRapida, setVistaRapida, carritoAbierto, setCarritoAbierto, avisoCarrito, setAvisoCarrito,
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
     precioLista, precioEfectivo, ajusteCliente, precioFinalCliente,
     testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); },
@@ -1040,6 +1054,8 @@ export default function App() {
       ) : (
       <div className={`app${effectiveDark ? ' dark' : ''}`}>
         <Header />
+        {page !== 'admin' && <><MiniCarrito /><AvisoCarrito /></>}
+        {vistaRapida && <VistaRapida producto={vistaRapida} onClose={() => setVistaRapida(null)} />}
         <main className="main-content"><ErrorBoundary key={page}>{renderPage()}</ErrorBoundary></main>
         {/* En el panel no van el pie de la tienda ni el WhatsApp de clientes (tapaban botones) */}
         {page !== 'admin' && <Footer />}
@@ -1211,7 +1227,10 @@ function TextBar({ barra }) {
 }
 
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch, seccionActual } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch, seccionActual, setCarritoAbierto } = useContext(Ctx);
+  // El ícono del carrito salta cada vez que se suma un producto
+  const cartPrev = useRef(cartCount); const [cartSalta, setCartSalta] = useState(false);
+  useEffect(() => { if (cartCount > cartPrev.current) { setCartSalta(false); requestAnimationFrame(() => setCartSalta(true)); const t = setTimeout(() => setCartSalta(false), 650); cartPrev.current = cartCount; return () => clearTimeout(t); } cartPrev.current = cartCount; }, [cartCount]);
   const [mobMenu, setMobMenu] = useState(false);
   const showSearch = !['admin','login','register','forgot','maintenance'].includes(page);
   const barrasTop = (barras || []).filter(b => b.activo && b.posicion === 'top');
@@ -1245,7 +1264,7 @@ function Header() {
         <div className="header-right">
           {!design.modo_tema && !THEME_PRESETS.find(t => t.id === design.plantilla) && <button className="icon-btn desktop-only" onClick={() => setDark(!dark)} title="Modo oscuro">{dark ? <Ico n="sun" /> : <Ico n="moon" />}</button>}
           {user && <button className="icon-btn desktop-only" onClick={() => nav('favoritos')} title="Favoritos"><Ico n="heart" /></button>}
-          <button className="icon-btn cart-btn" onClick={() => nav('cart')} style={{ position: 'relative' }}>
+          <button className={`icon-btn cart-btn${cartSalta ? ' salta' : ''}`} onClick={() => { if (page === 'cart') return; setCarritoAbierto(true); }} style={{ position: 'relative' }} aria-label={`Carrito${cartCount ? `, ${cartCount} productos` : ''}`}>
             <Ico n="cart" /> {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
           {user ? (
@@ -1373,7 +1392,7 @@ function Footer() {
         </div>
         {/* Ubicación + horarios + mini mapa */}
         {(design.direccion || design.horario) && (
-          <div style={{ display: 'grid', gridTemplateColumns: design.direccion ? 'minmax(200px, 1fr) minmax(180px, 300px)' : '1fr', gap: 20, alignItems: 'center', paddingTop: 24, marginTop: 4, borderTop: '1px solid var(--border)', marginBottom: 8 }}>
+          <div className={`footer-contacto${design.direccion ? ' con-mapa' : ''}`} style={{ display: 'grid', gap: 20, alignItems: 'center', paddingTop: 24, marginTop: 4, borderTop: '1px solid var(--border)', marginBottom: 8 }}>
             <div>
               {design.direccion && (
                 <div style={{ marginBottom: design.horario ? 14 : 0 }}>
@@ -2092,6 +2111,338 @@ function ComerciappLanding({ onLogin, onRegister }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// TARJETA DE PRODUCTO — una sola para toda la tienda (inicio, tiendas, búsqueda, favoritos, relacionados)
+// Precio con las mismas reglas que el carrito: lista del cliente → oferta → promo / revendedor.
+// ═══════════════════════════════════════════════════════════
+function precioTarjeta(p, ctx, secId) {
+  const { precioLista, precioEfectivo, ajusteCliente, promos } = ctx;
+  const lista = precioLista(p);
+  const efectivo = precioEfectivo(p);
+  const a = ajusteCliente(efectivo, p, promos, p.seccion_id || secId, p.moneda || 'ARS');
+  const final = a ? a.final : efectivo;
+  const original = Math.max(lista, a ? a.original : 0);
+  const hay = !p.es_preventa && final > 0 && original > final;
+  return { final, original: hay ? original : null, pct: hay ? Math.round((1 - final / original) * 100) : 0, ahorro: hay ? original - final : 0, promo: a && !a.esRevendedor ? a.nombre : '', hasta: a?.hasta || null, esRevendedor: !!a?.esRevendedor };
+}
+// Milisegundos que faltan para que termine una promo (solo si termina dentro de 7 días)
+const finPromoMs = (hasta, dias = 7) => {
+  if (!hasta) return null;
+  const [y, m, d] = String(hasta).slice(0, 10).split('-').map(Number);
+  if (!y) return null;
+  const ms = new Date(y, m - 1, d, 23, 59, 59) - Date.now();
+  return ms > 0 && ms <= dias * 86400000 ? ms : null;
+};
+const textoRestante = (ms) => { const h = Math.floor(ms / 3600000); if (h >= 48) return `Termina en ${Math.floor(h / 24)} días`; if (h >= 1) return `Termina en ${h} h`; return `Termina en ${Math.max(1, Math.floor(ms / 60000))} min`; };
+// Cuenta regresiva en vivo (ficha y vista rápida)
+function CuentaRegresiva({ hasta, prefijo = 'La promo termina en' }) {
+  const [ahora, setAhora] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const ms = finPromoMs(hasta, 30); if (!ms) return null;
+  void ahora;
+  const tot = Math.floor(ms / 1000); const d = Math.floor(tot / 86400); const h = Math.floor((tot % 86400) / 3600); const mi = Math.floor((tot % 3600) / 60); const se = tot % 60;
+  const dd = (n) => String(n).padStart(2, '0');
+  return <div className="cuenta-regresiva"><Clock size={14} /> {prefijo} <b>{d > 0 ? `${d}d ` : ''}{dd(h)}:{dd(mi)}:{dd(se)}</b></div>;
+}
+// La foto "vuela" al carrito al agregar (se saltea si el usuario pidió menos movimiento)
+function volarAlCarrito(imgEl) {
+  try {
+    if (!imgEl || !imgEl.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const destino = document.querySelector('.cart-btn'); if (!destino) return;
+    const a = imgEl.getBoundingClientRect(); const b = destino.getBoundingClientRect();
+    if (!a.width || b.bottom < 0 || b.top > window.innerHeight) return;
+    const c = imgEl.cloneNode(); c.removeAttribute('srcset'); c.removeAttribute('class');
+    Object.assign(c.style, { position: 'fixed', left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px', zIndex: 9999, pointerEvents: 'none', borderRadius: '14px', objectFit: 'cover', boxShadow: '0 10px 30px rgba(0,0,0,.35)' });
+    document.body.appendChild(c);
+    const dx = b.left + b.width / 2 - (a.left + a.width / 2); const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+    const an = c.animate([{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${dx * 0.6}px, ${dy * 0.6 - 40}px) scale(.45)`, opacity: .9, offset: .55 }, { transform: `translate(${dx}px, ${dy}px) scale(.06)`, opacity: .3 }], { duration: 700, easing: 'cubic-bezier(.45,0,.55,1)' });
+    an.onfinish = () => c.remove();
+  } catch {}
+}
+function TarjetaProducto({ p, secId, usd }) {
+  const ctx = useContext(Ctx);
+  const { nav, addToCart, updateCartQty, cart, config, setNotifyProduct, favIds, toggleFav, setVistaRapida } = ctx;
+  const imgRef = useRef(null);
+  const sid = p.seccion_id || secId;
+  const pr = precioTarjeta(p, ctx, sid);
+  const stock = Number(p.stock) || 0;
+  const sinStock = stock <= 0;
+  const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital;
+  const agotado = sinStock && !puedeComprar && !p.es_preventa;
+  const umbral = Number(config?.[`envio_gratis_desde_${sid}`]) || 0;
+  const envioGratis = !p.es_digital && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
+  const esNuevo = p.created_at && (Date.now() - new Date(p.created_at).getTime()) < 15 * 86400000;
+  const linea = (!p.usa_variantes && !p.es_preventa) ? ((cart && cart[sid]) || []).find(i => i.id === p.id && !i.variante_id && !i._preventa) : null;
+  const fmtP = (v) => (p.moneda && p.moneda !== 'ARS') ? fmtMon(v, p.moneda) : fmtARS(v);
+  const ver = () => { window.__secId = sid; nav('product', { ...p, seccion_id: sid }); };
+  const agregar = (e) => { e.stopPropagation(); volarAlCarrito(imgRef.current); addToCart(sid, p, 1, pr.final); };
+  const restante = finPromoMs(pr.hasta);
+  const ultimas = !sinStock && stock <= 3 && !p.permitir_sin_stock && !p.es_digital && !p.usa_variantes;
+  const pctPv = Number(p.preventa_descuento_pct) || 0;
+  const reserva = pctPv > 0 ? Math.round(Number(p.precio_base) * (1 - pctPv / 100)) : Number(p.precio_base);
+  const cupoPv = Number(p.preventa_cupo) || 0; const reservadoPv = Number(p.preventa_reservado) || 0;
+  const reservar = (e) => {
+    e.stopPropagation();
+    const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.';
+    if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return;
+    addToCart(sid, { ...p, _preventa: true, _precioReserva: reserva }, 1, reserva);
+  };
+  const esFav = favIds && favIds.has(p.id);
+  return (
+    <div className={`product-card tp${agotado ? ' sin-stock' : ''}${p.imagen2 ? ' con-2da' : ''}`}>
+      <div className="product-img-wrap tp-media" onClick={ver}>
+        {p.imagen ? <>
+          <img ref={imgRef} src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt={p.nombre || p.modelo || ''} className="product-img tp-img" loading="lazy" decoding="async" />
+          {p.imagen2 && <img src={imgOpt(p.imagen2, 400)} srcSet={imgSet(p.imagen2, 400)} alt="" aria-hidden="true" className="product-img tp-img2" loading="lazy" decoding="async" />}
+        </> : <div className="tp-noimg"><Package size={40} /></div>}
+        <div className="product-badges">
+          {pr.pct > 0 && <span className="pbadge pbadge-discount">{pr.pct}% OFF</span>}
+          {p.es_preventa && <span className="pbadge pbadge-preventa">Preventa</span>}
+          {envioGratis && <span className="pbadge pbadge-envio"><Truck size={10} strokeWidth={2.5} /> Gratis</span>}
+          {esNuevo && !pr.pct && !p.es_preventa && <span className="pbadge pbadge-nuevo">Nuevo</span>}
+        </div>
+        {agotado && <div className="sin-stock-overlay">SIN STOCK</div>}
+        <button type="button" className="tp-quick" onClick={e => { e.stopPropagation(); setVistaRapida({ ...p, seccion_id: sid }); }} aria-label="Vista rápida"><Eye size={15} /><span>Vista rápida</span></button>
+      </div>
+      <button type="button" className={`card-fav${esFav ? ' active' : ''}`} onClick={e => { e.stopPropagation(); toggleFav(p.id); }} aria-label={esFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}><Ico n="heart" s={16} fill={esFav} /></button>
+      <div className="product-info tp-info">
+        <div className="product-cat">{p.categoria || ''}</div>
+        <div className="product-name tp-name" onClick={ver}>{p.nombre || p.modelo}</div>
+        <div className="tp-precio">
+          {p.es_preventa ? (pctPv > 0
+            ? <><span className="price-old">{fmtP(p.precio_base)}</span><span className="price-new con-desc">{fmtP(reserva)}</span></>
+            : <span className="price-new">{fmtP(reserva)}</span>)
+          : p.usa_variantes && Number(p.precio_desde) > 0 ? <span className="price-new"><small>desde </small>{fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
+          : pr.final > 0 ? <>{pr.original && <span className="price-old">{fmtP(pr.original)}</span>}<span className={`price-new${pr.original ? ' con-desc' : ''}`}>{fmtP(pr.final)}</span></>
+          : <span className="tp-consultar">Consultar precio</span>}
+        </div>
+        {(pr.ahorro > 0 || restante || ultimas || (usd && pr.final > 0) || (p.es_preventa && p.preventa_mostrar_fecha && p.preventa_fecha)) && (
+          <div className="tp-extra">
+            {pr.ahorro > 0 && <span className="tp-ahorro">{pr.esRevendedor ? 'Revendedor · ' : ''}Ahorrás {fmtP(pr.ahorro)}</span>}
+            {restante && <span className="tp-reloj"><Clock size={11} /> {textoRestante(restante)}</span>}
+            {ultimas && <span className="tp-ultimas">{stock === 1 ? 'Última unidad' : `Últimas ${stock} unidades`}</span>}
+            {p.es_preventa && p.preventa_mostrar_fecha && p.preventa_fecha && <span className="tp-reloj">Llega {new Date(p.preventa_fecha).toLocaleDateString('es-AR')}</span>}
+            {usd && pr.final > 0 && <span className="tp-usd">USD {fmt(Math.round(pr.final / usd * 100) / 100)}</span>}
+          </div>
+        )}
+        <div className="tp-accion">
+          {p.es_preventa ? (cupoPv > 0 && reservadoPv >= cupoPv
+            ? <button type="button" className="btn product-add-btn tp-btn" disabled>Preventa agotada</button>
+            : <button type="button" className="btn product-add-btn tp-btn tp-btn-reserva" onClick={reservar}>Reservar</button>)
+          : agotado ? <button type="button" className="btn btn-outline tp-btn tp-btn-aviso" onClick={e => { e.stopPropagation(); setNotifyProduct(p); }}><Bell size={14} /> Avisame</button>
+          : p.usa_variantes ? <button type="button" className="btn product-add-btn tp-btn" onClick={e => { e.stopPropagation(); ver(); }}>Ver opciones</button>
+          : linea ? (
+            <div className="tp-stepper" onClick={e => e.stopPropagation()}>
+              <button type="button" onClick={() => updateCartQty(sid, p.id, linea.qty - 1)} aria-label={linea.qty === 1 ? 'Quitar del carrito' : 'Uno menos'}>{linea.qty === 1 ? <Trash2 size={15} /> : <Minus size={16} />}</button>
+              <span aria-live="polite"><b>{linea.qty}</b><small> en carrito</small></span>
+              <button type="button" onClick={() => updateCartQty(sid, p.id, linea.qty + 1)} aria-label="Uno más"><Plus size={16} /></button>
+            </div>
+          ) : <button type="button" className="btn product-add-btn tp-btn" onClick={agregar}>Agregar <ShoppingCart size={14} /></button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Vista rápida: ver fotos, precio y agregar sin salir de la lista ───
+function VistaRapida({ producto, onClose }) {
+  const ctx = useContext(Ctx);
+  const { nav, addToCart, config, setNotifyProduct } = ctx;
+  const [p, setP] = useState(producto);
+  const [fotos, setFotos] = useState(producto.imagen ? [producto.imagen] : []);
+  const [i, setI] = useState(0);
+  const [qty, setQty] = useState(1);
+  const toque = useRef(null);
+  const imgRef = useRef(null);
+  useEffect(() => {
+    let vivo = true;
+    api.getProducto(producto.id).then(full => { if (vivo && full) setP(x => ({ ...x, ...full, seccion_id: x.seccion_id || full.seccion_id, imagen2: x.imagen2 })); }).catch(() => {});
+    api.getProductoImagenes(producto.id).then(imgs => { if (vivo && imgs && imgs.length) setFotos(imgs.map(g => g.url)); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [producto.id]);
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') setI(x => (x + 1) % Math.max(1, fotos.length)); if (e.key === 'ArrowLeft') setI(x => (x - 1 + Math.max(1, fotos.length)) % Math.max(1, fotos.length)); };
+    window.addEventListener('keydown', k); document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', k); document.body.style.overflow = ''; };
+  }, [fotos.length]);
+  const sid = p.seccion_id;
+  const pr = precioTarjeta(p, ctx, sid);
+  const stock = Number(p.stock) || 0;
+  const tope = (p.permitir_sin_stock || p.es_digital) ? Infinity : stock;
+  const agotado = stock <= 0 && !p.permitir_sin_stock && !p.es_digital && !p.es_preventa;
+  const umbral = Number(config?.[`envio_gratis_desde_${sid}`]) || 0;
+  const envioGratis = !p.es_digital && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
+  const fmtP = (v) => (p.moneda && p.moneda !== 'ARS') ? fmtMon(v, p.moneda) : fmtARS(v);
+  const verFicha = () => { onClose(); window.__secId = sid; nav('product', p); };
+  const agregar = () => { volarAlCarrito(imgRef.current); addToCart(sid, p, qty, pr.final); onClose(); };
+  const ir = (d) => setI(x => (x + d + fotos.length) % fotos.length);
+  return createPortal(
+    <div className="vr-overlay" onClick={onClose}>
+      <div className="vr" onClick={e => e.stopPropagation()} role="dialog" aria-label={p.nombre || 'Vista rápida'}>
+        <button type="button" className="vr-cerrar" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
+        <div className="vr-media" onTouchStart={e => { toque.current = e.touches[0].clientX; }} onTouchEnd={e => { if (toque.current == null || fotos.length < 2) return; const dx = e.changedTouches[0].clientX - toque.current; toque.current = null; if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1); }}>
+          {fotos.length ? <img ref={imgRef} src={imgOpt(fotos[i], 700)} srcSet={imgSet(fotos[i], 700)} alt={p.nombre || ''} /> : <div className="tp-noimg"><Package size={56} /></div>}
+          {pr.pct > 0 && <span className="pbadge pbadge-discount vr-badge">{pr.pct}% OFF</span>}
+          {fotos.length > 1 && <>
+            <button type="button" className="vr-flecha izq" onClick={() => ir(-1)} aria-label="Foto anterior"><ChevronLeft size={20} /></button>
+            <button type="button" className="vr-flecha der" onClick={() => ir(1)} aria-label="Foto siguiente"><ChevronRight size={20} /></button>
+            <div className="vr-thumbs">{fotos.slice(0, 8).map((u, k) => <button type="button" key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={`Foto ${k + 1}`}><img src={imgOpt(u, 120)} alt="" /></button>)}</div>
+          </>}
+        </div>
+        <div className="vr-info">
+          <div className="product-cat">{p.categoria}</div>
+          <h3 className="vr-titulo">{p.nombre || p.modelo}</h3>
+          {p.usa_variantes ? <div className="vr-precio"><span className="price-new">{Number(p.precio_desde) > 0 ? <><small>desde </small>{fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</> : 'Varias opciones'}</span></div>
+            : pr.final > 0 ? <div className="vr-precio">{pr.original && <span className="price-old">{fmtP(pr.original)}</span>}<span className={`price-new${pr.original ? ' con-desc' : ''}`}>{fmtP(pr.final)}</span></div>
+            : <div className="vr-precio"><span className="tp-consultar">Consultar precio</span></div>}
+          {pr.ahorro > 0 && <div className="vr-ahorro">Ahorrás {fmtP(pr.ahorro)}{pr.promo ? ` · ${pr.promo}` : ''}</div>}
+          {pr.hasta && <CuentaRegresiva hasta={pr.hasta} />}
+          <div className="vr-chips">
+            {envioGratis && <span><Truck size={13} /> Envío gratis</span>}
+            {!agotado && !p.usa_variantes && !p.es_digital && !p.permitir_sin_stock && (stock <= 3 ? <span className="warn">{stock === 1 ? 'Última unidad' : `Últimas ${stock} unidades`}</span> : <span className="ok"><Check size={13} /> En stock</span>)}
+            {p.es_digital && <span>Producto digital</span>}
+          </div>
+          {p.descripcion && <p className="vr-desc">{String(p.descripcion).slice(0, 320)}{String(p.descripcion).length > 320 ? '…' : ''}</p>}
+          <div className="vr-acciones">
+            {p.usa_variantes || p.es_preventa ? <button type="button" className="btn btn-primary vr-btn" onClick={verFicha}>{p.es_preventa ? 'Ver preventa' : 'Elegir opciones'}</button>
+              : agotado ? <button type="button" className="btn btn-outline vr-btn" onClick={() => { onClose(); setNotifyProduct(p); }}><Bell size={15} /> Avisame cuando llegue</button>
+              : <>
+                <div className="vr-qty">
+                  <button type="button" onClick={() => setQty(q => Math.max(1, q - 1))} aria-label="Uno menos"><Minus size={16} /></button>
+                  <span>{qty}</span>
+                  <button type="button" onClick={() => setQty(q => q + 1 > tope ? q : q + 1)} disabled={qty >= tope} aria-label="Uno más"><Plus size={16} /></button>
+                </div>
+                <button type="button" className="btn btn-primary vr-btn" onClick={agregar}><ShoppingCart size={16} /> Agregar{pr.final > 0 ? ` · ${fmtP(pr.final * qty)}` : ''}</button>
+              </>}
+          </div>
+          <button type="button" className="link-btn vr-ficha" onClick={verFicha}>Ver ficha completa <ChevronRight size={14} /></button>
+        </div>
+      </div>
+    </div>, document.body);
+}
+
+// ─── Visor de fotos a pantalla completa (ficha del producto) ───
+function VisorFotos({ fotos, inicio = 0, titulo, onClose }) {
+  const [i, setI] = useState(inicio);
+  const toque = useRef(null);
+  const ir = (d) => setI(x => (x + d + fotos.length) % fotos.length);
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') ir(1); if (e.key === 'ArrowLeft') ir(-1); };
+    window.addEventListener('keydown', k); document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', k); document.body.style.overflow = ''; };
+  }, [fotos.length]);
+  return createPortal(
+    <div className="vf" role="dialog" aria-label={titulo || 'Fotos'} onClick={onClose}>
+      <div className="vf-top" onClick={e => e.stopPropagation()}>
+        <span>{i + 1} / {fotos.length}</span>
+        <button type="button" onClick={onClose} aria-label="Cerrar"><X size={22} /></button>
+      </div>
+      <div className="vf-stage" onClick={e => e.stopPropagation()}
+        onTouchStart={e => { toque.current = e.touches[0].clientX; }}
+        onTouchEnd={e => { if (toque.current == null || fotos.length < 2) return; const dx = e.changedTouches[0].clientX - toque.current; toque.current = null; if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1); }}>
+        <img key={i} src={imgOpt(fotos[i], 1600)} alt={titulo || ''} />
+        {fotos.length > 1 && <>
+          <button type="button" className="vf-flecha izq" onClick={() => ir(-1)} aria-label="Anterior"><ChevronLeft size={26} /></button>
+          <button type="button" className="vf-flecha der" onClick={() => ir(1)} aria-label="Siguiente"><ChevronRight size={26} /></button>
+        </>}
+      </div>
+      {fotos.length > 1 && <div className="vf-thumbs" onClick={e => e.stopPropagation()}>{fotos.map((u, k) => <button type="button" key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)}><img src={imgOpt(u, 120)} alt="" /></button>)}</div>}
+    </div>, document.body);
+}
+
+// ─── Carrito: aviso al agregar + mini-carrito lateral con envío gratis por tienda ───
+function progresoEnvioGratis(items, umbral) {
+  const sub = (items || []).filter(i => !i.variante_moneda || i.variante_moneda === 'ARS').reduce((a, i) => a + puItem(i) * (Number(i.qty) || 0), 0);
+  if (!(umbral > 0)) return { sub, umbral: 0 };
+  return { sub, umbral, falta: Math.max(0, umbral - sub), pct: Math.min(100, Math.round(sub / umbral * 100)) };
+}
+function BarraEnvioGratis({ items, secId, nombreTienda }) {
+  const { config } = useContext(Ctx);
+  const umbral = Number(config?.[`envio_gratis_desde_${secId}`]) || 0;
+  const g = progresoEnvioGratis(items, umbral);
+  if (!g.umbral) return null;
+  return (
+    <div className={`eg${g.falta === 0 ? ' listo' : ''}`}>
+      <div className="eg-txt">{g.falta === 0 ? <><Truck size={14} /> Tenés <b>envío gratis</b>{nombreTienda ? ` en ${nombreTienda}` : ''}</> : <><Truck size={14} /> Te faltan <b>{fmtARS(g.falta)}</b> para envío gratis{nombreTienda ? ` en ${nombreTienda}` : ''}</>}</div>
+      <div className="eg-barra"><span style={{ width: `${g.pct}%` }} /></div>
+    </div>
+  );
+}
+function AvisoCarrito() {
+  const { avisoCarrito, setAvisoCarrito, carritoAbierto, setCarritoAbierto, vistaRapida, cart, secciones } = useContext(Ctx);
+  const [pausa, setPausa] = useState(false);
+  useEffect(() => { if (!avisoCarrito || pausa) return; const t = setTimeout(() => setAvisoCarrito(null), 4500); return () => clearTimeout(t); }, [avisoCarrito, pausa]);
+  useEffect(() => { if (carritoAbierto || vistaRapida) setAvisoCarrito(null); }, [carritoAbierto, vistaRapida]);
+  if (!avisoCarrito || carritoAbierto) return null;
+  const sec = secciones.find(s => String(s.id) === String(avisoCarrito.secId));
+  return createPortal(
+    <div key={avisoCarrito.n} className="aviso-carrito" role="status" onMouseEnter={() => setPausa(true)} onMouseLeave={() => setPausa(false)}>
+      <div className="ac-fila">
+        {avisoCarrito.imagen ? <img src={imgOpt(avisoCarrito.imagen, 120)} alt="" /> : <span className="ac-ph"><Package size={18} /></span>}
+        <div className="ac-txt"><b><Check size={14} /> Agregado al carrito</b><span>{avisoCarrito.nombre}</span></div>
+        <button type="button" className="ac-x" onClick={() => setAvisoCarrito(null)} aria-label="Cerrar"><X size={16} /></button>
+      </div>
+      <BarraEnvioGratis items={cart[avisoCarrito.secId] || []} secId={avisoCarrito.secId} nombreTienda={sec?.nombre} />
+      <button type="button" className="btn btn-primary ac-btn" onClick={() => { setAvisoCarrito(null); setCarritoAbierto(true); }}>Ver carrito</button>
+    </div>, document.body);
+}
+function MiniCarrito() {
+  const { carritoAbierto, setCarritoAbierto, cart, secciones, updateCartQty, removeFromCart, nav, cartCount } = useContext(Ctx);
+  useEffect(() => {
+    if (!carritoAbierto) return;
+    const k = (e) => { if (e.key === 'Escape') setCarritoAbierto(false); };
+    window.addEventListener('keydown', k); document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', k); document.body.style.overflow = ''; };
+  }, [carritoAbierto]);
+  if (!carritoAbierto) return null;
+  const grupos = secciones.map(s => ({ s, items: (Array.isArray(cart[s.id]) ? cart[s.id] : []).filter(i => i.qty > 0) })).filter(g => g.items.length);
+  const total = grupos.reduce((a, g) => a + g.items.reduce((b, i) => b + (!i.variante_moneda || i.variante_moneda === 'ARS' ? puItem(i) * i.qty : 0), 0), 0);
+  const cerrar = () => setCarritoAbierto(false);
+  return createPortal(
+    <div className="mc-overlay" onClick={cerrar}>
+      <aside className="mc" onClick={e => e.stopPropagation()} role="dialog" aria-label="Tu carrito">
+        <header className="mc-head"><h3>Tu carrito{cartCount > 0 ? <span> · {cartCount} producto{cartCount !== 1 ? 's' : ''}</span> : null}</h3><button type="button" className="dd-icono" onClick={cerrar} aria-label="Cerrar"><X size={18} /></button></header>
+        <div className="mc-body">
+          {!grupos.length && <div className="mc-vacio"><ShoppingCart size={34} /><p>Tu carrito está vacío</p><button type="button" className="btn btn-primary" onClick={() => { cerrar(); nav('landing'); }}>Ver productos</button></div>}
+          {grupos.map(({ s, items }) => (
+            <section key={s.id} className="mc-tienda">
+              <div className="mc-tienda-head"><Store size={15} /> {s.nombre}</div>
+              <BarraEnvioGratis items={items} secId={s.id} />
+              {items.map(i => {
+                const mon = i.variante_moneda && i.variante_moneda !== 'ARS' ? i.variante_moneda : 'ARS';
+                return (
+                  <div key={`${i.id}_${i.variante_id || 0}`} className="mc-item">
+                    {i.imagen ? <img src={imgOpt(i.imagen, 120)} alt="" /> : <span className="mc-ph"><Package size={18} /></span>}
+                    <div className="mc-item-info">
+                      <div className="mc-nombre">{i.nombre || i.modelo}</div>
+                      {i.variante_label && <div className="mc-var">{i.variante_label}</div>}
+                      {i._preventa && <div className="mc-var">Reserva</div>}
+                      <div className="mc-precio">{fmtMon(puItem(i) * i.qty, mon)}{i.qty > 1 && <small> · {fmtMon(puItem(i), mon)} c/u</small>}</div>
+                    </div>
+                    <div className="mc-qty">
+                      <button type="button" onClick={() => updateCartQty(s.id, i.id, i.qty - 1, i.variante_id || null)} aria-label={i.qty === 1 ? 'Quitar' : 'Uno menos'}>{i.qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}</button>
+                      <span>{i.qty}</span>
+                      <button type="button" onClick={() => updateCartQty(s.id, i.id, i.qty + 1, i.variante_id || null)} aria-label="Uno más"><Plus size={14} /></button>
+                    </div>
+                    <button type="button" className="mc-quitar" onClick={() => removeFromCart(s.id, i.id, i.variante_id || null)} aria-label="Quitar del carrito"><X size={14} /></button>
+                  </div>
+                );
+              })}
+            </section>
+          ))}
+        </div>
+        {grupos.length > 0 && (
+          <footer className="mc-pie">
+            <div className="mc-total"><span>Total estimado</span><b>{fmtARS(total)}</b></div>
+            <p className="mc-nota">El envío y los descuentos finales se calculan en el carrito.</p>
+            <button type="button" className="btn btn-primary mc-ir" onClick={() => { cerrar(); nav('cart'); }}>Ir al carrito</button>
+            <button type="button" className="link-btn mc-seguir" onClick={cerrar}>Seguir comprando</button>
+          </footer>
+        )}
+      </aside>
+    </div>, document.body);
+}
+
 function Landing() {
   const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct, promos, precioLista, precioEfectivo, ajusteCliente } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
@@ -2101,8 +2452,10 @@ function Landing() {
   const [favIds, setFavIds] = useState(new Set());
   const [novedades, setNovedades] = useState([]);
 
+  const [ofertasSrv, setOfertasSrv] = useState([]);
   useEffect(() => {
     api.getNovedades('all', 10).then(setNovedades).catch(() => {});
+    api.getOfertas(16).then(o => setOfertasSrv(Array.isArray(o) ? o : [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -2142,111 +2495,6 @@ function Landing() {
     if (!user) { nav('login'); return; }
     if (favIds.has(prodId)) { await api.removeFavorito(prodId); setFavIds(prev => { const n = new Set(prev); n.delete(prodId); return n; }); }
     else { await api.addFavorito(prodId); setFavIds(prev => new Set(prev).add(prodId)); }
-  };
-
-  // Product card component
-  const ProductCard = ({ p, secId }) => {
-    const precio = precioLista(p);
-    const tieneOferta = !p.es_preventa && Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < precio;
-    const descPct = tieneOferta ? Math.round((1 - Number(p.precio_oferta) / precio) * 100) : 0;
-    const efectivo = precioEfectivo(p);
-    const promoInfo = !p.usa_variantes ? ajusteCliente(efectivo, p, promos, secId, 'ARS') : null;
-    const umbralGratis = Number(config?.[`envio_gratis_desde_${secId}`]) || 0;
-    const precioRefGratis = tieneOferta ? Number(p.precio_oferta) : Number(precio);
-    const envioGratisCard = p.envio_gratis || (umbralGratis > 0 && precioRefGratis >= umbralGratis);
-    const [notifyEmail, setNotifyEmail] = useState('');
-    const [showNotify, setShowNotify] = useState(false);
-    const [notifyCanal, setNotifyCanal] = useState('whatsapp');
-    const [notifyTel, setNotifyTel] = useState('');
-    const sinStock = p.stock === 0;
-    const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital;
-    return (
-      <div className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        {/* Fav button */}
-        <button className={`card-fav${favIds.has(p.id) ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}>
-          <Ico n="heart" s={16} fill={favIds.has(p.id)} />
-        </button>
-        <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', p)}>
-          {p.imagen
-            ? <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" />
-            : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
-          }
-          {/* Etiquetas en una fila (antes se apilaban y tapaban la foto) */}
-          <div className="product-badges">
-            {!p.es_preventa && (tieneOferta || promoInfo) && <span className="pbadge pbadge-discount">{tieneOferta ? descPct : promoInfo.pct}% OFF</span>}
-            {envioGratisCard && <span className="pbadge pbadge-envio"><Truck size={10} strokeWidth={2.5} /> Gratis</span>}
-            {sinStock && !puedeComprar && <span className="pbadge pbadge-sinstock">Sin stock</span>}
-          </div>
-          {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
-          {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--warning)', color: '#000', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
-        </div>
-        <div className="product-info" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div className="product-cat">{p.categoria || ''}</div>
-          <div className="product-name" style={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer' }} onClick={() => { window.__secId = secId; nav('product', p); }}>{p.nombre || p.modelo}</div>
-          {!p.es_preventa && <div style={{ marginBottom: 8 }}>
-            {promoInfo ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(efectivo)}</span>
-                <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(promoInfo.final)}</span>
-              </div>
-            ) : tieneOferta ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
-                <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
-              </div>
-            ) : p.usa_variantes && Number(p.precio_desde) > 0 ? (
-              <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
-            ) : (
-              precio > 0 && <span className="price-new">{fmtARS(precio)}</span>
-            )}
-          </div>}
-          {p.es_preventa ? (() => {
-            const pct = Number(p.preventa_descuento_pct) || 0;
-            const precioReserva = pct > 0 ? Math.round(Number(p.precio_base) * (1 - pct / 100)) : Number(p.precio_base);
-            return (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 800, background: 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, textTransform: 'uppercase' }}>Preventa</span>
-                {p.preventa_mostrar_fecha && p.preventa_fecha && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Llega {new Date(p.preventa_fecha).toLocaleDateString('es-AR')}</span>}
-              </div>
-              {pct > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 13 }}>{fmtARS(p.precio_base)}</span>
-                  <span style={{ fontWeight: 900, fontSize: 16, color: 'var(--success)' }}>{fmtARS(precioReserva)}</span>
-                  <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>-{pct}%</span>
-                </div>
-              )}
-              {(() => {
-                const cupo = Number(p.preventa_cupo) || 0;
-                const reservado = Number(p.preventa_reservado) || 0;
-                const agotada = cupo > 0 && reservado >= cupo;
-                if (agotada) return <button className="btn btn-outline btn-sm" disabled style={{ width: '100%', opacity: 0.6 }}>Preventa agotada</button>;
-                return <>
-                  {cupo > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Quedan {cupo - reservado} de {cupo} en preventa</div>}
-                  {addToCart && <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(secId, { ...p, _preventa: true, _precioReserva: precioReserva }, 1, precioReserva); toast('Reserva agregada al carrito'); }} style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }}>RESERVAR {pct > 0 ? `a ${fmtARS(precioReserva)}` : ''}</button>}
-                </>;
-              })()}
-            </div>
-            );
-          })()
-          : sinStock && !puedeComprar ? (
-            <div>
-              <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setNotifyProduct(p); }} style={{ width: '100%' }}>
-                <Bell size={15} style={{ verticalAlign: '-2px' }} /> Avisame cuando llegue
-              </button>
-            </div>
-          ) : p.usa_variantes ? (
-            <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); nav('product', p); }}>
-              Ver opciones
-            </button>
-          ) : addToCart && (
-            <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(secId, p, 1); toast('Agregado al carrito'); }}>
-              Agregar
-            </button>
-          )}
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -2318,7 +2566,7 @@ function Landing() {
               <div key={r.seccion.id} style={{ marginBottom: 24 }}>
                 <h3 style={{ marginBottom: 12, fontWeight: 800, fontSize: 18 }}>{r.seccion.nombre} <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>({r.productos.length})</span></h3>
                 <div className="product-grid">
-                  {r.productos.map(p => <ProductCard key={p.id} p={p} secId={r.seccion.id} />)}
+                  {r.productos.map(p => <TarjetaProducto key={p.id} p={p} secId={r.seccion.id} />)}
                 </div>
               </div>
             ))
@@ -2327,24 +2575,22 @@ function Landing() {
         </div>
       )}
 
-      {/* ── OFERTAS DESTACADAS ── carrusel horizontal */}
-      {!globalResults && (() => {
-        const ofertas = [];
-        for (const s of secciones) {
-          for (const p of (secProds[s.id] || [])) {
-            if (p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base) ofertas.push({ ...p, _secId: s.id });
-          }
-        }
-        if (ofertas.length === 0) return null;
+      {/* ── OFERTAS ── carrusel con el mayor descuento primero (oferta del producto o promo activa) */}
+      {!globalResults && ofertasSrv.length > 0 && (() => {
+        const ctxP = { precioLista, precioEfectivo, ajusteCliente, promos };
+        const lista = ofertasSrv.map(p => ({ p, pr: precioTarjeta(p, ctxP, p.seccion_id) })).filter(x => x.pr.pct > 0);
+        if (!lista.length) return null;
+        const maxPct = Math.max(...lista.map(x => x.pr.pct));
+        const finCercano = lista.map(x => finPromoMs(x.pr.hasta)).filter(Boolean).sort((a, b) => a - b)[0];
         return (
-          <div className="landing-block" style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>OFERTAS</span>
-              </h2>
+          <div className="landing-block ofertas-block" style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
+            <div className="ofertas-head">
+              <span className="ofertas-pill">OFERTAS</span>
+              <span className="ofertas-sub">Hasta <b>{maxPct}% OFF</b></span>
+              {finCercano && <span className="ofertas-reloj"><Clock size={13} /> {textoRestante(finCercano)}</span>}
             </div>
             <div className="carousel-track">
-              {ofertas.slice(0, 12).map(p => <div className="carousel-item" key={`of-${p.id}`}><ProductCard p={p} secId={p._secId} /></div>)}
+              {lista.slice(0, 12).map(({ p }) => <div className="carousel-item" key={`of-${p.id}`}><TarjetaProducto p={p} secId={p.seccion_id} /></div>)}
             </div>
           </div>
         );
@@ -2360,7 +2606,7 @@ function Landing() {
             </h2>
           </div>
           <div className="carousel-track">
-            {novedades.slice(0, 12).map(p => <div className="carousel-item" key={`nov-${p.id}`}><ProductCard p={p} secId={p.seccion_id} /></div>)}
+            {novedades.slice(0, 12).map(p => <div className="carousel-item" key={`nov-${p.id}`}><TarjetaProducto p={p} secId={p.seccion_id} /></div>)}
           </div>
         </div>
       )}
@@ -2379,7 +2625,7 @@ function Landing() {
               </button>
             </div>
             <div className="carousel-track">
-              {prods.slice(0, 12).map(p => <div className="carousel-item" key={p.id}><ProductCard p={p} secId={s.id} /></div>)}
+              {prods.slice(0, 12).map(p => <div className="carousel-item" key={p.id}><TarjetaProducto p={p} secId={s.id} /></div>)}
             </div>
           </div>
         );
@@ -2662,61 +2908,7 @@ function SectionPage() {
 
       {/* Products grid */}
       <div className="product-grid">
-        {productosFiltrados.map(p => {
-          const precio = getPrecio(p);
-          const sinStock = (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
-          const umbralG = Number(config?.[`envio_gratis_desde_${p.seccion_id}`]) || 0;
-          const envioGratis = p.envio_gratis || (umbralG > 0 && precio.final >= umbralG);
-          return (
-            <div key={p.id} className={`product-card ${sinStock ? 'sin-stock' : ''}`}>
-              <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
-                {p.imagen ? <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}><Package size={44} style={{ verticalAlign: '-2px' }} /></div>}
-                {/* Badges */}
-                <div className="product-badges">
-                  {envioGratis && <span className="pbadge pbadge-envio"><Truck size={10} strokeWidth={2.5} /> Gratis</span>}
-                  {p.es_preventa ? <span className="pbadge" style={{ background: 'var(--accent)', color: '#fff' }}>PREVENTA</span> : precio.original && <span className="pbadge pbadge-discount">{precio.descuento}% OFF</span>}
-                </div>
-                {sinStock && <div className="sin-stock-overlay">SIN STOCK</div>}
-              </div>
-              <div className="product-info" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
-                <div className="product-cat">{p.categoria}</div>
-                <div className="product-name">{p.nombre || p.modelo}</div>
-                <div className="product-price">
-                  {p.es_preventa ? (() => {
-                    const pctPv = Number(p.preventa_descuento_pct) || 0;
-                    const reserva = pctPv > 0 ? Math.round(Number(p.precio_base) * (1 - pctPv / 100)) : Number(p.precio_base);
-                    return pctPv > 0
-                      ? <><span className="price-old">{fmtARS(p.precio_base)}</span> <span className="price-new" style={{ color: 'var(--success)' }}>{fmtARS(reserva)}</span> <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 800, marginLeft: 4 }}>-{pctPv}%</span></>
-                      : <span className="price-new">{fmtARS(reserva)}</span>;
-                  })() : p.usa_variantes && Number(p.precio_desde) > 0 ? (
-                    <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
-                  ) : precio.original ? (
-                    <><span className="price-old">{fmtARS(precio.original)}</span> <span className="price-new">{fmtARS(precio.final)}</span></>
-                  ) : (
-                    <span className="price-new">{fmtARS(precio.final)}</span>
-                  )}
-                  {precio.esRevendedor && <span style={{ fontSize: 11, color: 'var(--success)' }}> (Revendedor -{precio.descuento}%)</span>}
-                  {esMayorista && dolarBlue && precio.final > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>USD {fmt(Math.round(precio.final / dolarBlue * 100) / 100)}</div>}
-                </div>
-                {p.es_preventa ? (() => {
-                  const pctPv = Number(p.preventa_descuento_pct) || 0;
-                  const reserva = pctPv > 0 ? Math.round(Number(p.precio_base) * (1 - pctPv / 100)) : Number(p.precio_base);
-                  const cupoPv = Number(p.preventa_cupo) || 0, reservadoPv = Number(p.preventa_reservado) || 0;
-                  if (cupoPv > 0 && reservadoPv >= cupoPv) return <button className="btn product-add-btn" disabled style={{ opacity: 0.6 }}>Preventa agotada</button>;
-                  return <button className="btn product-add-btn" style={{ background: 'var(--accent)', borderColor: 'var(--accent)' }} onClick={(e) => { e.stopPropagation(); const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(sec.id, { ...p, _preventa: true, _precioReserva: reserva }, 1, reserva); toast('Reserva agregada al carrito'); }}>RESERVAR{pctPv > 0 ? ` a ${fmtARS(reserva)}` : ''} <Ico n="cart" s={14} /></button>;
-                })() : p.usa_variantes ? (
-                  <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
-                    VER OPCIONES <Ico n="cart" s={14} />
-                  </button>
-                ) : !sinStock && (
-                  <button className="btn product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(sec.id, p, 1, precio.final); }}>
-                    AGREGAR <Ico n="cart" s={14} />
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {productosFiltrados.map(p => <TarjetaProducto key={p.id} p={p} secId={sec.id} usd={esMayorista && dolarBlue ? dolarBlue : null} />)}
       </div>
       {productos.length === 0 && <div className="empty-state"><h3>No hay productos</h3></div>}
 
@@ -3504,7 +3696,7 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
-  const { selectedProduct: p, seccionActual: navSec, secciones, nav, toast, addToCart, config, user, design, precioEfectivo, ajusteCliente, precioFinalCliente } = useContext(Ctx);
+  const { selectedProduct: p, seccionActual: navSec, secciones, nav, toast, addToCart, config, user, design, precioLista, precioEfectivo, ajusteCliente, precioFinalCliente } = useContext(Ctx);
   // Sección REAL del producto (no la de navegación) — evita mostrar Local cuando el producto es de Deposito
   const sec = (p?.seccion_id && secciones.find(s => String(s.id) === String(p.seccion_id))) || navSec;
   const [prodBadges, setProdBadges] = useState([]);
@@ -3518,6 +3710,10 @@ function ProductDetailPage() {
   const [selOpts, setSelOpts] = useState({});
   const [usaVariantes, setUsaVariantes] = useState(false);
   const [mainImg, setMainImg] = useState('');
+  const [visor, setVisor] = useState(null); // índice de la foto abierta a pantalla completa
+  const [zoom, setZoom] = useState(null);   // { x, y } en % mientras el mouse está sobre la foto
+  const toquePdp = useRef(null);
+  const zoomOk = useMediaQuery('(hover: hover) and (pointer: fine)');
   const [showRedes, setShowRedes] = useState(false);
   const [relacionados, setRelacionados] = useState([]);
   useEffect(() => { if (p?.id) api.getRelacionados(p.id).then(setRelacionados).catch(() => setRelacionados([])); }, [p?.id]);
@@ -3575,7 +3771,9 @@ function ProductDetailPage() {
   const promoInfoProd = ajusteCliente(precioSinPromo, p, promos, p.seccion_id || sec?.id, monedaFinal, tieneVariantes);
   let precioFinal = usarNav ? Number(p.precioFinal) : (promoInfoProd ? promoInfoProd.final : precioSinPromo);
   const hayPromo = usarNav ? (Number(p.precioOriginal) > 0 && Number(p.precioOriginal) > precioFinal) : !!promoInfoProd;
-  const precioOriginal = hayPromo ? precioSinPromo : (!tieneVariantes && Number(p.precio_base) > precioSinPromo ? Number(p.precio_base) : null);
+  // Precio tachado: el más alto entre la lista del cliente y el precio antes de la promo (igual que en las tarjetas)
+  const anclaSinVar = !tieneVariantes ? Math.max(precioLista(p), precioSinPromo) : 0;
+  const precioOriginal = !tieneVariantes ? (anclaSinVar > precioFinal ? anclaSinVar : null) : (hayPromo ? precioSinPromo : null);
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const agregarPdp = () => {
     if (tieneVariantes && !matched) { toast(fullSel ? 'Esa combinación no está disponible' : 'Elegí todas las opciones primero', 'error'); if (barraActiva) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -3646,8 +3844,22 @@ function ProductDetailPage() {
           <div className="pdp-main-img">
             {p.envio_gratis && <span className="pdp-free-badge">ENVÍO GRATIS</span>}
             <button className={`card-fav pdp-fav${isFav ? ' active' : ''}`} onClick={toggleFav}><Ico n="heart" s={18} fill={isFav} /></button>
-            {mainImg ? <img src={imgOpt(mainImg, 900)} srcSet={imgSet(mainImg, 900)} alt={p.nombre || ''} /> : <div className="pdp-noimg"><Ico n="cart" s={64} /></div>}
+            {mainImg ? (
+              <div className={`pdp-zoom${zoom ? ' activo' : ''}`}
+                onMouseMove={zoomOk ? (e => { const r = e.currentTarget.getBoundingClientRect(); setZoom({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 }); }) : undefined}
+                onMouseLeave={() => setZoom(null)}
+                onClick={() => setVisor(Math.max(0, allImages.indexOf(mainImg)))}
+                onTouchStart={e => { toquePdp.current = e.touches[0].clientX; }}
+                onTouchEnd={e => { if (toquePdp.current == null || allImages.length < 2) return; const dx = e.changedTouches[0].clientX - toquePdp.current; toquePdp.current = null; if (Math.abs(dx) > 40) { const k = Math.max(0, allImages.indexOf(mainImg)); setMainImg(allImages[(k + (dx < 0 ? 1 : -1) + allImages.length) % allImages.length]); } }}
+                role="button" aria-label="Ver fotos en pantalla completa">
+                <img src={imgOpt(mainImg, 900)} srcSet={imgSet(mainImg, 900)} alt={p.nombre || ''} style={zoom ? { transform: 'scale(2.1)', transformOrigin: `${zoom.x}% ${zoom.y}%` } : undefined} />
+              </div>
+            ) : <div className="pdp-noimg"><Ico n="cart" s={64} /></div>}
+            {mainImg && <button type="button" className="pdp-ampliar" onClick={() => setVisor(Math.max(0, allImages.indexOf(mainImg)))} aria-label="Ampliar"><Maximize2 size={16} /></button>}
+            {allImages.length > 1 && <div className="pdp-contador">{Math.max(0, allImages.indexOf(mainImg)) + 1} / {allImages.length}</div>}
+            {precioOriginal && !p.es_preventa && precioFinal > 0 && precioOriginal > precioFinal && <span className="pdp-off">{Math.round((1 - precioFinal / precioOriginal) * 100)}% OFF</span>}
           </div>
+          {visor !== null && allImages.length > 0 && <VisorFotos fotos={allImages} inicio={visor} titulo={p.nombre || p.modelo} onClose={() => setVisor(null)} />}
           {allImages.length > 1 && (
             <div className="pdp-thumbs">
               {allImages.map((img, i) => (
@@ -3678,6 +3890,10 @@ function ProductDetailPage() {
             ) : (
               <span className="pdp-price-new">{fmtMon(precioFinal, monedaFinal)}</span>
             )}
+            {precioOriginal && !tieneVariantes && precioOriginal > precioFinal && (
+              <div className="pdp-ahorro">Ahorrás <b>{fmtARS(precioOriginal - precioFinal)}</b>{promoInfoProd && promoInfoProd.nombre && !promoInfoProd.esRevendedor ? <span> · {promoInfoProd.nombre}</span> : null}</div>
+            )}
+            {promoInfoProd && promoInfoProd.hasta && <CuentaRegresiva hasta={promoInfoProd.hasta} />}
           </div>}
 
           {!p.es_preventa && preciosMetodo.length > 0 && (
@@ -3732,7 +3948,7 @@ function ProductDetailPage() {
                 {cupo > 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Quedan {Math.max(0, cupo - reservado)} de {cupo} unidades en preventa</p>}
                 {agotada
                   ? <button className="btn btn-outline" disabled style={{ width: '100%', opacity: 0.6 }}>Preventa agotada</button>
-                  : <button className="btn" style={{ width: '100%', background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 800 }} onClick={() => { const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(sec?.id, { ...p, _preventa: true, _precioReserva: precioReserva }, qty, precioReserva); toast('Reserva agregada al carrito'); }}>RESERVAR{pct > 0 ? ` a ${fmtARS(precioReserva)}` : ''}</button>}
+                  : <button className="btn" style={{ width: '100%', background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 800 }} onClick={() => { const fechaTxt = p.preventa_mostrar_fecha && p.preventa_fecha ? `\n\nFecha aproximada de ingreso: ${new Date(p.preventa_fecha).toLocaleDateString('es-AR')} (es estimada, puede variar).` : '\n\nEs un producto con demora: te avisamos apenas ingrese.'; if (!confirm(`Estás RESERVANDO un producto en preventa.${fechaTxt}\n\nNo es un producto disponible para entrega inmediata. ¿Querés reservarlo igual?`)) return; addToCart(sec?.id, { ...p, _preventa: true, _precioReserva: precioReserva }, qty, precioReserva); }}>RESERVAR{pct > 0 ? ` a ${fmtARS(precioReserva)}` : ''}</button>}
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Reservás pagando por adelantado. Te avisamos cuando llegue.</p>
               </div>
             );
@@ -3815,13 +4031,7 @@ function ProductDetailPage() {
         <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>También te puede interesar</h3>
           <div className="carousel-track relacionados-track">
-            {relacionados.map(rp => (
-              <div key={rp.id} className="card carousel-item relacionado-card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => { window.__secId = rp.seccion_id; nav('product', rp); }}>
-                {rp.imagen ? <img src={imgOpt(rp.imagen, 320)} srcSet={imgSet(rp.imagen, 320)} alt="" loading="lazy" decoding="async" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ico n="cart" s={28} /></div>}
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rp.nombre || rp.modelo}</div>
-                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{rp.usa_variantes ? 'Ver opciones' : rp.es_preventa ? `Reservá a ${fmtARS(Number(rp.preventa_descuento_pct) > 0 ? Math.round(Number(rp.precio_base) * (1 - Number(rp.preventa_descuento_pct) / 100)) : rp.precio_base)}` : (precioFinalCliente(rp, promos, rp.seccion_id) > 0 ? fmtARS(precioFinalCliente(rp, promos, rp.seccion_id)) : 'Consultar precio')}</div>
-              </div>
-            ))}
+            {relacionados.map(rp => <div className="carousel-item" key={rp.id}><TarjetaProducto p={rp} secId={rp.seccion_id} /></div>)}
           </div>
         </div>
       )}
@@ -10047,42 +10257,7 @@ function SearchResultsPage() {
           <div key={sec.id} style={{ marginBottom: 28 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary)', marginBottom: 12, cursor: 'pointer' }} onClick={() => nav('section', sec.id)}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>({r.productos.length})</span></h3>
             <div className="product-grid">
-              {r.productos.map(p => {
-                const precio = precioLista(p);
-                const tieneOferta = Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < precio;
-                const efectivo = precioEfectivo(p);
-                const promoInfo = !p.usa_variantes ? ajusteCliente(efectivo, p, promos, sec.id, 'ARS') : null;
-                const sinStock = p.stock === 0 && !p.permitir_sin_stock && !p.es_digital;
-                return (
-                  <div key={p.id} className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                    {user && <button className={`card-fav${favIds.has(p.id) ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}><Ico n="heart" s={16} fill={favIds.has(p.id)} /></button>}
-                    <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>
-                      {p.imagen
-                        ? <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" />
-                        : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>}
-                      {sinStock && <span style={{ position: 'absolute', top: 10, left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill, 20px)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
-                    </div>
-                    <div className="product-info" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      <div className="product-cat">{p.categoria || ''}</div>
-                      <div className="product-name" style={{ flex: 1, cursor: 'pointer', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>{p.nombre || p.modelo}</div>
-                      <div style={{ marginBottom: 8 }}>
-                        {promoInfo ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(efectivo)}</span>
-                            <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(promoInfo.final)}</span>
-                          </div>
-                        ) : tieneOferta ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span className="price-old" style={{ textDecoration: 'line-through' }}>{fmtARS(p.precio_base)}</span>
-                            <span className="price-new" style={{ color: 'var(--danger)' }}>{fmtARS(p.precio_oferta)}</span>
-                          </div>
-                        ) : p.usa_variantes && Number(p.precio_desde) > 0 ? <span className="price-new">desde {fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span> : precio > 0 ? <span className="price-new">{fmtARS(precio)}</span> : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Consultar precio</span>}
-                      </div>
-                      {p.usa_variantes ? <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>Ver opciones</button> : !sinStock && <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => { addToCart(sec.id, p, 1); toast('Agregado'); }}>Agregar</button>}
-                    </div>
-                  </div>
-                );
-              })}
+              {r.productos.map(p => <TarjetaProducto key={p.id} p={p} secId={sec.id} />)}
             </div>
           </div>
         );
@@ -10092,35 +10267,21 @@ function SearchResultsPage() {
 }
 
 function FavoritosPage() {
-  const { nav, toast, addToCart, getPrice, userLista, precioFinalCliente, promos } = useContext(Ctx);
+  const { nav, favIds } = useContext(Ctx);
   const [favs, setFavs] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { api.getFavoritos().then(f => { setFavs(f); setLoading(false); }).catch(() => setLoading(false)); }, []);
-  const remove = async (prodId) => { await api.removeFavorito(prodId); setFavs(favs.filter(f => f.producto_id !== prodId)); toast('Eliminado de favoritos'); };
+  useEffect(() => { api.getFavoritos().then(f => { setFavs(f || []); setLoading(false); }).catch(() => setLoading(false)); }, []);
+  // Al tocar el corazón en una tarjeta se saca de la lista al instante
+  const lista = favs.filter(f => favIds.has(f.producto_id) && f.visible !== false).map(f => ({ ...f, id: f.producto_id, created_at: f.creado }));
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← Volver</button>
-      <h2 style={{ fontWeight: 800, marginBottom: 16 }}><Heart size={15} style={{ verticalAlign: '-2px' }} /> Mis favoritos ({favs.length})</h2>
-      {loading ? <div className="spinner" /> : favs.length === 0 ? (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+      <button className="link-btn" onClick={() => nav('landing')} style={{ marginBottom: 12 }}>← Volver</button>
+      <h2 style={{ fontWeight: 800, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><Heart size={18} /> Mis favoritos ({lista.length})</h2>
+      {loading ? <div className="spinner" /> : lista.length === 0 ? (
         <div className="empty-state"><h3>No tenés favoritos todavía</h3><p>Tocá el corazón en los productos para guardarlos acá.</p></div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
-          {favs.map(f => (
-            <div key={f.id} className="card" style={{ overflow: 'hidden' }}>
-              <div style={{ cursor: 'pointer' }} onClick={() => nav('section', f.seccion_id)}>
-                {f.imagen ? <img src={imgOpt(f.imagen, 360)} alt="" loading="lazy" style={{ width: '100%', height: 160, objectFit: 'contain', background: 'var(--bg)', padding: 8 }} /> : <div style={{ height: 160, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#ccc' }}><Smartphone size={15} style={{ verticalAlign: '-2px' }} /></div>}
-              </div>
-              <div style={{ padding: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>{f.categoria}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{f.nombre || f.modelo}</div>
-                {(() => { const _fp = precioFinalCliente({ ...f, id: f.producto_id || f.id }, promos, f.seccion_id); return _fp > 0 ? <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(_fp)}</div> : <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Consultar precio</div>; })()}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {f.usa_variantes ? <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => nav('product', { ...f, id: f.producto_id || f.id })}>Ver opciones</button> : f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
-                  <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}><Ico n="trash" s={15} /></button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="product-grid">
+          {lista.map(p => <TarjetaProducto key={p.id} p={p} secId={p.seccion_id} />)}
         </div>
       )}
     </div>
