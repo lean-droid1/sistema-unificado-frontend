@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -120,6 +120,20 @@ const trackEvent = (gaName, fbName, data = {}) => {
   try { if (window.fbq && fbName) window.fbq('track', fbName, data); } catch {}
 };
 // Nº de orden con prefijo según tipo: presupuesto → P-0001, pedido → #0001. El id interno no cambia.
+// Mensaje de WhatsApp sugerido al cambiar el estado de un pedido
+const mensajeEstadoPedido = (o, estado, tracking) => {
+  const n = o?.usuario_nombre || '';
+  const cod = tracking || o?.codigo_seguimiento || '';
+  return ({
+    preparando: `¡Hola ${n}! Tu pedido #${o.id} está siendo preparado 📦`,
+    listo: `¡Hola ${n}! Tu pedido #${o.id} está listo ✅`,
+    enviado: `¡Hola ${n}! Tu pedido #${o.id} fue despachado 🚚${cod ? `. Código de seguimiento: ${cod}` : ''}`,
+    entregado: `¡Hola ${n}! Tu pedido #${o.id} fue entregado 🎉 ¡Gracias por tu compra!`,
+    cancelado: `Hola ${n}, tu pedido #${o.id} fue cancelado. Cualquier duda escribinos.`,
+    pagado: `¡Hola ${n}! Confirmamos el pago de tu pedido #${o.id}. ¡Gracias! 🙌`,
+  })[estado] || '';
+};
+const telWaPedido = (o) => { let t = o?.usuario_telefono || ''; if (!t) { try { const de = typeof o?.datos_envio === 'string' ? JSON.parse(o.datos_envio || '{}') : (o?.datos_envio || {}); t = de?.contacto?.telefono || ''; } catch {} } const d = String(t).replace(/\D/g, ''); return d ? (d.startsWith('54') ? d : '54' + d) : ''; };
 const numOrden = (o) => { const id = String(o?.id ?? '').padStart(4, '0'); return (o?.tipo === 'presupuesto') ? `P-${id}` : `#${id}`; };
 const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${String(num).replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
 const openWA = (num, msg) => window.open(waLink(num, msg), '_blank');
@@ -6186,6 +6200,7 @@ function AdminProductos() {
   const [showHistory, setShowHistory] = useState(false);
   const [pageSize, setPageSize] = useState(50);
   const [expandVars, setExpandVars] = useState(null);
+  const [menuMas, setMenuMas] = useState(false);
   const [catFiltro, setCatFiltro] = useState('');
   const [stockFiltro, setStockFiltro] = useState('todos'); // todos | con | sin | bajo
   const [seleccion, setSeleccion] = useState(new Set());
@@ -6326,24 +6341,30 @@ function AdminProductos() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <h3>Productos ({total})</h3>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="prod-toolbar">
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Nuevo</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)}><Archive size={15} style={{ verticalAlign: '-2px' }} /> Importar</button>
-          <button className="btn btn-outline btn-sm" onClick={async () => {
+          <div className="mas-wrap">
+            <button className="btn btn-outline btn-sm" onClick={() => setMenuMas(v => !v)} aria-expanded={menuMas}>Más <ChevronDown size={14} /></button>
+            {menuMas && <div className="mas-backdrop" onClick={() => setMenuMas(false)} />}
+            {menuMas && <div className="mas-menu" onClick={() => setMenuMas(false)}>
+          <button className="mas-item" onClick={async () => {
             if (!confirm('Generar código de barras a todos los productos de esta sección que no tengan uno. ¿Continuar?')) return;
             try { const r = await api.generarCodigos(adminSeccion); toast(`${r.generados} códigos generados`); load(); } catch (e) { toast(e.message, 'error'); }
-          }}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Generar códigos</button>
-          <button className="btn btn-outline btn-sm" onClick={() => setShowPriceAdj(true)}><DollarSign size={15} style={{ verticalAlign: '-2px' }} /> Ajustar precios</button>
-          <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}><History size={15} style={{ verticalAlign: '-2px' }} /> Historial</button>
-          <button className="btn btn-outline btn-sm" onClick={repararFotosRxz} disabled={reparandoFotos} title="Mueve a Cloudinary las fotos que aún apuntan a rxz (arregla las rotas de depósito)">{reparandoFotos ? 'Reparando…' : 'Reparar fotos'}</button>
+          }}><Tag size={15} /> Generar códigos de barras</button>
+          <button className="mas-item" onClick={() => setShowPriceAdj(true)}><DollarSign size={15} /> Ajustar precios en masa</button>
+          <button className="mas-item" onClick={() => setShowHistory(true)}><History size={15} /> Historial de precios</button>
+          <button className="mas-item" onClick={repararFotosRxz} disabled={reparandoFotos} title="Mueve a Cloudinary las fotos que aún apuntan a rxz (arregla las rotas de depósito)"><RefreshCw size={15} /> {reparandoFotos ? 'Reparando fotos…' : 'Reparar fotos del depósito'}</button>
+            </div>}
+          </div>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div className="prod-filtros">
         <select value={secFiltro} onChange={e => { setSecFiltro(e.target.value); setPagina(1); }} style={{ width: 200 }}>
-          <option value="all"><Package size={15} style={{ verticalAlign: '-2px' }} /> Todas las secciones</option>
+          <option value="all">Todas las secciones</option>
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
-        <input placeholder="Buscar por nombre o SKU..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 160 }} />
+        <input placeholder="Buscar por nombre o SKU..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} />
         <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ width: 180 }}>
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c} value={c}>{c}</option>)}
@@ -6826,7 +6847,9 @@ function ProductModal({ product, onClose }) {
   const idActual = product?.id || createdId;
   const [reservadoReal, setReservadoReal] = useState(null);
   useEffect(() => { if (isEdit && product?.es_preventa && product?.id) api.getReservadoReal(product.id).then(r => setReservadoReal(r.reservado)).catch(() => {}); }, [product?.id]);
-  const [f, setF] = useState(product || {
+  // Los números llegan de la base como texto ("67902.00"): se muestran limpios (67902)
+  const numsLimpios = (x) => { const o = { ...x }; for (const k of ['precio_base', 'precio_oferta', 'precio_original', 'stock', 'stock_minimo', 'peso', 'alto', 'ancho', 'largo', 'preventa_precio', 'preventa_descuento_pct', 'preventa_cupo']) if (o[k] !== undefined && o[k] !== null && o[k] !== '') o[k] = Number(o[k]); return o; };
+  const [f, setF] = useState(product ? numsLimpios(product) : {
     seccion_id: adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id,
     categoria: '', modelo: '', nombre: '', precio_base: 0, precio_original: 0, stock: 0, stock_minimo: 0,
     imagen: '', descripcion: '', sku: '', codigo_barras: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
@@ -6894,139 +6917,159 @@ function ProductModal({ product, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+      <div className="modal modal-xl pm-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header"><span className="modal-title">{yaCreado ? 'Editar producto' : 'Nuevo producto'}</span><button className="modal-close" onClick={onClose}>✕</button></div>
-        <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Sección *</label>
-              <select value={f.seccion_id} onChange={e => setF({ ...f, seccion_id: Number(e.target.value) })}>
-                {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select></div>
-            <div className="form-group"><label className="form-label">Categoría *</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select value={f._catCustom ? '__new__' : f.categoria} onChange={e => { if (e.target.value === '__new__') setF({ ...f, categoria: '', _catCustom: true }); else setF({ ...f, categoria: e.target.value, _catCustom: false }); }} style={{ flex: 1 }}>
-                  <option value="">— Seleccionar —</option>
-                  {f.categoria && <option value={f.categoria}>{f.categoria}</option>}
-                  <CatOptions seccionId={f.seccion_id} exclude={f.categoria} />
-                  <option value="__new__">+ Nueva categoría...</option>
-                </select>
-                {f._catCustom && <input value={f.categoria} onChange={e => setF({ ...f, categoria: e.target.value })} placeholder="Nueva categoría" style={{ flex: 1 }} autoFocus />}
-              </div>
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Nombre *</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
-            <div className="form-group"><label className="form-label">Modelo</label><input value={f.modelo} onChange={e => setF({ ...f, modelo: e.target.value })} /></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">SKU</label><input value={f.sku} onChange={e => setF({ ...f, sku: e.target.value })} /></div>
-            <div className="form-group"><label className="form-label">Código de barras (para escanear en ventas)</label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input value={f.codigo_barras || ''} onChange={e => setF({ ...f, codigo_barras: e.target.value })} placeholder="Se genera solo al guardar" style={{ flex: 1 }} />
-                {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f, { conPrecio: window.confirm('¿Incluir el precio en la etiqueta?\n\n(Aceptar = con precio, Cancelar = sin precio)') })}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Imprimir etiqueta</button>}
-              </div>
-              <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Si lo dejás vacío, el sistema le asigna un código único (P + número). Podés imprimir la etiqueta y pegarla al producto.</small>
-            </div>
-            <div className="form-group"><label className="form-label">Marca</label><input value={f.marca || ''} onChange={e => setF({ ...f, marca: e.target.value })} placeholder="Ej: Samsung, Bosch" /></div>
-            <div className="form-group"><label className="form-label">Tipo</label>
-              <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="fisico">Físico</option><option value="digital">Digital</option></select></div>
-            <div className="form-group"><label className="form-label">Moneda</label>
-              <select value={f.moneda} onChange={e => setF({ ...f, moneda: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option><option value="USDT">USDT</option></select></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Precio base *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
-            <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
-            <div className="form-group"><label className="form-label">Precio de costo (lo que te sale)</label><input type="number" value={f.precio_original || ''} onChange={e => setF({ ...f, precio_original: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_original: Number(e.target.value) || 0 })} placeholder="Para calcular ganancia" /></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Stock *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
-            <div className="form-group"><label className="form-label">Stock mínimo</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock_minimo} onChange={e => setF({ ...f, stock_minimo: Number(e.target.value) })} /></div>
-          </div>
-          {/* Stock options */}
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '8px 0 12px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock || false} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir compra sin stock</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
-          </div>
-          {/* Imagen principal: SOLO antes de crear. Una vez creado (o en edición) manda la galería. */}
-          {!yaCreado && (
-          <div className="form-group">
-            <label className="form-label">Imagen principal</label>
-            <div className="dropzone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleImageUpload(file); }}>
-              {uploading ? <span>Subiendo...</span> : f.imagen ? <img src={f.imagen} alt="" style={{ maxHeight: 100 }} /> : <span>Arrastrá una imagen o hacé clic</span>}
-              <input type="file" accept="image/*" onChange={e => { const file = e.target.files[0]; if (file) handleImageUpload(file); }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
-            </div>
-            {f.imagen && <input value={f.imagen} onChange={e => setF({ ...f, imagen: e.target.value })} placeholder="O pegá URL de imagen" style={{ marginTop: 8 }} />}
-            <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Al crear el producto vas a poder sumar más fotos (galería).</small>
-          </div>
-          )}
-          {/* Galería de varias fotos: en edición y también apenas se crea el producto */}
-          {yaCreado && <MultiImageUpload productoId={idActual} imagenInicial={product?.imagen || f.imagen} />}
-          {/* Atributos + variantes combinadas (mismo editor al crear y al editar) */}
-          <AtributosEditor value={varData} onChange={setVarData} />
-          <div className="form-group"><label className="form-label">Descripción</label><textarea value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} rows={3} /></div>
-          <div className="form-group"><label className="form-label">Notas internas</label><textarea value={f.notas} onChange={e => setF({ ...f, notas: e.target.value })} rows={2} /></div>
-          <div className="form-group"><label className="form-label">Compatibilidad</label><input value={f.compatibilidad} onChange={e => setF({ ...f, compatibilidad: e.target.value })} /></div>
-          <div className="form-row">
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={f.envio_gratis} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={f.visible !== false} onChange={e => setF({ ...f, visible: e.target.checked })} /> Visible</label>
-          </div>
-
-          {/* ── PREVENTA / próximo ingreso ── */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, margin: '12px 0' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              <input type="checkbox" checked={f.es_preventa || false} onChange={e => setF({ ...f, es_preventa: e.target.checked })} /> <Clock size={14} style={{ verticalAlign: '-2px' }} /> Producto en preventa / próximo a ingresar
-            </label>
-            {f.es_preventa && (
-              <div style={{ marginTop: 12 }}>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>El cliente puede reservar pagando la seña/precio de preventa por adelantado. Si no le ponés precio de preventa, se muestra como próximo ingreso al precio normal.</p>
-                <div className="form-group"><label className="form-label">% de descuento por reservar (0 = sin descuento, precio normal)</label><input type="number" min="0" max="99" value={f.preventa_descuento_pct || ''} onChange={e => setF({ ...f, preventa_descuento_pct: Number(e.target.value) || 0 })} placeholder="Ej: 15" /></div>
-                <div className="form-group"><label className="form-label">Stock de preventa (cuántas unidades van a llegar, 0 = sin límite)</label><input type="number" min="0" value={f.preventa_cupo || ''} onChange={e => setF({ ...f, preventa_cupo: Number(e.target.value) || 0 })} placeholder="Ej: 10" />{f.es_preventa && Number(f.preventa_reservado) > 0 && <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ya reservaron: {f.preventa_reservado} de {f.preventa_cupo || '∞'}</small>}</div>
-                {Number(f.preventa_descuento_pct) > 0 && Number(f.precio_base) > 0 && (
-                  <div style={{ fontSize: 13, background: 'var(--bg-hover, rgba(0,0,0,0.04))', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
-                    El cliente verá: <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{fmtARS(f.precio_base)}</span> {' '}
-                    <b style={{ color: 'var(--success)' }}>{fmtARS(Math.round(Number(f.precio_base) * (1 - Number(f.preventa_descuento_pct) / 100)))}</b> {' '}
-                    <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>-{f.preventa_descuento_pct}%</span>
+        <div className="modal-body pm-body">
+          <div className="pm-grid">
+            <div className="pm-col">
+              <section className="pm-card">
+                <h4 className="pm-title">Datos y precio</h4>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Sección *</label>
+                    <select value={f.seccion_id} onChange={e => setF({ ...f, seccion_id: Number(e.target.value) })}>
+                      {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                    </select></div>
+                  <div className="form-group"><label className="form-label">Categoría *</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={f._catCustom ? '__new__' : f.categoria} onChange={e => { if (e.target.value === '__new__') setF({ ...f, categoria: '', _catCustom: true }); else setF({ ...f, categoria: e.target.value, _catCustom: false }); }} style={{ flex: 1 }}>
+                        <option value="">— Seleccionar —</option>
+                        {f.categoria && <option value={f.categoria}>{f.categoria}</option>}
+                        <CatOptions seccionId={f.seccion_id} exclude={f.categoria} />
+                        <option value="__new__">+ Nueva categoría...</option>
+                      </select>
+                      {f._catCustom && <input value={f.categoria} onChange={e => setF({ ...f, categoria: e.target.value })} placeholder="Nueva categoría" style={{ flex: 1 }} autoFocus />}
+                    </div>
                   </div>
-                )}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}><input type="checkbox" checked={f.preventa_mostrar_fecha || false} onChange={e => setF({ ...f, preventa_mostrar_fecha: e.target.checked })} /> Mostrar fecha estimada de ingreso al cliente</label>
-                {f.preventa_mostrar_fecha && (
-                  <div className="form-group"><label className="form-label">Fecha estimada de ingreso</label><input type="date" value={f.preventa_fecha ? String(f.preventa_fecha).slice(0, 10) : ''} onChange={e => setF({ ...f, preventa_fecha: e.target.value })} /></div>
-                )}
-                {isEdit && f.es_preventa && (
-                  <div style={{ marginTop: 10, padding: 10, background: 'var(--success)', borderRadius: 8 }}>
-                    <p style={{ fontSize: 12, color: '#fff', marginBottom: 8 }}>Cuando llegue la mercadería, tocá el botón: las unidades pasan al stock físico y se descuentan las {reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0)} ya reservadas (según los pedidos reales).</p>
-                    <button type="button" className="btn btn-sm" style={{ width: '100%', background: '#fff', color: 'var(--success)', fontWeight: 800 }} onClick={async () => {
-                      const resv = reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0);
-                      if (!confirm(`¿Recibiste la preventa de "${f.nombre || f.modelo}"?\n\nCupo de preventa: ${f.preventa_cupo || 0}\nYa reservadas (pedidos reales): ${resv}\n\nSe sumarán al stock físico las que sobran (cupo menos reservadas) y se desactivará la preventa.`)) return;
-                      try { const r = await api.recibirPreventa(f.id); toast(`Recibido: +${r.sumado_a_stock} al stock físico, ${r.reservas_tomadas} ya reservadas`); onClose(); } catch (e) { toast(e.message, 'error'); }
-                    }}><Package size={15} style={{ verticalAlign: '-2px' }} /> Recibí la preventa</button>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Nombre *</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} /></div>
+                  <div className="form-group"><label className="form-label">Modelo</label><input value={f.modelo} onChange={e => setF({ ...f, modelo: e.target.value })} /></div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">SKU</label><input value={f.sku} onChange={e => setF({ ...f, sku: e.target.value })} /></div>
+                  <div className="form-group"><label className="form-label">Código de barras (para escanear en ventas)</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input value={f.codigo_barras || ''} onChange={e => setF({ ...f, codigo_barras: e.target.value })} placeholder="Se genera solo al guardar" style={{ flex: 1 }} />
+                      {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f, { conPrecio: window.confirm('¿Incluir el precio en la etiqueta?\n\n(Aceptar = con precio, Cancelar = sin precio)') })}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Imprimir etiqueta</button>}
+                    </div>
+                    <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Si lo dejás vacío, el sistema le asigna un código único (P + número). Podés imprimir la etiqueta y pegarla al producto.</small>
                   </div>
-                )}
+                  <div className="form-group"><label className="form-label">Marca</label><input value={f.marca || ''} onChange={e => setF({ ...f, marca: e.target.value })} placeholder="Ej: Samsung, Bosch" /></div>
+                  <div className="form-group"><label className="form-label">Tipo</label>
+                    <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="fisico">Físico</option><option value="digital">Digital</option></select></div>
+                  <div className="form-group"><label className="form-label">Moneda</label>
+                    <select value={f.moneda} onChange={e => setF({ ...f, moneda: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option><option value="USDT">USDT</option></select></div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Precio base *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
+                  <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
+                  <div className="form-group"><label className="form-label">Precio de costo (lo que te sale)</label><input type="number" value={f.precio_original || ''} onChange={e => setF({ ...f, precio_original: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_original: Number(e.target.value) || 0 })} placeholder="Para calcular ganancia" /></div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Stock *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
+                  <div className="form-group"><label className="form-label">Stock mínimo</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock_minimo} onChange={e => setF({ ...f, stock_minimo: Number(e.target.value) })} /></div>
+                </div>
+                {/* Stock options */}
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '8px 0 12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock || false} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir compra sin stock</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
+                </div>
+              </section>
+              <section className="pm-card">
+                <h4 className="pm-title">Descripción</h4>
+                <div className="form-group"><label className="form-label">Descripción</label><textarea value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} rows={3} /></div>
+                <div className="form-group"><label className="form-label">Notas internas</label><textarea value={f.notas} onChange={e => setF({ ...f, notas: e.target.value })} rows={2} /></div>
+                <div className="form-group"><label className="form-label">Compatibilidad</label><input value={f.compatibilidad} onChange={e => setF({ ...f, compatibilidad: e.target.value })} /></div>
+              </section>
+              <section className="pm-card">
+              {/* Atributos + variantes combinadas (mismo editor al crear y al editar) */}
+              <AtributosEditor value={varData} onChange={setVarData} />
+              </section>
+            </div>
+            <div className="pm-col">
+              <section className="pm-card">
+                <h4 className="pm-title">Fotos</h4>
+              {/* Imagen principal: SOLO antes de crear. Una vez creado (o en edición) manda la galería. */}
+              {!yaCreado && (
+              <div className="form-group">
+                <label className="form-label">Imagen principal</label>
+                <div className="dropzone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleImageUpload(file); }}>
+                  {uploading ? <span>Subiendo...</span> : f.imagen ? <img src={f.imagen} alt="" style={{ maxHeight: 100 }} /> : <span>Arrastrá una imagen o hacé clic</span>}
+                  <input type="file" accept="image/*" onChange={e => { const file = e.target.files[0]; if (file) handleImageUpload(file); }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+                </div>
+                {f.imagen && <input value={f.imagen} onChange={e => setF({ ...f, imagen: e.target.value })} placeholder="O pegá URL de imagen" style={{ marginTop: 8 }} />}
+                <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Al crear el producto vas a poder sumar más fotos (galería).</small>
+              </div>
+              )}
+              {/* Galería de varias fotos: en edición y también apenas se crea el producto */}
+              {yaCreado && <MultiImageUpload productoId={idActual} imagenInicial={product?.imagen || f.imagen} />}
+              </section>
+              <section className="pm-card">
+                <h4 className="pm-title">Publicación</h4>
+              <label className="pm-check"><input type="checkbox" checked={f.visible !== false} onChange={e => setF({ ...f, visible: e.target.checked })} /> Visible en la tienda</label>
+              </section>
+              {f.tipo === 'fisico' && <section className="pm-card">
+                <h4 className="pm-title">Envío (peso y medidas)</h4>
+              {f.tipo === 'fisico' && (
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Peso (kg)</label><input type="number" value={f.peso || ''} onChange={e => setF({ ...f, peso: Number(e.target.value) })} /></div>
+                  <div className="form-group"><label className="form-label">Alto (cm)</label><input type="number" value={f.alto || ''} onChange={e => setF({ ...f, alto: Number(e.target.value) })} /></div>
+                  <div className="form-group"><label className="form-label">Ancho (cm)</label><input type="number" value={f.ancho || ''} onChange={e => setF({ ...f, ancho: Number(e.target.value) })} /></div>
+                  <div className="form-group"><label className="form-label">Largo (cm)</label><input type="number" value={f.largo || ''} onChange={e => setF({ ...f, largo: Number(e.target.value) })} /></div>
+                </div>
+              )}
+                <small className="form-hint">Se usan para cotizar el envío con el correo. Peso en kilos (100 g = 0,1).</small>
+              </section>}
+            {/* ── PREVENTA / próximo ingreso ── */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, margin: '12px 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                <input type="checkbox" checked={f.es_preventa || false} onChange={e => setF({ ...f, es_preventa: e.target.checked })} /> <Clock size={14} style={{ verticalAlign: '-2px' }} /> Producto en preventa / próximo a ingresar
+              </label>
+              {f.es_preventa && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>El cliente puede reservar pagando la seña/precio de preventa por adelantado. Si no le ponés precio de preventa, se muestra como próximo ingreso al precio normal.</p>
+                  <div className="form-group"><label className="form-label">% de descuento por reservar (0 = sin descuento, precio normal)</label><input type="number" min="0" max="99" value={f.preventa_descuento_pct || ''} onChange={e => setF({ ...f, preventa_descuento_pct: Number(e.target.value) || 0 })} placeholder="Ej: 15" /></div>
+                  <div className="form-group"><label className="form-label">Stock de preventa (cuántas unidades van a llegar, 0 = sin límite)</label><input type="number" min="0" value={f.preventa_cupo || ''} onChange={e => setF({ ...f, preventa_cupo: Number(e.target.value) || 0 })} placeholder="Ej: 10" />{f.es_preventa && Number(f.preventa_reservado) > 0 && <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ya reservaron: {f.preventa_reservado} de {f.preventa_cupo || '∞'}</small>}</div>
+                  {Number(f.preventa_descuento_pct) > 0 && Number(f.precio_base) > 0 && (
+                    <div style={{ fontSize: 13, background: 'var(--bg-hover, rgba(0,0,0,0.04))', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
+                      El cliente verá: <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{fmtARS(f.precio_base)}</span> {' '}
+                      <b style={{ color: 'var(--success)' }}>{fmtARS(Math.round(Number(f.precio_base) * (1 - Number(f.preventa_descuento_pct) / 100)))}</b> {' '}
+                      <span style={{ background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>-{f.preventa_descuento_pct}%</span>
+                    </div>
+                  )}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}><input type="checkbox" checked={f.preventa_mostrar_fecha || false} onChange={e => setF({ ...f, preventa_mostrar_fecha: e.target.checked })} /> Mostrar fecha estimada de ingreso al cliente</label>
+                  {f.preventa_mostrar_fecha && (
+                    <div className="form-group"><label className="form-label">Fecha estimada de ingreso</label><input type="date" value={f.preventa_fecha ? String(f.preventa_fecha).slice(0, 10) : ''} onChange={e => setF({ ...f, preventa_fecha: e.target.value })} /></div>
+                  )}
+                  {isEdit && f.es_preventa && (
+                    <div style={{ marginTop: 10, padding: 10, background: 'var(--success)', borderRadius: 8 }}>
+                      <p style={{ fontSize: 12, color: '#fff', marginBottom: 8 }}>Cuando llegue la mercadería, tocá el botón: las unidades pasan al stock físico y se descuentan las {reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0)} ya reservadas (según los pedidos reales).</p>
+                      <button type="button" className="btn btn-sm" style={{ width: '100%', background: '#fff', color: 'var(--success)', fontWeight: 800 }} onClick={async () => {
+                        const resv = reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0);
+                        if (!confirm(`¿Recibiste la preventa de "${f.nombre || f.modelo}"?\n\nCupo de preventa: ${f.preventa_cupo || 0}\nYa reservadas (pedidos reales): ${resv}\n\nSe sumarán al stock físico las que sobran (cupo menos reservadas) y se desactivará la preventa.`)) return;
+                        try { const r = await api.recibirPreventa(f.id); toast(`Recibido: +${r.sumado_a_stock} al stock físico, ${r.reservas_tomadas} ya reservadas`); onClose(); } catch (e) { toast(e.message, 'error'); }
+                      }}><Package size={15} style={{ verticalAlign: '-2px' }} /> Recibí la preventa</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Precios fijos por lista (only on edit) */}
+            {isEdit && listas.length > 0 && (
+              <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <h4 style={{ marginBottom: 8 }}>Precios fijos por lista</h4>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Si ponés un precio acá, se usa ese en vez del cálculo automático (precio base × multiplicador).</p>
+                {listas.map(l => (
+                  <div key={l.id} className="form-row" style={{ marginBottom: 4 }}>
+                    <label style={{ minWidth: 120, fontSize: 13 }}>{l.nombre}</label>
+                    <input type="number" value={fp[l.id] || ''} onChange={e => setFp({ ...fp, [l.id]: e.target.value })} placeholder={`Auto: $${fmt(Math.round(f.precio_base * l.multiplicador))}`} style={{ width: 120 }} />
+                  </div>
+                ))}
               </div>
             )}
+            </div>
           </div>
-          {f.tipo === 'fisico' && (
-            <div className="form-row">
-              <div className="form-group"><label className="form-label">Peso (kg)</label><input type="number" value={f.peso || ''} onChange={e => setF({ ...f, peso: Number(e.target.value) })} /></div>
-              <div className="form-group"><label className="form-label">Alto (cm)</label><input type="number" value={f.alto || ''} onChange={e => setF({ ...f, alto: Number(e.target.value) })} /></div>
-              <div className="form-group"><label className="form-label">Ancho (cm)</label><input type="number" value={f.ancho || ''} onChange={e => setF({ ...f, ancho: Number(e.target.value) })} /></div>
-              <div className="form-group"><label className="form-label">Largo (cm)</label><input type="number" value={f.largo || ''} onChange={e => setF({ ...f, largo: Number(e.target.value) })} /></div>
-            </div>
-          )}
-          {/* Precios fijos por lista (only on edit) */}
-          {isEdit && listas.length > 0 && (
-            <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-              <h4 style={{ marginBottom: 8 }}>Precios fijos por lista</h4>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Si ponés un precio acá, se usa ese en vez del cálculo automático (precio base × multiplicador).</p>
-              {listas.map(l => (
-                <div key={l.id} className="form-row" style={{ marginBottom: 4 }}>
-                  <label style={{ minWidth: 120, fontSize: 13 }}>{l.nombre}</label>
-                  <input type="number" value={fp[l.id] || ''} onChange={e => setFp({ ...fp, [l.id]: e.target.value })} placeholder={`Auto: $${fmt(Math.round(f.precio_base * l.multiplicador))}`} style={{ width: 120 }} />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>{yaCreado && createdId ? 'Cerrar' : 'Cancelar'}</button>
@@ -7295,6 +7338,12 @@ function AdminPedidos({ filtroTipo }) {
   const [showPresupuesto, setShowPresupuesto] = useState(false);
   const [busqPed, setBusqPed] = useState('');
   const [pagoFiltro, setPagoFiltro] = useState('todos');
+  const { secciones } = useContext(Ctx);
+  const [secPed, setSecPed] = useState('all');
+  const [rangoPed, setRangoPed] = useState('todo'); // todo | hoy | 7 | 30 | mes | custom
+  const [desdePed, setDesdePed] = useState(''); const [hastaPed, setHastaPed] = useState('');
+  const [avisoPed, setAvisoPed] = useState(null); // { mensaje, telefono } → ¿avisar al cliente?
+  const [ocupado, setOcupado] = useState(null); // id del pedido que se está guardando
   // Cambiar de tab si cambia el filtro desde el sidebar
   useEffect(() => { if (filtroTipo === 'presupuestos') setOrdTab('presupuestos'); else if (filtroTipo === 'pedidos') setOrdTab('pedidos'); }, [filtroTipo]);
 
@@ -7328,8 +7377,49 @@ function AdminPedidos({ filtroTipo }) {
     let lista = pedidos;
     if (busqPed) { const q = busqPed.toLowerCase(); lista = lista.filter(p => String(p.id).includes(q) || (p.usuario_nombre || '').toLowerCase().includes(q) || (p.nombre_fantasia || '').toLowerCase().includes(q) || (p.usuario_telefono || '').includes(q)); }
     if (pagoFiltro !== 'todos' && ordTab !== 'presupuestos') lista = lista.filter(p => { let ep = (p.estado_pago && String(p.estado_pago).trim()) ? String(p.estado_pago).trim() : 'impago'; if (ep === 'pendiente') ep = 'impago'; return ep === pagoFiltro; });
+    if (secPed !== 'all') lista = lista.filter(p => String(p.seccion_id) === String(secPed));
+    if (rangoPed !== 'todo') {
+      const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+      let desde = null, hasta = null;
+      if (rangoPed === 'hoy') desde = hoy0;
+      else if (rangoPed === '7') desde = new Date(hoy0.getTime() - 6 * 86400000);
+      else if (rangoPed === '30') desde = new Date(hoy0.getTime() - 29 * 86400000);
+      else if (rangoPed === 'mes') desde = new Date(hoy0.getFullYear(), hoy0.getMonth(), 1);
+      else if (rangoPed === 'custom') { if (desdePed) desde = new Date(desdePed + 'T00:00:00'); if (hastaPed) hasta = new Date(hastaPed + 'T23:59:59'); }
+      lista = lista.filter(p => { const f = new Date(p.created_at); return (!desde || f >= desde) && (!hasta || f <= hasta); });
+    }
     return lista;
   })();
+  const epDe = (p) => { const ep = (p.estado_pago && String(p.estado_pago).trim() && p.estado_pago !== 'pendiente') ? p.estado_pago : 'impago'; return ep; };
+  const resumenPed = pedidosFiltrados.reduce((r, p) => { const t = Number(p.total) || 0; r.total += t; if (epDe(p) === 'pagado') r.cobrado += t; else r.aCobrar += t - (epDe(p) === 'senado' ? Number(p.sena) || 0 : 0); return r; }, { total: 0, cobrado: 0, aCobrar: 0 });
+
+  // Acciones rápidas desde la lista (sin abrir el pedido)
+  const cambiarEstadoRapido = async (p, estado) => {
+    if (estado === p.estado) return;
+    if (estado === 'cancelado' && !confirm(`¿Cancelar el pedido ${numOrden(p)}? El stock vuelve a estar disponible.`)) return;
+    setOcupado(p.id);
+    try {
+      await api.updatePedido(p.id, { estado });
+      setPedidos(prev => prev.map(x => x.id === p.id ? { ...x, estado } : x));
+      toast(`${numOrden(p)}: ${estado}`);
+      const tel = telWaPedido(p); const msg = mensajeEstadoPedido(p, estado);
+      if (tel && msg) setAvisoPed({ mensaje: msg, telefono: tel });
+      if (estado === 'cancelado') load();
+    } catch (e) { toast(e.message, 'error'); }
+    setOcupado(null);
+  };
+  const marcarPagadoRapido = async (p) => {
+    if (!confirm(`¿Marcar ${numOrden(p)} como pagado (${fmtARS(p.total)})? Se registra el cobro en la caja.`)) return;
+    setOcupado(p.id);
+    try {
+      await api.updatePedido(p.id, { estado_pago: 'pagado' });
+      setPedidos(prev => prev.map(x => x.id === p.id ? { ...x, estado_pago: 'pagado' } : x));
+      toast(`${numOrden(p)} marcado como pagado`);
+      const tel = telWaPedido(p); if (tel) setAvisoPed({ mensaje: mensajeEstadoPedido(p, 'pagado'), telefono: tel });
+    } catch (e) { toast(e.message, 'error'); }
+    setOcupado(null);
+  };
+  const waCliente = (p) => { const tel = telWaPedido(p); if (!tel) { toast('Este pedido no tiene teléfono del cliente', 'error'); return; } window.open(waLink(tel, `Hola ${p.usuario_nombre || ''}, te escribo por tu pedido ${numOrden(p)}.`), '_blank'); };
 
   const tabs = [{ id: 'pedidos', label: 'Pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }, { id: 'cancelados', label: 'Cancelados' }, { id: 'archivados', label: 'Archivados' }];
   const estados = ['pendiente', 'preparando', 'listo', 'enviado', 'entregado', 'cancelado'];
@@ -7382,10 +7472,28 @@ function AdminPedidos({ filtroTipo }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {tabs.map(t => <button key={t.id} className={`btn btn-sm ${ordTab === t.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => changeTab(t.id)}>{t.label}</button>)}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input placeholder="Buscar por nº, cliente o teléfono..." value={busqPed} onChange={e => setBusqPed(e.target.value)} style={{ flex: 1, minWidth: 180 }} />
+      <div className="ped-filtros">
+        <input placeholder="Buscar por nº, cliente o teléfono..." value={busqPed} onChange={e => setBusqPed(e.target.value)} className="ped-busq" />
+        {adminSeccion === 'all' && secciones.length > 1 && (
+          <select value={secPed} onChange={e => setSecPed(e.target.value)} aria-label="Tienda">
+            <option value="all">Todas las tiendas</option>
+            {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        )}
+        <select value={rangoPed} onChange={e => setRangoPed(e.target.value)} aria-label="Fecha">
+          <option value="todo">Cualquier fecha</option>
+          <option value="hoy">Hoy</option>
+          <option value="7">Últimos 7 días</option>
+          <option value="30">Últimos 30 días</option>
+          <option value="mes">Este mes</option>
+          <option value="custom">Elegir fechas…</option>
+        </select>
+        {rangoPed === 'custom' && <>
+          <input type="date" value={desdePed} onChange={e => setDesdePed(e.target.value)} aria-label="Desde" />
+          <input type="date" value={hastaPed} onChange={e => setHastaPed(e.target.value)} aria-label="Hasta" />
+        </>}
         {ordTab !== 'presupuestos' && (
-          <select value={pagoFiltro} onChange={e => setPagoFiltro(e.target.value)} style={{ width: 150 }}>
+          <select value={pagoFiltro} onChange={e => setPagoFiltro(e.target.value)} aria-label="Estado de pago">
             <option value="todos">Todos los pagos</option>
             <option value="pagado">Pagados</option>
             <option value="impago">Impagos</option>
@@ -7394,9 +7502,31 @@ function AdminPedidos({ filtroTipo }) {
           </select>
         )}
       </div>
+      {pedidosFiltrados.length > 0 && (
+        <div className="ped-resumen">
+          <span><b>{pedidosFiltrados.length}</b> {ordTab === 'presupuestos' ? 'presupuesto' : 'pedido'}{pedidosFiltrados.length !== 1 ? 's' : ''}</span>
+          <span>Total <b>{fmtARS(resumenPed.total)}</b></span>
+          {ordTab !== 'presupuestos' && <><span className="ok">Cobrado <b>{fmtARS(resumenPed.cobrado)}</b></span><span className="warn">A cobrar <b>{fmtARS(resumenPed.aCobrar)}</b></span></>}
+        </div>
+      )}
       {pedidosFiltrados.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay resultados</p>}
+      {avisoPed && (
+        <div className="modal-overlay" style={{ zIndex: 3000 }} onClick={() => setAvisoPed(null)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><span className="modal-title">¿Avisar al cliente?</span><button className="modal-close" onClick={() => setAvisoPed(null)} aria-label="Cerrar">✕</button></div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Se abre WhatsApp con este mensaje (lo podés editar antes de mandarlo):</p>
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, fontSize: 14, whiteSpace: 'pre-wrap' }}>{avisoPed.mensaje}</div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setAvisoPed(null)}>No, gracias</button>
+              <button className="btn btn-primary" onClick={() => { window.open(waLink(avisoPed.telefono, avisoPed.mensaje), '_blank'); setAvisoPed(null); }}>Sí, abrir WhatsApp</button>
+            </div>
+          </div>
+        </div>
+      )}
       {pedidosFiltrados.map(p => (
-        <div key={p.id} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
+        <div key={p.id} className={`card ped-row${ocupado === p.id ? ' ocupado' : ''}`} style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
               <strong>{numOrden(p)}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}><FlaskConical size={15} style={{ verticalAlign: '-2px' }} /> TEST</span>}
@@ -7410,6 +7540,19 @@ function AdminPedidos({ filtroTipo }) {
               <span style={{ background: colores[p.estado], color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{p.estado}</span>
               <strong>{fmtARS(p.total)}</strong>
             </div>
+          </div>
+          {/* Acciones rápidas (no abren el pedido) */}
+          <div className="ped-acciones" onClick={e => e.stopPropagation()}>
+            {p.tipo !== 'presupuesto' && ordTab !== 'archivados' && (
+              <select className="ped-estado-sel" value={p.estado} disabled={ocupado === p.id} onChange={e => cambiarEstadoRapido(p, e.target.value)} aria-label="Cambiar estado" style={{ '--ped-c': colores[p.estado] || 'var(--border)' }}>
+                {estados.map(e => <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>)}
+              </select>
+            )}
+            {p.tipo !== 'presupuesto' && epDe(p) !== 'pagado' && p.estado !== 'cancelado' && (
+              <button className="btn btn-sm ped-btn-pagado" disabled={ocupado === p.id} onClick={() => marcarPagadoRapido(p)}><CheckCircle size={14} /> Marcar pagado</button>
+            )}
+            <button className="btn btn-sm btn-outline ped-btn-wa" onClick={() => waCliente(p)} title="Escribirle por WhatsApp" aria-label="Escribirle por WhatsApp"><MessageCircle size={15} /><span className="solo-ancho"> WhatsApp</span></button>
+            <button className="btn btn-sm btn-outline" onClick={() => setViewOrder(p)}>Ver detalle</button>
           </div>
         </div>
       ))}
@@ -7543,14 +7686,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       setO({ ...o, estado });
       toast('Estado actualizado');
       // Notificación opcional al cliente
-      const mensajes = {
-        preparando: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} está siendo preparado 📦`,
-        listo: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} está listo ✅`,
-        enviado: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue despachado 🚚${(tracking || o.codigo_seguimiento) ? `. Código de seguimiento: ${tracking || o.codigo_seguimiento}` : ''}`,
-        entregado: `¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue entregado 🎉 ¡Gracias por tu compra!`,
-        cancelado: `Hola ${o.usuario_nombre || ''}, tu pedido #${o.id} fue cancelado. Cualquier duda escribinos.`,
-      };
-      pedirAviso(mensajes[estado]);
+      pedirAviso(mensajeEstadoPedido(o, estado, tracking));
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -7908,24 +8044,76 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
 // ─── ADMIN: Usuarios (full modal: edit, approve with lista, subadmin perms) ───
 function AdminUsuarios() {
-  const { toast, listas, config, setConfig } = useContext(Ctx);
+  const { toast, listas, config, setConfig, design } = useContext(Ctx);
   const [users, setUsers] = useState([]);
   const [busq, setBusq] = useState('');
   const [editUser, setEditUser] = useState(null);
+  const [filtroCli, setFiltroCli] = useState('todos');
+  const [ordenCli, setOrdenCli] = useState('recientes');
   const aprobReq = config.registro_requiere_aprobacion === 'true';
   const toggleAprob = async () => {
     const nuevo = aprobReq ? 'false' : 'true';
     try { await api.updateConfig({ registro_requiere_aprobacion: nuevo }); setConfig({ ...config, registro_requiere_aprobacion: nuevo }); toast(nuevo === 'true' ? 'Los registros nuevos van a requerir aprobación' : 'Los registros nuevos entran directo (sin aprobación)'); } catch (e) { toast(e.message, 'error'); }
   };
 
-  useEffect(() => { api.getUsuarios(busq).then(setUsers).catch(() => {}); }, [busq]);
+  // Búsqueda con espera (no consulta en cada letra)
+  useEffect(() => { const t = setTimeout(() => { api.getUsuarios(busq).then(setUsers).catch(() => {}); }, 300); return () => clearTimeout(t); }, [busq]);
   const refresh = () => api.getUsuarios(busq).then(setUsers);
+
+  const esEquipo = (u) => u.rol === 'admin' || u.rol === 'subadmin';
+  const estadoDe = (u) => u.aprobado === false ? 'pendiente' : (u.activo ? 'activo' : 'suspendido');
+  const nombreLista = (id) => listas.find(l => l.id === id)?.nombre || '';
+  const conteo = {
+    todos: users.length,
+    compradores: users.filter(u => !esEquipo(u) && u.compras > 0).length,
+    sin_compras: users.filter(u => !esEquipo(u) && !(u.compras > 0)).length,
+    con_lista: users.filter(u => !esEquipo(u) && u.lista_precio_id).length,
+    pendientes: users.filter(u => estadoDe(u) === 'pendiente').length,
+    suspendidos: users.filter(u => estadoDe(u) === 'suspendido').length,
+    equipo: users.filter(esEquipo).length,
+  };
+  const filtros = [['todos', 'Todos'], ['compradores', 'Compraron'], ['sin_compras', 'Sin compras'], ['con_lista', 'Con lista de precio'], ['pendientes', 'Pendientes'], ['suspendidos', 'Suspendidos'], ['equipo', 'Equipo']];
+  const lista = users.filter(u => {
+    if (filtroCli === 'compradores') return !esEquipo(u) && u.compras > 0;
+    if (filtroCli === 'sin_compras') return !esEquipo(u) && !(u.compras > 0);
+    if (filtroCli === 'con_lista') return !esEquipo(u) && !!u.lista_precio_id;
+    if (filtroCli === 'pendientes') return estadoDe(u) === 'pendiente';
+    if (filtroCli === 'suspendidos') return estadoDe(u) === 'suspendido';
+    if (filtroCli === 'equipo') return esEquipo(u);
+    return true;
+  }).sort((a, b) => {
+    if (ordenCli === 'gastado') return (b.total_gastado || 0) - (a.total_gastado || 0);
+    if (ordenCli === 'compras') return (b.compras || 0) - (a.compras || 0);
+    if (ordenCli === 'ultima') return new Date(b.ultima_compra || 0) - new Date(a.ultima_compra || 0);
+    if (ordenCli === 'nombre') return String(a.nombre || '').localeCompare(String(b.nombre || ''));
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+  const haceCuanto = (f) => { if (!f) return ''; const d = Math.floor((Date.now() - new Date(f).getTime()) / 86400000); return d <= 0 ? 'hoy' : d === 1 ? 'ayer' : d < 30 ? `hace ${d} días` : d < 365 ? `hace ${Math.floor(d / 30)} mes${Math.floor(d / 30) > 1 ? 'es' : ''}` : `hace ${Math.floor(d / 365)} año${Math.floor(d / 365) > 1 ? 's' : ''}`; };
+
+  const exportar = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const filas = lista.map(u => ({
+        Nombre: u.nombre || '', Usuario: u.usuario || '', 'Nombre de fantasía': u.nombre_fantasia || '', Teléfono: u.telefono || '', Email: u.email || '', Dirección: u.direccion || '',
+        Rol: u.rol || '', Estado: estadoDe(u), 'Lista de precio': nombreLista(u.lista_precio_id), Revendedor: u.es_revendedor ? 'Sí' : 'No',
+        Compras: u.compras || 0, 'Total comprado': Number(u.total_gastado) || 0, 'Total pagado': Number(u.total_pagado) || 0,
+        'Última compra': u.ultima_compra ? new Date(u.ultima_compra).toLocaleDateString('es-AR') : '', Alta: u.created_at ? new Date(u.created_at).toLocaleDateString('es-AR') : '',
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas), 'Clientes');
+      XLSX.writeFile(wb, `clientes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast(`${filas.length} clientes exportados`);
+    } catch (e) { toast('No se pudo exportar: ' + e.message, 'error'); }
+  };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3>Usuarios</h3>
-        <button className="btn btn-primary btn-sm" onClick={() => setEditUser({ _isNew: true })}>+ Nuevo</button>
+      <div className="cli-head">
+        <h3>Clientes <span className="cli-count">{users.length}</span></h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!lista.length}><BarChart3 size={15} /> Exportar Excel</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditUser({ _isNew: true })}>+ Nuevo</button>
+        </div>
       </div>
       <div className="card" style={{ padding: 12, marginBottom: 12, borderLeft: '3px solid var(--primary)' }}>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
@@ -7933,26 +8121,48 @@ function AdminUsuarios() {
           <span><b>Requerir aprobación para registros nuevos</b><br /><small style={{ color: 'var(--text-muted)' }}>Apagado (recomendado): cualquiera que se registre puede comprar al toque. La sección <b>Mayorista</b> sigue con su candado aparte, así que solo esa pide aprobación.</small></span>
         </label>
       </div>
-      <input placeholder="Buscar por nombre, usuario o fantasía..." value={busq} onChange={e => setBusq(e.target.value)} style={{ marginBottom: 12, width: '100%' }} />
-      {users.map(u => (
-        <div key={u.id} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setEditUser(u)}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <strong>{u.nombre}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>@{u.usuario}</span>
-              {u.nombre_fantasia && <span style={{ fontSize: 12, marginLeft: 4 }}>({u.nombre_fantasia})</span>}
-              {u.notas_admin && <span style={{ fontSize: 11, color: 'var(--primary)', marginLeft: 8 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /></span>}
+      <div className="cli-tools">
+        <input placeholder="Buscar por nombre, usuario, teléfono o email…" value={busq} onChange={e => setBusq(e.target.value)} className="cli-busq" />
+        <select value={ordenCli} onChange={e => setOrdenCli(e.target.value)} aria-label="Ordenar">
+          <option value="recientes">Más nuevos</option>
+          <option value="gastado">Más compraron ($)</option>
+          <option value="compras">Más pedidos</option>
+          <option value="ultima">Compra más reciente</option>
+          <option value="nombre">Nombre A-Z</option>
+        </select>
+      </div>
+      <div className="cat-chips" style={{ marginBottom: 8 }}>
+        {filtros.filter(([k]) => k === 'todos' || conteo[k] > 0).map(([k, t]) => <button key={k} className={`cat-chip${filtroCli === k ? ' sel' : ''}`} onClick={() => setFiltroCli(k)}>{t} <span className="chip-n">{conteo[k]}</span></button>)}
+      </div>
+      {lista.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay clientes con este filtro</p>}
+      {lista.map(u => {
+        const est = estadoDe(u);
+        return (
+          <div key={u.id} className="card cli-row" onClick={() => setEditUser(u)}>
+            <div className="cli-main">
+              <div className="cli-avatar">{String(u.nombre || u.usuario || '?').trim().charAt(0).toUpperCase()}</div>
+              <div className="cli-info">
+                <div className="cli-nombre">{u.nombre || u.usuario}{u.nombre_fantasia && <span className="cli-fant"> · {u.nombre_fantasia}</span>}{u.notas_admin && <FileText size={13} style={{ marginLeft: 6, color: 'var(--primary)', verticalAlign: '-2px' }} />}</div>
+                <div className="cli-sub">@{u.usuario}{u.telefono ? ` · ${u.telefono}` : ''}{u.email ? ` · ${u.email}` : ''}</div>
+                <div className="cli-tags">
+                  {est !== 'activo' && <span className={`cli-tag ${est}`}>{est}</span>}
+                  {esEquipo(u) && <span className="cli-tag equipo">{u.rol === 'admin' ? 'Admin' : 'Empleado'}</span>}
+                  {u.lista_precio_id && nombreLista(u.lista_precio_id) && <span className="cli-tag lista" style={{ '--c': listas.find(l => l.id === u.lista_precio_id)?.color || 'var(--primary)' }}>{nombreLista(u.lista_precio_id)}</span>}
+                  {u.es_revendedor && <span className="cli-tag lista">Revendedor {Number(u.descuento_revendedor) > 0 ? `-${Number(u.descuento_revendedor)}%` : ''}</span>}
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <span style={{ background: u.aprobado === false ? 'var(--warning-light)' : u.activo ? 'var(--success-light)' : 'var(--danger-light)', color: u.aprobado === false ? 'var(--warning)' : u.activo ? 'var(--success)' : 'var(--danger)', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
-                {u.aprobado === false ? 'pendiente' : u.activo ? 'activo' : 'suspendido'}
-              </span>
-              <span style={{ fontSize: 12 }}>{u.rol}</span>
-              {listas.find(l => l.id === u.lista_precio_id) && <span style={{ fontSize: 11, color: listas.find(l => l.id === u.lista_precio_id)?.color }}>{listas.find(l => l.id === u.lista_precio_id)?.nombre}</span>}
-              {u.telefono && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); const saludo = `Hola ${u.nombre}, te contacto de ${config.nombre_tienda || 'la tienda'}.`; window.open(waLink('54' + u.telefono.replace(/\D/g, ''), saludo), '_blank'); }} style={{ background: '#25D366', color: '#fff', padding: '4px 8px' }} title="Escribir por WhatsApp"><Ico n="message" s={14} /></button>}
-            </div>
+            {!esEquipo(u) && (
+              <div className="cli-stats">
+                <div><b>{u.compras || 0}</b><span>pedido{u.compras === 1 ? '' : 's'}</span></div>
+                <div><b>{fmtARS(u.total_gastado || 0)}</b><span>comprado</span></div>
+                <div><b>{u.ultima_compra ? haceCuanto(u.ultima_compra) : '—'}</b><span>última compra</span></div>
+              </div>
+            )}
+            {u.telefono && <button className="btn btn-sm cli-wa" onClick={(e) => { e.stopPropagation(); const saludo = `Hola ${u.nombre || ''}, te contacto de ${design?.nombre_tienda || config.nombre_tienda || 'la tienda'}.`; const d = String(u.telefono).replace(/\D/g, ''); window.open(waLink(d.startsWith('54') ? d : '54' + d, saludo), '_blank'); }} title="Escribirle por WhatsApp" aria-label="Escribirle por WhatsApp"><MessageCircle size={16} /></button>}
           </div>
-        </div>
-      ))}
+        );
+      })}
       {editUser && <UserModal u={editUser} onClose={() => { setEditUser(null); refresh(); }} />}
     </div>
   );
