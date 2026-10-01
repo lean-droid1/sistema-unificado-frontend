@@ -1420,3 +1420,58 @@ body.con-barra-compra .wa-widget { bottom: 86px !important; }
 .footer-contacto { grid-template-columns: 1fr; }
 .footer-contacto.con-mapa { grid-template-columns: minmax(0, 1fr) minmax(180px, 300px); }
 @media (max-width: 640px) { .footer-contacto.con-mapa { grid-template-columns: 1fr; } }
+
+/* ── Carrusel con flechas (compu) y bordes que avisan que hay más ── */
+.carrusel { position: relative; }
+.carrusel .carousel-track { cursor: grab; user-select: none; }
+.carrusel .carousel-track.arrastrando { cursor: grabbing; scroll-snap-type: none; }
+.carrusel .carousel-track.arrastrando * { pointer-events: none; }
+.carrusel .carousel-track img { -webkit-user-drag: none; user-select: none; }
+.carrusel::before, .carrusel::after { content: ''; position: absolute; top: 0; bottom: 8px; width: 56px; pointer-events: none; z-index: 2; transition: opacity .2s; }
+.carrusel::before { left: 0; background: linear-gradient(90deg, var(--bg) 10%, transparent); }
+.carrusel::after { right: 0; background: linear-gradient(270deg, var(--bg) 10%, transparent); }
+.carrusel.al-inicio::before, .carrusel.al-final::after { opacity: 0; }
+.carrusel-flecha { position: absolute; top: 38%; transform: translateY(-50%); z-index: 3; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.35); transition: opacity .2s, transform .15s, background .15s; }
+.carrusel-flecha:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+.carrusel-flecha.izq { left: -6px; } .carrusel-flecha.der { right: -6px; }
+.carrusel.al-inicio .carrusel-flecha.izq, .carrusel.al-final .carrusel-flecha.der { opacity: 0; pointer-events: none; }
+@media (hover: none), (max-width: 768px) { .carrusel-flecha { display: none; } .carrusel .carousel-track { cursor: auto; } .carrusel::before, .carrusel::after { width: 28px; } }
+
+/* ── Producto con foto en listas del panel ── */
+.itp { display: inline-flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; vertical-align: middle; }
+.itp-img { flex-shrink: 0; border-radius: 8px; object-fit: cover; background: #fff; border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center; }
+.itp-img.ph { background: var(--bg-secondary); color: var(--text-muted); }
+.itp-thumb { padding: 0; border: none; background: none; cursor: zoom-in; border-radius: 8px; line-height: 0; flex-shrink: 0; transition: transform .12s; }
+.itp-thumb:hover { transform: scale(1.06); }
+.itp-txt { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+.itp-txt small { color: var(--text-muted); font-size: 11px; }
+.itp-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itp-nombre.link { padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--primary) 45%, transparent); text-underline-offset: 3px; }
+.itp-nombre.link:hover { color: var(--primary); text-decoration-color: var(--primary); }
+.itp-lista { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; font-size: 12px; }
+.itp-lista .itp { max-width: 260px; }
+
+/* ── Ficha rápida de producto en el panel ── */
+.vpp-overlay { position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 16px; animation: gmFade .18s; }
+.vpp { position: relative; width: min(820px, 100%); max-height: calc(100vh - 32px); background: var(--bg-card); color: var(--text); border-radius: 18px; overflow: hidden; display: grid; grid-template-columns: 1.1fr 1fr; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+.vpp-cerrar { position: absolute; top: 10px; right: 10px; z-index: 3; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.vpp-media { position: relative; background: #fff; display: flex; align-items: center; justify-content: center; min-height: 340px; }
+.vpp-media > img { width: 100%; height: 100%; max-height: 70vh; object-fit: contain; }
+.vpp-info { padding: 22px 22px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.vpp-titulo { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.25; }
+.vpp-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.vpp-datos > div { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.vpp-datos span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.vpp-datos b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.vpp-datos b s { color: var(--text-muted); font-weight: 500; margin-right: 4px; }
+.vpp-datos b.mal { color: var(--danger); }
+.vpp-desc { font-size: 13px; color: var(--text-muted); margin: 0; white-space: pre-line; }
+.vpp-err { font-size: 13px; color: var(--warning, #e8a13a); margin: 0; }
+.vpp-cargando { font-size: 13px; color: var(--text-muted); margin: 0; }
+.vpp-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+@media (max-width: 700px) {
+  .vpp-overlay { align-items: flex-end; padding: 0; }
+  .vpp { grid-template-columns: 1fr; border-radius: 18px 18px 0 0; max-height: 92vh; overflow-y: auto; }
+  .vpp-media { min-height: 260px; }
+  .vpp-media > img { max-height: 45vh; }
+}

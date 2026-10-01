@@ -2159,6 +2159,48 @@ function volarAlCarrito(imgEl) {
     an.onfinish = () => c.remove();
   } catch {}
 }
+// Carrusel horizontal: flechas en compu, arrastre con el mouse, deslizar en celu y bordes que indican que hay más.
+function Carrusel({ children, className = '' }) {
+  const ref = useRef(null);
+  const drag = useRef(null);
+  const movido = useRef(false);
+  const [pos, setPos] = useState({ ini: true, fin: true });
+  const medir = useCallback(() => {
+    const el = ref.current; if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setPos({ ini: el.scrollLeft <= 4, fin: el.scrollLeft >= max - 4 });
+  }, []);
+  const cant = Array.isArray(children) ? children.length : 1;
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    medir();
+    el.addEventListener('scroll', medir, { passive: true });
+    let ro = null; try { ro = new ResizeObserver(medir); ro.observe(el); } catch {}
+    return () => { el.removeEventListener('scroll', medir); if (ro) ro.disconnect(); };
+  }, [medir, cant]);
+  const mover = (dir) => { const el = ref.current; if (el) el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 200), behavior: 'smooth' }); };
+  const abajo = (e) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; drag.current = { x: e.clientX, sl: ref.current.scrollLeft }; movido.current = false; };
+  const mueve = (e) => {
+    const d = drag.current; if (!d) return;
+    const dx = e.clientX - d.x;
+    if (!movido.current && Math.abs(dx) > 6) { movido.current = true; ref.current.classList.add('arrastrando'); }
+    if (movido.current) ref.current.scrollLeft = d.sl - dx;
+  };
+  const suelta = () => { if (!drag.current) return; drag.current = null; ref.current?.classList.remove('arrastrando'); };
+  return (
+    <div className={`carrusel${pos.ini ? ' al-inicio' : ''}${pos.fin ? ' al-final' : ''}`}>
+      <button type="button" className="carrusel-flecha izq" onClick={() => mover(-1)} aria-label="Ver anteriores" tabIndex={pos.ini ? -1 : 0}><ChevronLeft size={22} /></button>
+      <div ref={ref} className={`carousel-track ${className}`.trim()}
+        onPointerDown={abajo} onPointerMove={mueve} onPointerUp={suelta} onPointerLeave={suelta}
+        onClickCapture={e => { if (movido.current) { e.stopPropagation(); e.preventDefault(); movido.current = false; } }}
+        onDragStart={e => e.preventDefault()}>
+        {children}
+      </div>
+      <button type="button" className="carrusel-flecha der" onClick={() => mover(1)} aria-label="Ver más" tabIndex={pos.fin ? -1 : 0}><ChevronRight size={22} /></button>
+    </div>
+  );
+}
+
 function TarjetaProducto({ p, secId, usd }) {
   const ctx = useContext(Ctx);
   const { nav, addToCart, updateCartQty, cart, config, setNotifyProduct, favIds, toggleFav, setVistaRapida } = ctx;
@@ -2589,9 +2631,9 @@ function Landing() {
               <span className="ofertas-sub">Hasta <b>{maxPct}% OFF</b></span>
               {finCercano && <span className="ofertas-reloj"><Clock size={13} /> {textoRestante(finCercano)}</span>}
             </div>
-            <div className="carousel-track">
-              {lista.slice(0, 12).map(({ p }) => <div className="carousel-item" key={`of-${p.id}`}><TarjetaProducto p={p} secId={p.seccion_id} /></div>)}
-            </div>
+            <Carrusel>
+              {lista.slice(0, 16).map(({ p }) => <div className="carousel-item" key={`of-${p.id}`}><TarjetaProducto p={p} secId={p.seccion_id} /></div>)}
+            </Carrusel>
           </div>
         );
       })()}
@@ -2605,9 +2647,9 @@ function Landing() {
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>Lo último que sumamos</span>
             </h2>
           </div>
-          <div className="carousel-track">
+          <Carrusel>
             {novedades.slice(0, 12).map(p => <div className="carousel-item" key={`nov-${p.id}`}><TarjetaProducto p={p} secId={p.seccion_id} /></div>)}
-          </div>
+          </Carrusel>
         </div>
       )}
 
@@ -2624,9 +2666,9 @@ function Landing() {
                 Ver todos →
               </button>
             </div>
-            <div className="carousel-track">
+            <Carrusel>
               {prods.slice(0, 12).map(p => <div className="carousel-item" key={p.id}><TarjetaProducto p={p} secId={s.id} /></div>)}
-            </div>
+            </Carrusel>
           </div>
         );
       })}
@@ -4030,9 +4072,9 @@ function ProductDetailPage() {
       {relacionados.length > 0 && (
         <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>También te puede interesar</h3>
-          <div className="carousel-track relacionados-track">
+          <Carrusel className="relacionados-track">
             {relacionados.map(rp => <div className="carousel-item" key={rp.id}><TarjetaProducto p={rp} secId={rp.seccion_id} /></div>)}
-          </div>
+          </Carrusel>
         </div>
       )}
       {/* Va directo al <body> para que quede fija abajo aunque la página tenga animaciones */}
@@ -4292,7 +4334,7 @@ function AccountPanel() {
               </div>
               {(viewDetail.items || []).map((it, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                  <span>{it.nombre_producto} <span style={{ color: 'var(--text-muted)' }}>x{it.cantidad}</span></span>
+                  <ItemProd id={it.producto_id} nombre={it.nombre_producto} imagen={it.imagen} sub={`x${it.cantidad}`} tam={36} />
                   <span style={{ fontWeight: 700 }}>{fmtARS(it.precio_unitario * it.cantidad)}</span>
                 </div>
               ))}
@@ -4487,6 +4529,7 @@ function AdminPanel() {
 
   return (
     <div className="admin-layout">
+      <VisorProductoPanel />
       {/* Mobile hamburger bar */}
       <div className="admin-mobile-bar">
         <button className="admin-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -5771,7 +5814,7 @@ function AdminVentaManual() {
           <tbody>
             {items.map(i => (
               <tr key={i.id}>
-                <td>{i.nombre || i.modelo}</td>
+                <td><ItemProd id={i.id} nombre={i.nombre || i.modelo} imagen={i.imagen} tam={36} /></td>
                 <td><input type="number" value={i.qty} onChange={e => setQty(i.id, Number(e.target.value))} style={{ width: 60 }} /></td>
                 <td><input type="number" value={i.precio_unitario} onChange={e => setPrecio(i.id, Number(e.target.value))} style={{ width: 90 }} /></td>
                 <td style={{ fontWeight: 700 }}>{fmtARS(i.precio_unitario * i.qty)}</td>
@@ -5871,7 +5914,7 @@ function AdminOrdenesCompra() {
               <div style={{ fontSize: 13, marginBottom: 12 }}><b>Estado:</b> <span style={{ background: ver.recibida ? 'var(--success)' : 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{ver.recibida ? 'recibida' : 'pendiente'}</span></div>
               {(ver.items || []).map((it, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-                  <span>{it.nombre_producto} <span style={{ color: 'var(--text-muted)' }}>x{it.cantidad}</span></span>
+                  <ItemProd id={it.producto_id} nombre={it.nombre_producto} imagen={it.imagen} sub={`x${it.cantidad} · ${fmtARS(it.costo_unitario)} c/u`} tam={36} />
                   <span style={{ fontWeight: 700 }}>{fmtARS(it.costo_unitario * it.cantidad)}</span>
                 </div>
               ))}
@@ -6219,7 +6262,7 @@ function AdminDashboard() {
           <div className="dash-stock-lista">
             {stockBajo.slice(0, 20).map(p => (
               <button key={p.id} type="button" className="dash-fila" onClick={() => editarProducto(p.id)} title="Editar producto">
-                <span className="dash-fila-txt">{p.nombre || p.modelo} {p.seccion_nombre && <small>{p.seccion_nombre}</small>}</span>
+                <span className="dash-fila-txt"><ItemProd nombre={p.nombre || p.modelo} imagen={p.imagen} sub={p.seccion_nombre} tam={30} /></span>
                 <span className="dash-fila-val" style={{ color: p.stock <= 0 ? 'var(--danger)' : 'var(--accent)' }}>{p.stock} / mín {p.stock_minimo}<ChevronRight size={14} /></span>
               </button>
             ))}
@@ -6319,7 +6362,7 @@ function DashDetalle({ pila, setPila, filtros, recarga, onVerPedido, onIrA }) {
           </>, p.id))}
           {data && data.modo === 'productos' && data.filas.map((x, i) => fila(() => profundizar('producto', x.nombre, x.nombre), <>
             <div className="dd-fila-main">
-              <div className="dd-fila-l1"><span className="dd-nombre">{x.nombre}</span></div>
+              <div className="dd-fila-l1"><ItemProd id={x.producto_id} nombre={x.nombre} imagen={x.imagen} tam={36} /></div>
               <div className="dd-fila-l2">
                 <span className="dd-fecha">{x.cantidad} u.</span>
                 {x.costo === null ? <span className="dd-sincosto">sin precio de costo</span> : <span className="dd-fecha">costo {fmtARS(x.costo)}</span>}
@@ -7644,7 +7687,7 @@ function PresupuestoModal({ onClose }) {
 
   const total = items.reduce((s, i) => s + (Number(i.precio_unitario) || 0) * i.qty, 0);
   const addItem = (p) => {
-    setItems(prev => { const ex = prev.find(i => i.producto_id === p.id); if (ex) return prev.map(i => i.producto_id === p.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { producto_id: p.id, categoria: p.categoria, modelo: p.modelo, nombre_producto: p.nombre || p.modelo, qty: 1, precio_unitario: p.precio_base, precio_base: p.precio_base }]; });
+    setItems(prev => { const ex = prev.find(i => i.producto_id === p.id); if (ex) return prev.map(i => i.producto_id === p.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { producto_id: p.id, categoria: p.categoria, modelo: p.modelo, nombre_producto: p.nombre || p.modelo, imagen: p.imagen || '', qty: 1, precio_unitario: p.precio_base, precio_base: p.precio_base }]; });
     setAddSearch(''); setResults([]);
   };
   const setQty = (id, qty) => setItems(items.map(i => i.producto_id === id ? { ...i, qty: Math.max(1, qty) } : i));
@@ -7693,7 +7736,7 @@ function PresupuestoModal({ onClose }) {
           <div style={{ marginTop: 8 }}>
             {items.map(i => (
               <div key={i.producto_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-light)' }}>
-                <span style={{ flex: 1, fontSize: 13 }}>{i.nombre_producto}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13 }}><ItemProd id={i.producto_id} nombre={i.nombre_producto} imagen={i.imagen} tam={34} /></span>
                 <input type="number" min="1" value={i.qty} onChange={e => setQty(i.producto_id, parseInt(e.target.value) || 1)} style={{ width: 56, textAlign: 'center' }} />
                 <input type="number" value={i.precio_unitario} onChange={e => setPrecio(i.producto_id, e.target.value)} style={{ width: 90, textAlign: 'right' }} />
                 <button className="btn btn-danger btn-sm" onClick={() => setItems(items.filter(x => x.producto_id !== i.producto_id))} style={{ padding: '2px 8px' }}>✕</button>
@@ -8018,6 +8061,93 @@ function TableroPedidos({ pedidos, colores, ocupado, epDe, onMover, onVer }) {
   );
 }
 
+// ─── Productos en listas del panel: foto + nombre que abre una ficha con fotos para identificarlo ───
+const abrirProductoPanel = (id, extra = {}) => { if (id) window.dispatchEvent(new CustomEvent('ver-producto', { detail: { id, ...extra } })); };
+function ItemProd({ id, nombre, imagen, sub, tam = 40 }) {
+  const { page } = useContext(Ctx);
+  const link = !!id && page === 'admin';
+  const abrir = (e) => { e.stopPropagation(); abrirProductoPanel(id, { nombre, imagen }); };
+  const thumb = imagen
+    ? <img src={imgOpt(imagen, tam * 2)} alt="" className="itp-img" style={{ width: tam, height: tam }} loading="lazy" />
+    : <span className="itp-img ph" style={{ width: tam, height: tam }}><Package size={Math.round(tam * 0.45)} /></span>;
+  return (
+    <span className="itp">
+      {link ? <button type="button" className="itp-thumb" onClick={abrir} aria-label={`Ver ${nombre || 'producto'}`} title="Ver producto">{thumb}</button> : thumb}
+      <span className="itp-txt">
+        {link ? <button type="button" className="itp-nombre link" onClick={abrir} title="Ver producto">{nombre}</button> : <span className="itp-nombre">{nombre}</span>}
+        {sub ? <small>{sub}</small> : null}
+      </span>
+    </span>
+  );
+}
+function VisorProductoPanel() {
+  const { secciones } = useContext(Ctx);
+  const [abierto, setAbierto] = useState(null);
+  const [prod, setProd] = useState(null);
+  const [fotos, setFotos] = useState([]);
+  const [i, setI] = useState(0);
+  const [err, setErr] = useState('');
+  const [editar, setEditar] = useState(null);
+  useEffect(() => { const h = (e) => setAbierto(e.detail); window.addEventListener('ver-producto', h); return () => window.removeEventListener('ver-producto', h); }, []);
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    setProd(null); setErr(''); setI(0); setFotos(abierto.imagen ? [abierto.imagen] : []);
+    api.getProducto(abierto.id).then(p => { if (vivo) setProd(p); }).catch(e => { if (vivo) setErr(e && e.status === 404 ? 'Este producto ya no está en el catálogo (se borró). Se muestra lo que quedó guardado en el pedido.' : (e.message || 'No se pudo cargar')); });
+    api.getProductoImagenes(abierto.id).then(imgs => { if (vivo && imgs && imgs.length) setFotos(imgs.map(g => g.url)); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [abierto && abierto.id]);
+  useEffect(() => {
+    if (!abierto) return;
+    const n = Math.max(1, fotos.length);
+    const k = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setAbierto(null); } if (e.key === 'ArrowRight') setI(x => (x + 1) % n); if (e.key === 'ArrowLeft') setI(x => (x - 1 + n) % n); };
+    window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true);
+  }, [abierto, fotos.length]);
+  if (editar) return <div style={{ position: 'relative', zIndex: 450 }}><ProductModal product={editar} onClose={() => setEditar(null)} /></div>;
+  if (!abierto) return null;
+  const p = prod || {};
+  const base = Number(p.precio_base) || 0, oferta = Number(p.precio_oferta) || 0;
+  const conOferta = oferta > 0 && oferta < base;
+  const sec = (secciones || []).find(x => String(x.id) === String(p.seccion_id));
+  const ir = (d) => setI(x => (x + d + fotos.length) % fotos.length);
+  return createPortal(
+    <div className="vpp-overlay" onClick={() => setAbierto(null)}>
+      <div className="vpp" onClick={e => e.stopPropagation()} role="dialog" aria-label={p.nombre || abierto.nombre || 'Producto'}>
+        <button type="button" className="vpp-cerrar" onClick={() => setAbierto(null)} aria-label="Cerrar"><X size={18} /></button>
+        <div className="vpp-media">
+          {fotos.length ? <img src={imgOpt(fotos[i], 900)} alt={p.nombre || abierto.nombre || ''} /> : <div className="tp-noimg"><Package size={56} /></div>}
+          {fotos.length > 1 && <>
+            <button type="button" className="vr-flecha izq" onClick={() => ir(-1)} aria-label="Foto anterior"><ChevronLeft size={20} /></button>
+            <button type="button" className="vr-flecha der" onClick={() => ir(1)} aria-label="Foto siguiente"><ChevronRight size={20} /></button>
+            <div className="vr-thumbs">{fotos.slice(0, 8).map((u, k) => <button type="button" key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={`Foto ${k + 1}`}><img src={imgOpt(u, 120)} alt="" /></button>)}</div>
+          </>}
+        </div>
+        <div className="vpp-info">
+          {err && <p className="vpp-err">{err}</p>}
+          {!prod && !err && <p className="vpp-cargando">Cargando…</p>}
+          <div className="product-cat">{[p.categoria, sec && sec.nombre].filter(Boolean).join(' · ')}</div>
+          <h3 className="vpp-titulo">{p.nombre || p.modelo || abierto.nombre}</h3>
+          {prod && (
+            <div className="vpp-datos">
+              <div><span>Precio</span><b>{conOferta ? <><s>{fmtARS(base)}</s> {fmtARS(oferta)}</> : fmtARS(base)}</b></div>
+              <div><span>Stock</span><b className={Number(p.stock) <= 0 ? 'mal' : ''}>{p.usa_variantes ? 'por variante' : p.stock}</b></div>
+              {Number(p.precio_original) > 0 && <div><span>Costo</span><b>{fmtARS(p.precio_original)}</b></div>}
+              {(p.sku || p.codigo_barras) && <div><span>SKU / código</span><b>{p.sku || p.codigo_barras}</b></div>}
+              <div><span>En la tienda</span><b>{p.visible === false ? 'Oculto' : 'Visible'}</b></div>
+            </div>
+          )}
+          {p.descripcion && <p className="vpp-desc">{String(p.descripcion).slice(0, 360)}{String(p.descripcion).length > 360 ? '…' : ''}</p>}
+          {prod && (
+            <div className="vpp-acciones">
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => { setEditar(prod); setAbierto(null); }}>Editar producto</button>
+              <a className="btn btn-outline btn-sm" href={productPath(prod)} target="_blank" rel="noopener noreferrer">Ver en la tienda</a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>, document.body);
+}
+
 // ─── ORDER DETAIL MODAL (full: edit items, print, clone, WA, assign client) ───
 function OrderDetailModal({ order: initOrder, onClose }) {
   const { toast, listas, getPrice, userLista, openWA, config, design } = useContext(Ctx);
@@ -8124,7 +8254,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     setItems(prev => {
       const ex = prev.find(i => (i.producto_id || i.id) === p.id);
       if (ex) return prev.map(i => (i.producto_id || i.id) === p.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { producto_id: p.id, id: p.id, categoria: p.categoria, modelo: p.modelo, nombre_producto: p.nombre || p.modelo, qty: 1, precio_unitario: precio, precio_base: p.precio_base }];
+      return [...prev, { producto_id: p.id, id: p.id, categoria: p.categoria, modelo: p.modelo, nombre_producto: p.nombre || p.modelo, imagen: p.imagen || '', qty: 1, precio_unitario: precio, precio_base: p.precio_base }];
     });
     setSearchResults([]); setAddSearch('');
   };
@@ -8323,7 +8453,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <tbody>
                 {items.map((i, idx) => (
                   <tr key={idx}>
-                    <td>{itemName(i)}{i.variante_combinacion ? <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{i.variante_combinacion}</div> : null}</td>
+                    <td><ItemProd id={i.producto_id || i.id} nombre={itemName(i)} imagen={i.imagen} sub={i.variante_combinacion || null} /></td>
                     <td>{editing ? <input type="number" value={i.qty} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, qty: Number(e.target.value) } : it))} style={{ width: 50 }} /> : i.qty}</td>
                     <td>{editing ? <input type="number" value={i.precio_unitario} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, precio_unitario: Number(e.target.value) } : it))} style={{ width: 70 }} /> : (Number(i.precio_base) > Number(i.precio_unitario) ? <div><span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 12 }}>{fmtARS(i.precio_base)}</span> <span style={{ fontWeight: 700 }}>{fmtARS(i.precio_unitario)}</span><div style={{ fontSize: 11, color: 'var(--success)' }}>-{Math.round((1 - Number(i.precio_unitario) / Number(i.precio_base)) * 100)}% aplicado</div></div> : fmtARS(i.precio_unitario))}</td>
                     <td>{fmtARS((i.precio_unitario || 0) * (i.qty || 0))}</td>
@@ -9135,7 +9265,7 @@ function AdminCarritosAbandonados() {
               <strong>{c.usuario_nombre || c.email || c.telefono || 'Anónimo'}</strong>
               {c.seccion_nombre && <span style={{ fontSize: 10, background: 'var(--border)', padding: '1px 8px', borderRadius: 4, marginLeft: 8 }}>{c.seccion_nombre}</span>}
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(c.created_at).toLocaleString('es-AR')} · {(c.items || []).length} productos</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>{(c.items || []).slice(0, 4).map(i => (i.nombre || i.modelo) + ` x${i.qty || i.cantidad || 1}`).join(', ')}{(c.items || []).length > 4 ? '...' : ''}</div>
+              <div className="itp-lista">{(c.items || []).slice(0, 6).map((i, k) => <ItemProd key={k} id={i.producto_id || i.id} nombre={i.nombre || i.modelo} imagen={i.imagen} sub={`x${i.qty || i.cantidad || 1}`} tam={32} />)}{(c.items || []).length > 6 ? <small>y {(c.items || []).length - 6} más…</small> : null}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{fmtARS(c.total)}</div>
