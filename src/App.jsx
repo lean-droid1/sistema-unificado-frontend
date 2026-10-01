@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle } from 'lucide-react';
+import { Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -334,13 +334,17 @@ const ICON_MAP = {
   truck: Truck, shield: Shield, 'credit-card': CreditCard, clock: Clock, star: Star, lock: Lock, zap: Zap, package: Package, heart: Heart, 'thumbs-up': ThumbsUp, 'check-circle': CheckCircle, gift: Gift, headphones: Headphones, phone: Phone, mail: Mail, 'map-pin': MapPin, globe: Globe, award: Award, 'badge-check': BadgeCheck, 'shopping-cart': ShoppingCart, tag: Tag, percent: Percent, 'refresh-cw': RefreshCw, send: Send, eye: Eye, users: Users, wrench: Wrench, wifi: Wifi, battery: Battery, cpu: Cpu, monitor: Monitor, smartphone: Smartphone, camera: Camera, bookmark: Bookmark, bell: Bell, 'message-circle': MessageCircle, 'help-circle': HelpCircle, info: Info, 'alert-circle': AlertCircle
 };
 const ICON_LIST = Object.keys(ICON_MAP);
+// Emojis viejos guardados en la base (íconos de envíos, pagos, badges) → ícono profesional equivalente
+const EMOJI_ICON = { '🚚': 'truck', '🚛': 'truck', '📦': 'package', '💳': 'credit-card', '💵': 'credit-card', '💰': 'credit-card', '🏦': 'credit-card', '⭐': 'star', '🔒': 'lock', '⚡': 'zap', '❤️': 'heart', '👍': 'thumbs-up', '✅': 'check-circle', '🎁': 'gift', '📞': 'phone', '📧': 'mail', '✉️': 'mail', '📍': 'map-pin', '🌎': 'globe', '🏆': 'award', '🛒': 'shopping-cart', '🏷️': 'tag', '🔧': 'wrench', '📱': 'smartphone', '🔔': 'bell', '💬': 'message-circle', 'ℹ️': 'info', '🛵': 'truck', '🏍️': 'truck', '🏪': 'map-pin', '🛡️': 'shield', '⏰': 'clock', '🕐': 'clock' };
 
 // Render an icon: lucide name → SVG, URL → img, else → emoji
 function RenderIcon({ value, size = 20, color }) {
   if (!value) return null;
   if (value.startsWith('http') || value.startsWith('/') || value.startsWith('data:')) return <img src={value} alt="" style={{ width: size, height: size, objectFit: 'contain', borderRadius: 4 }} />;
-  const LucideIcon = ICON_MAP[value];
+  const LucideIcon = ICON_MAP[value] || ICON_MAP[EMOJI_ICON[String(value).trim()]];
   if (LucideIcon) return <LucideIcon size={size} color={color || 'currentColor'} />;
+  // Emoji sin equivalente: ícono genérico (nada de emojis en la tienda)
+  if (/\p{Extended_Pictographic}/u.test(value)) return <Package size={size} color={color || 'currentColor'} />;
   return <span style={{ fontSize: size * 0.9 }}>{value}</span>;
 }
 
@@ -384,108 +388,6 @@ function IconPicker({ value, onChange, label }) {
 }
 
 // ─── ANDREANI CALCULATOR (product detail) ───
-function AndreaniCalculator({ seccionId, peso, volumen, onSelect }) {
-  const [cp, setCp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [customShipping, setCustomShipping] = useState([]);
-  const { toast, config } = useContext(Ctx);
-
-  useEffect(() => {
-    api.getEnvioCustom(seccionId).then(setCustomShipping).catch(() => {});
-  }, [seccionId]);
-
-  const calcular = async () => {
-    if (cp.length < 4) { toast('Ingresá un código postal válido', 'error'); return; }
-    setLoading(true);
-    try {
-      const [cotiz, sucs] = await Promise.all([
-        api.cotizarAndreani(cp, peso || 0.5, volumen || 0.001, seccionId).catch(() => null),
-        api.getSucursalesAndreani(cp).catch(() => [])
-      ]);
-      setResult({ cotiz, sucursales: Array.isArray(sucs) ? sucs.slice(0, 3) : [] });
-    } catch { toast('Error al consultar envío', 'error'); }
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginTop: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Truck size={18} /> Calculá el costo de envío
-      </div>
-      {config?.aclaracion_envios && <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--border-light)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>ℹ️ {config.aclaracion_envios}</div>}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <input value={cp} onChange={e => setCp(e.target.value)} placeholder="Tu código postal" maxLength={8}
-          style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14 }}
-          onKeyDown={e => e.key === 'Enter' && calcular()} />
-        <button onClick={calcular} disabled={loading}
-          style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-          {loading ? '...' : 'CALCULAR'}
-        </button>
-      </div>
-
-      {/* Antes de calcular: mensaje guía (estilo Mercado Libre) */}
-      {!result && (
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '8px 12px' }}>
-          Ingresá tu código postal para ver las opciones de envío y retiro.
-        </p>
-      )}
-
-      {/* Después de calcular: TODAS las opciones (custom + Andreani) */}
-      {result && (
-        <div>
-          {/* Métodos custom (promo local, retiro, moto, etc.) */}
-          {customShipping.map(m => (
-            <div key={m.id} onClick={() => onSelect && onSelect({ nombre: m.nombre, costo: m.precio, tipo: 'custom' })}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer', transition: 'background 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--border-light)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <span style={{ fontSize: 20 }}><RenderIcon value={m.icono} size={20} /></span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{m.nombre}</div>
-                {m.descripcion && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.descripcion}</div>}
-                {m.tiempo_estimado && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.tiempo_estimado}</div>}
-              </div>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>{m.precio > 0 ? fmtARS(m.precio) : 'Gratis'}</div>
-            </div>
-          ))}
-
-          {/* Andreani domicilio */}
-          {result.cotiz && result.cotiz.costo > 0 && (
-            <div onClick={() => onSelect && onSelect({ nombre: 'Envío a domicilio (Andreani)', costo: result.cotiz.costo, tipo: 'andreani' })}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--border-light)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <span>🚚</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>Envío a domicilio</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>1 a 3 días hábiles</div>
-              </div>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(result.cotiz.costo)}</div>
-            </div>
-          )}
-          {/* Andreani sucursales */}
-          {result.sucursales.map((s, i) => (
-            <div key={i} onClick={() => onSelect && onSelect({ nombre: `Retiro en ${s.direccion?.localidad || 'sucursal'}`, costo: (result.cotiz?.costo || 0) * 0.6, tipo: 'sucursal' })}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 6, cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--border-light)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <span>📍</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>Retiro en sucursal</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.direccion?.calle} {s.direccion?.numero}, {s.direccion?.localidad}</div>
-              </div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--success)' }}>{fmtARS((result.cotiz?.costo || 0) * 0.6)}</div>
-            </div>
-          ))}
-          {!result.cotiz && result.sucursales.length === 0 && customShipping.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>No hay opciones de envío para este código postal</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Context for shared state
 const Ctx = createContext();
@@ -519,7 +421,7 @@ class ErrorBoundary extends Component {
       const msg = String(this.state.err && (this.state.err.stack || this.state.err.message || this.state.err));
       return (
         <div style={{ padding: 20, margin: 20, border: '2px solid #e11d48', borderRadius: 12, background: '#fff', color: '#111', maxWidth: 820 }}>
-          <h2 style={{ color: '#e11d48', marginBottom: 8, fontSize: 20 }}>⚠️ Se rompió esta pantalla</h2>
+          <h2 style={{ color: '#e11d48', marginBottom: 8, fontSize: 20 }}><AlertTriangle size={15} style={{ verticalAlign: '-2px' }} /> Se rompió esta pantalla</h2>
           <p style={{ fontSize: 13, marginBottom: 8 }}>Sacale una captura a esto y pasámelo:</p>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, background: '#f5f5f5', padding: 10, borderRadius: 8, overflow: 'auto', maxHeight: 320 }}>{msg}</pre>
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -981,6 +883,34 @@ export default function App() {
     return Math.round((Number(base) || 0) * mult * 100) / 100;
   };
   const userLista = useMemo(() => user?.lista_precio_id ? listas.find(l => l.id === user.lista_precio_id) : null, [user, listas]);
+  // Al iniciar/cerrar sesión, traer los precios fijos de la lista del cliente (cada uno ve solo los suyos)
+  const pfUserRef = useRef(undefined);
+  useEffect(() => { if (pfUserRef.current === undefined) { pfUserRef.current = user?.id || null; return; } if (pfUserRef.current === (user?.id || null)) return; pfUserRef.current = user?.id || null; api.getPreciosFijos().then(pf => setPreciosFijos(Array.isArray(pf) ? pf : [])).catch(() => setPreciosFijos([])); }, [user?.id]);
+  // ─── Precio que ve el cliente (MISMAS reglas que el servidor en checkout.js → lo que ve es lo que paga) ───
+  const pfLookup = useMemo(() => { const m = {}; preciosFijos.forEach(pf => { m[`${pf.producto_id}_${pf.lista_precio_id}`] = Number(pf.precio_fijo); }); return m; }, [preciosFijos]);
+  // 1) lista de precios del cliente (precio fijo o multiplicador)
+  const precioLista = (p) => {
+    const base = Number(p?.precio_base) || 0;
+    if (!userLista) return base;
+    const fijo = pfLookup[`${p?.producto_id ?? p?.id}_${userLista.id}`];
+    if (fijo > 0) return fijo;
+    const m = Number(userLista.multiplicador);
+    return Math.round(base * (m > 0 && m <= 10 ? m : 1) * 100) / 100;
+  };
+  // 2) + oferta del producto si es menor
+  const precioEfectivo = (p) => { const pl = precioLista(p); const of = Number(p?.precio_oferta) || 0; return of > 0 && of < pl ? of : pl; };
+  // 3) descuento de revendedor (solo tienda dropshipping) o la mejor promo. Misma forma que aplicarPromo().
+  const ajusteCliente = (precio, p, promosList, secId, moneda = 'ARS', esVariante = false) => {
+    const sid = p?.seccion_id ?? secId;
+    const realSec = secciones.find(x => String(x.id) === String(sid));
+    const d = Number(user?.descuento_revendedor) || 0;
+    if (!esVariante && (!moneda || moneda === 'ARS') && realSec?.slug === 'dropshipping' && user?.es_revendedor && d > 0 && precio > 0) {
+      return { final: Math.round(precio * (1 - d / 100)), original: precio, pct: Math.round(d), nombre: 'Precio revendedor', esRevendedor: true };
+    }
+    return aplicarPromo(precio, p, promosList, secId ?? p?.seccion_id, moneda);
+  };
+  // Precio final de una tarjeta de producto (sin variantes)
+  const precioFinalCliente = (p, promosList, secId) => { const e = precioEfectivo(p); const a = ajusteCliente(e, p, promosList, secId); return a ? a.final : e; };
 
   const isAdmin = user && ['admin','subadmin'].includes(user.rol);
 
@@ -1011,6 +941,7 @@ export default function App() {
     preciosFijos, setPreciosFijos, miPlan, setMiPlan, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
     handleLogin, handleLogout, getPrice, userLista, isAdmin, nav, fmt, fmtARS, openWA,
+    precioLista, precioEfectivo, ajusteCliente, precioFinalCliente,
     testMode, setTestMode: (v) => { setTestMode(v); localStorage.setItem('gm_test', v); },
     globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch,
     notifyProduct, setNotifyProduct, promos: promosGlobal
@@ -1138,7 +1069,7 @@ const RED_LABELS = {
 function redIconTipo(tipo) { return (tipo === 'whatsapp_canal' || tipo === 'whatsapp_grupo') ? 'whatsapp' : tipo; }
 
 function HeaderSearch() {
-  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones, getPrice, userLista } = useContext(Ctx);
+  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones, getPrice, userLista, precioFinalCliente, promos } = useContext(Ctx);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -1194,7 +1125,7 @@ function HeaderSearch() {
                     <div className="search-dd-name">{p.nombre || p.modelo}</div>
                     <div className="search-dd-sec">{p.secNombre}</div>
                   </div>
-                  {(() => { const _b = Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base) ? p.precio_oferta : p.precio_base; const _pr = getPrice ? getPrice(_b, userLista, p.id) : (Number(_b) || 0); return _pr > 0 ? <div className="search-dd-price">{fmtARS(_pr)}</div> : null; })()}
+                  {(() => { const _pr = precioFinalCliente(p, promos, p.secId); return _pr > 0 ? <div className="search-dd-price">{fmtARS(_pr)}</div> : null; })()}
                 </button>
               ))}
               <button className="search-dd-all" onClick={() => { doGlobalSearch(); setOpen(false); nav('search'); }}>Ver todos los resultados →</button>
@@ -1274,7 +1205,7 @@ function Header() {
           <button className={`secnav-item${page === 'landing' ? ' active' : ''}`} onClick={() => nav('landing')}>Inicio</button>
           {secciones.map(s => (
             <button key={s.id} className="secnav-item" onClick={() => nav('section', s.id)} style={{ '--sec-color': s.color || 'var(--primary)' }}>
-              {s.nombre}{s.requiere_aprobacion ? ' 🔒' : ''}
+              {s.nombre}{s.requiere_aprobacion ? <Lock size={12} style={{ marginLeft: 4, verticalAlign: '-1px' }} /> : null}
             </button>
           ))}
         </nav>
@@ -1443,8 +1374,8 @@ function NotifyStockModal() {
         <div className="modal-body">
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Te avisamos apenas vuelva <b>{p.nombre || p.modelo}</b>. ¿Cómo preferís que te contactemos?</p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button className={`btn ${canal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setCanal('whatsapp')} style={{ flex: 1 }}>📱 WhatsApp</button>
-            <button className={`btn ${canal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCanal('email')} style={{ flex: 1 }}>✉️ Email</button>
+            <button className={`btn ${canal === 'whatsapp' ? 'btn-success' : 'btn-outline'}`} onClick={() => setCanal('whatsapp')} style={{ flex: 1 }}><Smartphone size={15} style={{ verticalAlign: '-2px' }} /> WhatsApp</button>
+            <button className={`btn ${canal === 'email' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCanal('email')} style={{ flex: 1 }}><Mail size={15} style={{ verticalAlign: '-2px' }} /> Email</button>
           </div>
           {canal === 'whatsapp'
             ? <input placeholder="Tu WhatsApp (ej: 11 2345 6789)" value={tel} onChange={e => setTel(e.target.value)} style={{ width: '100%', marginBottom: 12 }} autoFocus />
@@ -1587,7 +1518,7 @@ function MaintenanceBlock({ effectiveDark, config, design }) {
   return (
     <div className={`app${effectiveDark ? ' dark' : ''}`} style={wrap}>
       {logo ? <img src={logo} alt={nombre} style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 16, marginBottom: 16 }} /> : null}
-      <div style={{ fontSize: 52, marginBottom: 8 }}>🔧</div>
+      <div style={{ fontSize: 52, marginBottom: 8 }}><Wrench size={44} style={{ verticalAlign: '-2px' }} /></div>
       <h1 style={{ fontSize: 26, fontWeight: 900, margin: '0 0 10px' }}>Estamos en mantenimiento</h1>
       <p style={{ color: 'var(--text-secondary, #999)', fontSize: 16, maxWidth: 460, lineHeight: 1.5, margin: '0 0 24px' }}>{maint.mensaje || 'Estamos trabajando en mejoras. Volvemos en un rato.'}</p>
       {wa ? <a className="btn btn-primary" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" style={{ marginBottom: 10 }}>Escribinos por WhatsApp</a> : null}
@@ -1606,7 +1537,7 @@ function MaintenancePage() {
   return (
     <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg)' }}>
       {logo ? <img src={logo} alt={nombre} style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 16, marginBottom: 16 }} /> : null}
-      <div style={{ fontSize: 52, marginBottom: 8 }}>🔧</div>
+      <div style={{ fontSize: 52, marginBottom: 8 }}><Wrench size={44} style={{ verticalAlign: '-2px' }} /></div>
       <h1 style={{ fontSize: 26, fontWeight: 900, margin: '0 0 10px' }}>Estamos en mantenimiento</h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: 16, maxWidth: 460, lineHeight: 1.5, margin: '0 0 24px' }}>{maint.mensaje || 'Estamos trabajando en mejoras. Volvemos en un rato.'}</p>
       {wa ? <a className="btn btn-primary" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" style={{ marginBottom: 10 }}>Escribinos por WhatsApp</a> : null}
@@ -1837,7 +1768,7 @@ function ComerciappLoginPage({ forgot, onVolver, onForgot, onLogin }) {
               <div className="form-group"><label className="form-label">CONTRASEÑA</label>
                 <div style={{ position: 'relative' }}>
                   <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} placeholder="Tu contraseña" style={{ width: '100%' }} />
-                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>{showPass ? '🙈' : '👁'}</button>
+                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>{showPass ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                 </div>
               </div>
               <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => doLogin()} disabled={busy}>{busy ? 'Ingresando...' : 'Ingresar'}</button>
@@ -1873,7 +1804,7 @@ function CrearTiendaPage({ onListo, onVolver }) {
   const enviar = async () => {
     setError('');
     if (!form.nombre_tienda || !form.slug || !form.usuario || !form.password) { setError('Completá los campos obligatorios (*)'); return; }
-    if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+    if (form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[0-9]/.test(form.password)) { setError('La contraseña necesita 8 caracteres o más, una mayúscula y un número'); return; }
     setSaving(true);
     try {
       const r = await api.registrarTienda(form);
@@ -1885,7 +1816,7 @@ function CrearTiendaPage({ onListo, onVolver }) {
     return (
       <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
         <div className="card" style={{ maxWidth: 460, padding: 36, textAlign: 'center' }}>
-          <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+          <div style={{ fontSize: 44, marginBottom: 12 }}><CheckCircle size={44} style={{ verticalAlign: '-2px' }} /></div>
           <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>¡Tu tienda está lista!</h2>
           <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
             Tenés <strong>{ok.dias} días gratis</strong> con todas las funciones. Ingresá con tu usuario <strong>{ok.usuario}</strong> para empezar a cargar tu tienda.
@@ -1932,7 +1863,7 @@ function CrearTiendaPage({ onListo, onVolver }) {
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Contraseña *</label>
-              <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Mínimo 6 caracteres" style={{ width: '100%' }} />
+              <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="8+ caracteres, una mayúscula y un número" style={{ width: '100%' }} />
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Email</label>
@@ -2092,7 +2023,7 @@ function ComerciappLanding({ onLogin, onRegister }) {
 }
 
 function Landing() {
-  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct, promos } = useContext(Ctx);
+  const { secciones, badges, nav, toast, design, config, addToCart, user, getPrice, userLista, globalSearch, setGlobalSearch, globalResults, setGlobalResults, doGlobalSearch, setNotifyProduct, promos, precioLista, precioEfectivo, ajusteCliente } = useContext(Ctx);
   const [showPopup, setShowPopup] = useState(null);
   const [secProds, setSecProds] = useState({});
   const [sliders, setSliders] = useState([]);
@@ -2139,11 +2070,11 @@ function Landing() {
 
   // Product card component
   const ProductCard = ({ p, secId }) => {
-    const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
-    const tieneOferta = !p.es_preventa && p.precio_oferta && p.precio_oferta > 0 && p.precio_oferta < p.precio_base;
-    const descPct = tieneOferta ? Math.round((1 - p.precio_oferta / p.precio_base) * 100) : 0;
-    const efectivo = tieneOferta ? Number(p.precio_oferta) : Number(precio);
-    const promoInfo = !p.usa_variantes ? aplicarPromo(efectivo, p, promos, secId, 'ARS') : null;
+    const precio = precioLista(p);
+    const tieneOferta = !p.es_preventa && Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < precio;
+    const descPct = tieneOferta ? Math.round((1 - Number(p.precio_oferta) / precio) * 100) : 0;
+    const efectivo = precioEfectivo(p);
+    const promoInfo = !p.usa_variantes ? ajusteCliente(efectivo, p, promos, secId, 'ARS') : null;
     const umbralGratis = Number(config?.[`envio_gratis_desde_${secId}`]) || 0;
     const precioRefGratis = tieneOferta ? Number(p.precio_oferta) : Number(precio);
     const envioGratisCard = p.envio_gratis || (umbralGratis > 0 && precioRefGratis >= umbralGratis);
@@ -2222,7 +2153,7 @@ function Landing() {
           : sinStock && !puedeComprar ? (
             <div>
               <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setNotifyProduct(p); }} style={{ width: '100%' }}>
-                🔔 Avisame cuando llegue
+                <Bell size={15} style={{ verticalAlign: '-2px' }} /> Avisame cuando llegue
               </button>
             </div>
           ) : p.usa_variantes ? (
@@ -2421,7 +2352,7 @@ function ScrollTriggerInit({ deps = 0 }) {
 // SECTION PAGE (with back button!)
 // ═══════════════════════════════════════════════════════════
 function SectionPage() {
-  const { seccionActual: sec, user, nav, toast, addToCart, listas, config, getPrice, userLista, setSelectedProduct } = useContext(Ctx);
+  const { seccionActual: sec, user, nav, toast, addToCart, listas, config, getPrice, userLista, setSelectedProduct, precioEfectivo, ajusteCliente } = useContext(Ctx);
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [catFiltro, setCatFiltro] = useState('');
@@ -2485,13 +2416,14 @@ function SectionPage() {
   if (!sec) return <Landing />;
 
   // Price with promos
+  // Mismas reglas que el carrito y el servidor: lista del cliente, oferta, revendedor o promo
   const getPrecio = (p) => {
-    let precio = Number(p.precio_oferta) > 0 ? Number(p.precio_oferta) : Number(p.precio_base);
-    if (esDropshipping && user?.es_revendedor && user.descuento_revendedor > 0) {
-      return { original: precio, final: Math.round(precio * (1 - user.descuento_revendedor / 100)), descuento: user.descuento_revendedor, esRevendedor: true };
-    }
-    const promoInfo = aplicarPromo(precio, p, promos, p.seccion_id || sec?.id, 'ARS');
-    if (promoInfo) return { original: promoInfo.original, final: promoInfo.final, descuento: promoInfo.pct, promo: promoInfo.nombre };
+    const precio = precioEfectivo(p);
+    const a = ajusteCliente(precio, p, promos, p.seccion_id || sec?.id, 'ARS');
+    if (a && a.esRevendedor) return { original: a.original, final: a.final, descuento: a.pct, esRevendedor: true };
+    if (a) return { original: a.original, final: a.final, descuento: a.pct, promo: a.nombre };
+    const base = Number(p.precio_base) || 0;
+    if (!p.es_preventa && base > precio && precio > 0) return { original: base, final: precio, descuento: Math.round((1 - precio / base) * 100) };
     return { original: null, final: precio };
   };
 
@@ -2549,7 +2481,7 @@ function SectionPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {esMayorista && dolarBlue && (
-            <div style={{ background: 'var(--bg-card)', color: 'var(--primary)', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}>💵 USD Blue: ${fmt(dolarBlue)}</div>
+            <div style={{ background: 'var(--bg-card)', color: 'var(--primary)', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}><DollarSign size={15} style={{ verticalAlign: '-2px' }} /> USD Blue: ${fmt(dolarBlue)}</div>
           )}
           <button className="btn btn-outline btn-sm" onClick={async () => {
             const slug = sec.slug || ('s-' + sec.id);
@@ -2619,7 +2551,7 @@ function SectionPage() {
           return (
             <div key={p.id} className={`product-card ${sinStock ? 'sin-stock' : ''}`}>
               <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct({ ...p, precioFinal: precio.final, precioOriginal: precio.original, descuentoPct: precio.descuento }); nav('product'); }}>
-                {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}>📦</div>}
+                {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}><Package size={44} style={{ verticalAlign: '-2px' }} /></div>}
                 {/* Badges */}
                 <div className="product-badges">
                   {envioGratis && <span className="pbadge pbadge-shipping" style={{ background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
@@ -2685,76 +2617,92 @@ function SectionPage() {
 // CART PAGE
 // ═══════════════════════════════════════════════════════════
 // Checkout profesional por pasos: contacto, entrega, facturación (opcional), pago, resumen
-function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, metodos, config, cupon, descuento, testMode, onConfirm, onClose }) {
+// ═══════════════════════════════════════════════════════════
+// ─── CARRITO + CHECKOUT ───
+// Los precios, el envío de cada tienda, el cupón y los totales los calcula el
+// SERVIDOR (/api/carrito/cotizar). Lo que se ve acá es exactamente lo que se cobra.
+// ═══════════════════════════════════════════════════════════
+
+// Clave estable de una línea del carrito (producto + variante)
+const lineKey = (pid, vid) => `${pid}_${vid || 0}`;
+
+// Calculador de envío por código postal (página de producto): usa la misma cotización que el carrito
+function EnvioCalculadorProducto({ producto, varianteId, qty }) {
+  const { config } = useContext(Ctx);
+  const [cp, setCp] = useState(() => { try { return localStorage.getItem('gm_cp') || ''; } catch { return ''; } });
+  const [res, setRes] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const calcular = async (cpVal = cp) => {
+    const limpio = String(cpVal || '').replace(/\D/g, '');
+    if (limpio.length < 4) { setErr('Ingresá un código postal válido'); return; }
+    setLoading(true); setErr('');
+    try {
+      try { localStorage.setItem('gm_cp', limpio); } catch {}
+      const r = await api.cotizarCarrito({ entrega: { tipo: 'envio', cp: limpio }, secciones: [{ seccion_id: producto.seccion_id, items: [{ producto_id: producto.id, variante_id: varianteId || null, cantidad: qty || 1 }] }] });
+      setRes(r.secciones && r.secciones[0] ? r.secciones[0] : null);
+      if (r.avisos && r.avisos.length && (!r.secciones || !r.secciones.length)) setErr(r.avisos[0].mensaje);
+    } catch (e) { setErr(e.message || 'No pudimos calcular el envío'); }
+    setLoading(false);
+  };
+  if (producto?.es_digital) return null;
+  const env = res?.envio;
+  return (
+    <div className="envio-calc">
+      <div className="envio-calc-title"><Truck size={18} /> Calculá el costo de envío</div>
+      {config?.aclaracion_envios && <div className="envio-calc-note"><Info size={14} /> {config.aclaracion_envios}</div>}
+      <div className="envio-calc-row">
+        <input value={cp} onChange={e => setCp(e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 8))} placeholder="Tu código postal" inputMode="numeric" onKeyDown={e => e.key === 'Enter' && calcular()} aria-label="Código postal" />
+        <button className="btn btn-dark" onClick={() => calcular()} disabled={loading}>{loading ? 'Calculando…' : 'Calcular'}</button>
+      </div>
+      {err && <div className="envio-calc-err">{err}</div>}
+      {env && (
+        <div className="envio-opts">
+          {env.gratis_seccion && <div className="envio-free-banner"><CheckCircle size={16} /> Este producto tiene envío gratis</div>}
+          {env.opciones.length === 0 && <div className="envio-calc-muted">El envío se coordina por WhatsApp después de la compra.</div>}
+          {env.opciones.map(o => (
+            <div key={o.id} className="envio-opt static">
+              <span className="envio-opt-ico"><RenderIcon value={o.icono || 'truck'} size={18} /></span>
+              <span className="envio-opt-info"><b>{o.nombre}</b>{(o.tiempo_estimado || o.descripcion) && <small>{[o.tiempo_estimado, o.descripcion].filter(Boolean).join(' · ')}</small>}</span>
+              <span className="envio-opt-precio">{o.costo > 0 ? fmtARS(o.costo) : <span className="envio-gratis-tag">Gratis{o.costo_original > 0 && <s>{fmtARS(o.costo_original)}</s>}</span>}</span>
+            </div>
+          ))}
+          {!env.gratis_seccion && env.falta_para_gratis > 0 && <div className="envio-calc-muted">Sumando {fmtARS(env.falta_para_gratis)} más en esta tienda, el envío es gratis.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, onConfirm, onClose }) {
   const { toast } = useContext(Ctx);
   const [paso, setPaso] = useState(1);
   const [saving, setSaving] = useState(false);
-
-  // Datos precargados del usuario (editables)
-  const [contacto, setContacto] = useState({
-    nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '',
-  });
-  const [entrega, setEntrega] = useState({
-    tipo: (typeof localStorage !== 'undefined' && localStorage.getItem('gm_entrega_tipo')) || 'retiro', // 'retiro' | 'envio'
-    calle: '', numero: '', piso: '', localidad: '', cp: '', dni: '',
-  });
+  const [contacto, setContacto] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '' });
+  const [entrega, setEntrega] = useState({ calle: '', numero: '', piso: '', localidad: '', dni: '' });
   const [facturacion, setFacturacion] = useState({
     necesita: false, tipo: 'consumidor_final', razon_social: user?.nombre_fantasia || user?.nombre || '',
     cuit_dni: '', condicion_iva: 'consumidor_final', domicilio_fiscal: '',
   });
-  const [metodoPago, setMetodoPago] = useState(metodos && metodos[0] ? (metodos[0].nombre || metodos[0]) : 'transferencia');
+  const [metodoPago, setMetodoPago] = useState(metodos && metodos[0] ? (metodos[0].nombre || metodos[0]) : 'Transferencia');
   const [notas, setNotas] = useState('');
+  const esEnvio = entregaTipo === 'envio' && cot.secciones.some(s => s.requiere_envio);
+  const totales = cot.totales || {};
 
-  // Totales (los ítems en USDT van aparte, no se suman a los pesos)
-  const subtotalTodo = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
-  const subtotalUSDT = allItems.filter(esUSDT).reduce((s, i) => s + puItem(i) * i.qty, 0);
-  const envioTotal = envioSano(seccionesConItems.reduce((s, sec) => s + (envio[sec.id]?.costo || 0), 0), subtotalTodo);
-  const totalFinal = Math.max(0, subtotalTodo - descSano(seccionesConItems.length === 1 ? descuento : 0, subtotalTodo) + (entrega.tipo === 'envio' ? envioTotal : 0));
-
-  // El paso de facturación es opcional según config del panel (checkout_factura !== 'off')
   const facturaActiva = config.checkout_factura !== 'off';
   const pasos = facturaActiva ? ['Contacto', 'Entrega', 'Facturación', 'Pago', 'Resumen'] : ['Contacto', 'Entrega', 'Pago', 'Resumen'];
-  const pasoActual = pasos[paso - 1]; // nombre del paso actual
+  const pasoActual = pasos[paso - 1];
   const totalPasos = pasos.length;
 
   const validarPaso = () => {
     if (pasoActual === 'Contacto') {
       if (!contacto.nombre.trim() || contacto.nombre.trim().length < 3) { toast('Poné tu nombre completo', 'error'); return false; }
-      const telDigitos = (contacto.telefono || '').replace(/\D/g, '');
-      if (telDigitos.length < 8) { toast('Poné un teléfono válido, con característica (ej: 11 2345 6789)', 'error'); return false; }
+      if ((contacto.telefono || '').replace(/\D/g, '').length < 8) { toast('Poné un teléfono válido, con característica (ej: 11 2345 6789)', 'error'); return false; }
       if (contacto.email && contacto.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contacto.email.trim())) { toast('El email no es válido', 'error'); return false; }
     }
-    if (pasoActual === 'Entrega') {
-      // Validar dirección solo si es envío
-      if (entrega.tipo === 'envio') {
-        if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim() || !entrega.cp.trim()) {
-          toast('Completá la dirección de envío (calle, número, localidad y código postal)', 'error'); return false;
-        }
-        if (!entrega.dni || (entrega.dni + '').replace(/\D/g, '').length < 7) {
-          toast('Poné el DNI de quien recibe (lo exige el correo para el envío)', 'error'); return false;
-        }
-      }
-      // Compra mínima:
-      //  - Envío: aplica siempre que la sección tenga mínimo.
-      //  - Retiro: aplica solo si la sección tiene marcado "min_aplica_retiro".
-      const secBajoMin = seccionesConItems.find(sec => {
-        const min = Number(config[`compra_minima_${sec.id}`]) || 0;
-        if (min <= 0) return false;
-        const aplicaEnRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
-        // Si es retiro y esta sección NO aplica mínimo en retiro, se saltea
-        if (entrega.tipo === 'retiro' && !aplicaEnRetiro) return false;
-        const secSub = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
-        return secSub < min;
-      });
-      if (secBajoMin) {
-        const min = Number(config[`compra_minima_${secBajoMin.id}`]) || 0;
-        if (entrega.tipo === 'retiro') {
-          toast(`${secBajoMin.nombre} tiene un mínimo de ${fmtARS(min)} también para retiro.`, 'error');
-        } else {
-          toast(`Para envío necesitás un mínimo de ${fmtARS(min)} en ${secBajoMin.nombre}.`, 'error');
-        }
-        return false;
-      }
+    if (pasoActual === 'Entrega' && esEnvio) {
+      if (!entrega.calle.trim() || !entrega.numero.trim() || !entrega.localidad.trim()) { toast('Completá la dirección de envío (calle, número y localidad)', 'error'); return false; }
+      if ((entrega.dni + '').replace(/\D/g, '').length < 7) { toast('Poné el DNI de quien recibe (lo pide el correo)', 'error'); return false; }
     }
     if (pasoActual === 'Facturación' && facturacion.necesita) {
       if (!facturacion.cuit_dni.trim()) { toast('Poné el CUIT o DNI para la factura', 'error'); return false; }
@@ -2762,83 +2710,77 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
     }
     return true;
   };
-
   const siguiente = () => { if (validarPaso()) setPaso(p => Math.min(totalPasos, p + 1)); };
   const anterior = () => setPaso(p => Math.max(1, p - 1));
-
   const confirmar = async () => {
     setSaving(true);
-    await onConfirm({ contacto, entrega, facturacion: facturaActiva ? facturacion : { necesita: false }, metodoPago, notas });
-    setSaving(false);
+    try { await onConfirm({ contacto, entrega: { ...entrega, tipo: entregaTipo, cp }, facturacion: facturaActiva ? facturacion : { necesita: false }, metodoPago, notas }); }
+    catch { /* el error ya se mostró */ }
+    finally { setSaving(false); }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
-      <div className="modal" style={{ maxWidth: 540, width: '100%' }} onClick={e => e.stopPropagation()}>
+      <div className="modal checkout-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">Finalizar compra</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose} aria-label="Cerrar">✕</button>
         </div>
-
-        {/* Barra de pasos */}
-        <div style={{ display: 'flex', gap: 4, padding: '10px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        <div className="checkout-steps">
           {pasos.map((p, idx) => (
-            <div key={p} style={{ flex: 1, minWidth: 60, textAlign: 'center', fontSize: 11, fontWeight: paso === idx + 1 ? 800 : 500, color: paso === idx + 1 ? 'var(--primary)' : (paso > idx + 1 ? 'var(--success)' : 'var(--text-muted)') }}>
-              <div style={{ height: 3, borderRadius: 2, background: paso >= idx + 1 ? (paso > idx + 1 ? 'var(--success)' : 'var(--primary)') : 'var(--border)', marginBottom: 4 }}></div>
-              {paso > idx + 1 ? '✓ ' : ''}{p}
+            <div key={p} className={`checkout-step${paso === idx + 1 ? ' activo' : ''}${paso > idx + 1 ? ' hecho' : ''}`}>
+              <div className="checkout-step-bar" />
+              {paso > idx + 1 && <Check size={11} strokeWidth={3} />} {p}
             </div>
           ))}
         </div>
 
-        <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-          {/* PASO 1: Contacto */}
+        <div className="modal-body checkout-body">
           {pasoActual === 'Contacto' && (
             <div>
-              <h4 style={{ marginBottom: 12, fontSize: 15 }}>📇 Datos de contacto</h4>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Ya cargamos tus datos. Podés ajustarlos si querés.</p>
-              <div className="form-group"><label className="form-label">Nombre *</label><input value={contacto.nombre} onChange={e => setContacto({ ...contacto, nombre: e.target.value })} /></div>
-              <div className="form-group"><label className="form-label">Teléfono *</label><input value={contacto.telefono} onChange={e => setContacto({ ...contacto, telefono: e.target.value })} placeholder="Ej: 11 2345 6789" /></div>
-              <div className="form-group"><label className="form-label">Email</label><input value={contacto.email} onChange={e => setContacto({ ...contacto, email: e.target.value })} /></div>
+              <h4 className="checkout-h"><Phone size={16} /> Datos de contacto</h4>
+              <p className="checkout-sub">Ya cargamos tus datos. Podés ajustarlos si querés.</p>
+              <div className="form-group"><label className="form-label">Nombre *</label><input value={contacto.nombre} onChange={e => setContacto({ ...contacto, nombre: e.target.value })} autoComplete="name" /></div>
+              <div className="form-group"><label className="form-label">Teléfono *</label><input value={contacto.telefono} onChange={e => setContacto({ ...contacto, telefono: e.target.value })} placeholder="Ej: 11 2345 6789" inputMode="tel" autoComplete="tel" /></div>
+              <div className="form-group"><label className="form-label">Email</label><input value={contacto.email} onChange={e => setContacto({ ...contacto, email: e.target.value })} inputMode="email" autoComplete="email" /></div>
             </div>
           )}
 
-          {/* PASO 2: Entrega */}
           {pasoActual === 'Entrega' && (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, padding: '12px 14px', background: 'var(--bg-card)', borderRadius: 12 }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{entrega.tipo === 'retiro' ? '🏪 Retiro en el local' : '📦 Envío a domicilio'}</span>
-                <button onClick={() => onClose()} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Cambiar en el carrito</button>
+              <div className="checkout-entrega-tipo">
+                <span>{esEnvio ? <><Truck size={16} /> Envío a domicilio · CP {cp}</> : <><Store size={16} /> Retiro en el local</>}</span>
+                <button className="link-btn" onClick={onClose}>Cambiar en el carrito</button>
               </div>
-              {entrega.tipo === 'retiro' ? (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-card)', borderRadius: 10 }}>Coordinás el retiro después de confirmar el pedido. Te contactamos por los datos que dejaste.</p>
+              {!esEnvio ? (
+                <p className="checkout-nota">Coordinás el retiro después de confirmar el pedido. Te contactamos por los datos que dejaste.</p>
               ) : (
                 <div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div className="form-group" style={{ flex: 2 }}><label className="form-label">Calle *</label><input value={entrega.calle} onChange={e => setEntrega({ ...entrega, calle: e.target.value })} /></div>
+                  <div className="form-row">
+                    <div className="form-group" style={{ flex: 2 }}><label className="form-label">Calle *</label><input value={entrega.calle} onChange={e => setEntrega({ ...entrega, calle: e.target.value })} autoComplete="address-line1" /></div>
                     <div className="form-group" style={{ flex: 1 }}><label className="form-label">Número *</label><input value={entrega.numero} onChange={e => setEntrega({ ...entrega, numero: e.target.value })} /></div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div className="form-row">
                     <div className="form-group" style={{ flex: 1 }}><label className="form-label">Piso/Depto</label><input value={entrega.piso} onChange={e => setEntrega({ ...entrega, piso: e.target.value })} /></div>
-                    <div className="form-group" style={{ flex: 2 }}><label className="form-label">Localidad *</label><input value={entrega.localidad} onChange={e => setEntrega({ ...entrega, localidad: e.target.value })} /></div>
+                    <div className="form-group" style={{ flex: 2 }}><label className="form-label">Localidad *</label><input value={entrega.localidad} onChange={e => setEntrega({ ...entrega, localidad: e.target.value })} autoComplete="address-level2" /></div>
                   </div>
-                  <div className="form-group"><label className="form-label">Código postal *</label><input value={entrega.cp} onChange={e => setEntrega({ ...entrega, cp: e.target.value })} style={{ maxWidth: 160 }} /></div>
-                  <div className="form-group"><label className="form-label">DNI de quien recibe *</label><input value={entrega.dni} onChange={e => setEntrega({ ...entrega, dni: e.target.value })} placeholder="Sin puntos" style={{ maxWidth: 200 }} /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>El correo lo pide para entregar el paquete.</small></div>
-                  {envioTotal > 0 && <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>Costo de envío estimado: {fmtARS(envioTotal)}</p>}
+                  <div className="form-group"><label className="form-label">DNI de quien recibe *</label><input value={entrega.dni} onChange={e => setEntrega({ ...entrega, dni: e.target.value })} placeholder="Sin puntos" inputMode="numeric" style={{ maxWidth: 200 }} /><small className="form-hint">El correo lo pide para entregar el paquete.</small></div>
+                  <div className="checkout-envios">
+                    {cot.secciones.filter(s => s.requiere_envio).map(s => (
+                      <div key={s.seccion_id} className="checkout-envio-row"><span>{s.nombre}: {s.envio.elegido ? s.envio.elegido.nombre : 'a coordinar'}</span><b>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? 'Gratis' : '—')}</b></div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* PASO 3: Facturación (opcional) */}
           {pasoActual === 'Facturación' && (
             <div>
-              <h4 style={{ marginBottom: 12, fontSize: 15 }}>🧾 Facturación</h4>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 14 }}>
-                <input type="checkbox" checked={facturacion.necesita} onChange={e => setFacturacion({ ...facturacion, necesita: e.target.checked })} />
-                Necesito factura
-              </label>
+              <h4 className="checkout-h"><Bookmark size={16} /> Facturación</h4>
+              <label className="check-line"><input type="checkbox" checked={facturacion.necesita} onChange={e => setFacturacion({ ...facturacion, necesita: e.target.checked })} /> Necesito factura</label>
               {!facturacion.necesita ? (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-card)', borderRadius: 10 }}>Si no necesitás factura, seguí al siguiente paso. Recibís tu comprobante de pedido igual.</p>
+                <p className="checkout-nota">Si no necesitás factura, seguí al siguiente paso. Recibís tu comprobante de pedido igual.</p>
               ) : (
                 <div>
                   <div className="form-group"><label className="form-label">Razón social / Nombre *</label><input value={facturacion.razon_social} onChange={e => setFacturacion({ ...facturacion, razon_social: e.target.value })} /></div>
@@ -2857,20 +2799,20 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
             </div>
           )}
 
-          {/* PASO 4: Pago */}
           {pasoActual === 'Pago' && (
             <div>
-              <h4 style={{ marginBottom: 12, fontSize: 15 }}>💳 Método de pago</h4>
+              <h4 className="checkout-h"><CreditCard size={16} /> Método de pago</h4>
               {metodos && metodos.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="pago-opts">
                   {metodos.map((m, idx) => {
                     const nombre = m.nombre || m;
                     return (
-                      <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, border: `2px solid ${metodoPago === nombre ? 'var(--primary)' : 'var(--border)'}`, cursor: 'pointer' }}>
+                      <label key={idx} className={`pago-opt${metodoPago === nombre ? ' sel' : ''}`}>
                         <input type="radio" checked={metodoPago === nombre} onChange={() => setMetodoPago(nombre)} />
+                        <span className="pago-opt-ico"><RenderIcon value={m.icono} size={18} /></span>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{nombre}</div>
-                          {m.datos && <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{m.datos}</div>}
+                          <div className="pago-opt-nombre">{nombre}</div>
+                          {(m.descripcion || m.instrucciones) && <div className="pago-opt-desc">{m.descripcion || m.instrucciones}</div>}
                         </div>
                       </label>
                     );
@@ -2878,59 +2820,60 @@ function CheckoutModal({ user, secciones, seccionesConItems, allItems, envio, me
                 </div>
               ) : (
                 <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} style={{ width: '100%' }}>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Efectivo">Efectivo</option>
                 </select>
               )}
               <div className="form-group" style={{ marginTop: 16 }}><label className="form-label">Notas (opcional)</label><textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Alguna aclaración para tu pedido" /></div>
             </div>
           )}
 
-          {/* PASO 5: Resumen */}
           {pasoActual === 'Resumen' && (
             <div>
-              <h4 style={{ marginBottom: 12, fontSize: 15 }}>✅ Revisá tu pedido</h4>
-              <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                {allItems.map((i, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                    <span>{i.qty}× {i.nombre || i.modelo}{i.variante_label ? ` (${i.variante_label})` : ''}</span>
-                    <span style={{ fontWeight: 600 }}>{fmtMon(puItem(i) * i.qty, monedaItem(i))}</span>
+              <h4 className="checkout-h"><CheckCircle size={16} /> Revisá tu pedido</h4>
+              <div className="resumen-box">
+                {cot.secciones.map(s => (
+                  <div key={s.seccion_id} className="resumen-sec">
+                    {cot.secciones.length > 1 && <div className="resumen-sec-nombre">{s.nombre}</div>}
+                    {s.items.map(i => (
+                      <div key={lineKey(i.producto_id, i.variante_id)} className="resumen-linea">
+                        <span>{i.cantidad}× {i.nombre_producto}{i.variante_label ? ` (${i.variante_label})` : ''}</span>
+                        <span>{fmtMon(i.precio_unitario * i.cantidad, i.moneda)}</span>
+                      </div>
+                    ))}
+                    {esEnvio && s.requiere_envio && <div className="resumen-linea muted"><span>Envío{s.envio.elegido ? ` · ${s.envio.elegido.nombre}` : ' · a coordinar'}</span><span>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? 'Gratis' : '—')}</span></div>}
+                    {s.descuento > 0 && <div className="resumen-linea ok"><span>Cupón {s.cupon}</span><span>-{fmtARS(s.descuento)}</span></div>}
                   </div>
                 ))}
-                <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, fontSize: 13 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>{fmtARS(subtotalTodo)}</span></div>
-                  {seccionesConItems.length === 1 && descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}><span>Descuento</span><span>-{fmtARS(descuento)}</span></div>}
-                  {entrega.tipo === 'envio' && envioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Envío</span><span>{fmtARS(envioTotal)}</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 16, marginTop: 6 }}><span>Total</span><span>{fmtARS(totalFinal)}</span></div>
-                  {subtotalUSDT > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 16, marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--border)' }}><span>Total USDT</span><span>{fmtMon(subtotalUSDT, 'USDT')}</span></div>}
-                </div>
+                <div className="resumen-total"><span>Total</span><span>{fmtARS(totales.total)}</span></div>
+                {totales.total_usdt > 0 && <div className="resumen-total usdt"><span>Total USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
               </div>
-              {subtotalUSDT > 0 && (
-                <div style={{ background: 'var(--bg-card)', border: '1.5px solid var(--primary)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>Pago en USDT: {fmtMon(subtotalUSDT, 'USDT')}</div>
-                  {config.usdt_red && <div style={{ fontSize: 13 }}><strong>Red:</strong> {config.usdt_red}</div>}
-                  {config.usdt_wallet && <div style={{ fontSize: 13, wordBreak: 'break-all' }}><strong>Wallet:</strong> {config.usdt_wallet}</div>}
-                  {config.usdt_alias && <div style={{ fontSize: 13 }}><strong>Alias / Binance:</strong> {config.usdt_alias}</div>}
-                  {config.usdt_instrucciones && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, whiteSpace: 'pre-wrap' }}>{config.usdt_instrucciones}</div>}
-                  {!config.usdt_wallet && !config.usdt_alias && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Coordinamos el pago en USDT por WhatsApp al confirmar.</div>}
+              {totales.total_usdt > 0 && (
+                <div className="usdt-box">
+                  <div className="usdt-box-t">Pago en USDT: {fmtMon(totales.total_usdt, 'USDT')}</div>
+                  {config.usdt_red && <div><strong>Red:</strong> {config.usdt_red}</div>}
+                  {config.usdt_wallet && <div style={{ wordBreak: 'break-all' }}><strong>Wallet:</strong> {config.usdt_wallet}</div>}
+                  {config.usdt_alias && <div><strong>Alias / Binance:</strong> {config.usdt_alias}</div>}
+                  {config.usdt_instrucciones && <div className="usdt-box-i">{config.usdt_instrucciones}</div>}
+                  {!config.usdt_wallet && !config.usdt_alias && <div className="usdt-box-i">Coordinamos el pago en USDT por WhatsApp al confirmar.</div>}
                 </div>
               )}
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              <div className="resumen-datos">
                 <div><strong>Contacto:</strong> {contacto.nombre} · {contacto.telefono}</div>
-                <div><strong>Entrega:</strong> {entrega.tipo === 'retiro' ? 'Retiro en el local' : `Envío a ${entrega.calle} ${entrega.numero}${entrega.piso ? ` (${entrega.piso})` : ''}, ${entrega.localidad} (CP ${entrega.cp})${entrega.dni ? ` · DNI ${entrega.dni}` : ''}`}</div>
+                <div><strong>Entrega:</strong> {esEnvio ? `Envío a ${entrega.calle} ${entrega.numero}${entrega.piso ? ` (${entrega.piso})` : ''}, ${entrega.localidad} (CP ${cp})${entrega.dni ? ` · DNI ${entrega.dni}` : ''}` : 'Retiro en el local'}</div>
                 <div><strong>Pago:</strong> {metodoPago}</div>
                 {facturacion.necesita && <div><strong>Factura:</strong> {facturacion.razon_social} · {facturacion.cuit_dni}</div>}
               </div>
-              {testMode && <p style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: 'var(--warning-text, #b45309)' }}>🧪 Modo prueba: el pedido se marca como test.</p>}
+              {testMode && <p className="checkout-test"><FlaskConical size={14} /> Modo prueba: el pedido se marca como test.</p>}
             </div>
           )}
         </div>
 
-        <div className="modal-footer" style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-          {paso > 1 ? <button className="btn btn-outline" onClick={anterior}>← Atrás</button> : <span></span>}
+        <div className="modal-footer checkout-footer">
+          {paso > 1 ? <button className="btn btn-outline" onClick={anterior}>← Atrás</button> : <span />}
           {paso < totalPasos
             ? <button className="btn btn-primary" onClick={siguiente}>Siguiente →</button>
-            : <button className="btn btn-primary" onClick={confirmar} disabled={saving} style={{ minWidth: 160 }}>{saving ? 'Creando...' : (testMode ? '🧪 Confirmar (prueba)' : 'Confirmar pedido')}</button>}
+            : <button className="btn btn-primary" onClick={confirmar} disabled={saving} style={{ minWidth: 170 }}>{saving ? 'Creando pedido…' : (testMode ? 'Confirmar (prueba)' : 'Confirmar pedido')}</button>}
         </div>
       </div>
     </div>
@@ -2943,7 +2886,8 @@ function PedidoExitoModal({ exito, config, onClose }) {
   const numStr = nums.map(n => `#${String(n).padStart(4, '0')}`).join(', ');
   const wa = (config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '').replace(/[^0-9]/g, '');
   const nombre = exito.contacto?.nombre || '';
-  const msg = `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${fmtARS(exito.total)}. Quiero coordinar el pago y la entrega.`;
+  const totalTxt = `${fmtARS(exito.total)}${exito.total_usdt > 0 ? ` + ${fmtMon(exito.total_usdt, 'USDT')}` : ''}`;
+  const msg = `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${totalTxt}. Quiero coordinar el pago y la entrega.`;
   const waUrl = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}` : '';
   return (
     <div className="modal-overlay" style={{ zIndex: 3500 }}>
@@ -2955,7 +2899,7 @@ function PedidoExitoModal({ exito, config, onClose }) {
           <div style={{ background: 'var(--bg-card)', borderRadius: 14, padding: '16px 20px', marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{nums.length > 1 ? 'Pedidos' : 'Pedido'}</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--primary)' }}>{numStr}</div>
-            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>Total: {fmtARS(exito.total)}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>Total: {totalTxt}</div>
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>Enviános el pedido por WhatsApp y coordinamos el pago y la entrega al toque.</p>
           {waUrl ? <a className="btn btn-success" href={waUrl} target="_blank" rel="noopener noreferrer" style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 800, marginBottom: 10, display: 'block' }}>Enviar pedido por WhatsApp</a> : null}
@@ -2967,436 +2911,349 @@ function PedidoExitoModal({ exito, config, onClose }) {
 }
 
 function CartPage() {
-  const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config, getPrice, userLista, promos } = useContext(Ctx);
+  const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
+  const [cuponInput, setCuponInput] = useState('');
   const [cupon, setCupon] = useState('');
-  const [descuento, setDescuento] = useState(0);
-  const [metodoPago, setMetodoPago] = useState('');
   const [metodos, setMetodos] = useState([]);
-  const [notas, setNotas] = useState('');
-  const [envio, setEnvio] = useState({});
-  const [entregaTipo, setEntregaTipo] = useState(() => localStorage.getItem('gm_entrega_tipo') || 'envio'); // 'retiro' | 'envio'
-  useEffect(() => { localStorage.setItem('gm_entrega_tipo', entregaTipo); }, [entregaTipo]);
+  const [entregaTipo, setEntregaTipo] = useState(() => localStorage.getItem('gm_entrega_tipo') || 'envio');
+  const [cp, setCp] = useState(() => localStorage.getItem('gm_cp') || '');
+  const [cpInput, setCpInput] = useState(() => localStorage.getItem('gm_cp') || '');
+  const [envioSel, setEnvioSel] = useState({}); // { seccion_id: id de la opción de envío }
+  const [cot, setCot] = useState(null);
+  const [cotizando, setCotizando] = useState(false);
+  const [cotError, setCotError] = useState('');
+  const [avisos, setAvisos] = useState([]);
   const [showMixPopup, setShowMixPopup] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [exito, setExito] = useState(null); // datos del pedido confirmado para la pantalla de éxito
-  const [avisos, setAvisos] = useState([]); // cambios detectados al abrir el carrito
-  const refreshDone = useRef(false);
+  const [exito, setExito] = useState(null);
+  const reqSeq = useRef(0);
+  useEffect(() => { localStorage.setItem('gm_entrega_tipo', entregaTipo); }, [entregaTipo]);
 
-  // Al ABRIR el carrito: refrescar precio y stock de cada producto contra la base
-  useEffect(() => {
-    if (refreshDone.current) return;
-    refreshDone.current = true;
-    (async () => {
-      const cambios = [];
-      const nuevoCart = {};
-      for (const [secId, items] of Object.entries(cart)) {
-        if (!Array.isArray(items)) continue;
-        nuevoCart[secId] = [];
-        for (const it of items) {
-          if (it.qty <= 0) continue;
-          try {
-            const prod = await api.getProducto(it.id);
-            if (!prod) { cambios.push(`"${it.nombre || it.modelo}" ya no está disponible y se quitó del carrito`); continue; }
-            // Reserva de preventa: respetar el precio de reserva, no tocar stock ni precio
-            if (it._preventa) {
-              const precioReserva = Number(it._precioReserva || it.precio_unitario);
-              nuevoCart[secId].push({ ...it, ...prod, _preventa: true, _precioReserva: precioReserva, seccion_id: secId, qty: it.qty, precio_unitario: precioReserva });
-              continue;
-            }
-            const esVar = !!it.variante_id;
-            const sinStock = !prod.permitir_sin_stock && !prod.es_digital && Number(prod.stock) < it.qty;
-            const precioViejo = Number(it.precio_unitario || it.precio_base);
-            const precioNuevo = esVar ? Number(it.precio_unitario || it.precio_base) : (() => {
-              let base = getPrice ? Number(getPrice(prod.precio_base, userLista, prod.id)) : Number(prod.precio_base);
-              if (Number(prod.precio_oferta) > 0 && Number(prod.precio_oferta) < base) base = Number(prod.precio_oferta);
-              const pInfo = aplicarPromo(base, prod, promos, prod.seccion_id, 'ARS');
-              return pInfo ? pInfo.final : base;
-            })();
-            if (sinStock) {
-              if (Number(prod.stock) <= 0) { cambios.push(`"${prod.nombre || prod.modelo}" se quedó sin stock y se quitó`); continue; }
-              cambios.push(`"${prod.nombre || prod.modelo}": solo quedan ${prod.stock}, se ajustó la cantidad`);
-              nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: Number(prod.stock), precio_unitario: precioNuevo, variante_id: it.variante_id || null, variante_label: it.variante_label || '' });
-              continue;
-            }
-            if (precioViejo !== precioNuevo) cambios.push(`"${prod.nombre || prod.modelo}": el precio cambió de ${fmtARS(precioViejo)} a ${fmtARS(precioNuevo)}`);
-            nuevoCart[secId].push({ ...it, ...prod, seccion_id: secId, qty: it.qty, precio_unitario: precioNuevo, variante_id: it.variante_id || null, variante_label: it.variante_label || '' });
-          } catch {
-            nuevoCart[secId].push(it); // si falla la consulta, dejamos el item como está
-          }
-        }
-      }
-      if (cambios.length) { setCart(nuevoCart); setAvisos(cambios); }
-    })();
-  }, []);
-
-  // Group cart items by section
-  const seccionesConItems = secciones.filter(s => (Array.isArray(cart[s.id]) ? cart[s.id] : []).some(i => i.qty > 0));
   const _validSecIds = new Set(secciones.map(x => String(x.id)));
-  const allItems = Object.entries(cart).flatMap(([secId, items]) => 
+  const allItems = Object.entries(cart).flatMap(([secId, items]) =>
     _validSecIds.has(String(secId)) && Array.isArray(items) ? items.map(i => ({ ...i, seccion_id: Number(secId) })) : []
   ).filter(i => i.qty > 0);
+  const seccionesConItems = secciones.filter(s => allItems.some(i => i.seccion_id === s.id));
+  const itemsKey = JSON.stringify(allItems.map(i => [i.seccion_id, i.id, i.variante_id || 0, i.qty]));
+  const envioKey = JSON.stringify(envioSel);
 
-  // (el registro de carrito abandonado ahora se hace a nivel App)
-
+  // Cotizar en el servidor cada vez que cambia algo del carrito
+  useEffect(() => {
+    if (!allItems.length) { setCot(null); return; }
+    const seq = ++reqSeq.current;
+    setCotizando(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await api.cotizarCarrito({
+          entrega: { tipo: entregaTipo, cp }, cupon,
+          secciones: seccionesConItems.map(sec => ({
+            seccion_id: sec.id, envio_id: envioSel[sec.id] || null,
+            items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty })),
+          })),
+        });
+        if (seq !== reqSeq.current) return;
+        setCot(r); setCotError('');
+        if (cupon && r.cupon && !r.cupon.ok) { toast(r.cupon.error || 'Cupón no válido', 'error'); setCupon(''); }
+        // El servidor avisa productos que ya no están o sin stock: corregir el carrito
+        if (r.avisos && r.avisos.length) {
+          setAvisos(prev => Array.from(new Set([...prev, ...r.avisos.map(a => a.mensaje)])));
+          setCart(prev => {
+            const n = { ...prev };
+            for (const k of Object.keys(n)) {
+              if (!Array.isArray(n[k])) continue;
+              n[k] = n[k].flatMap(it => {
+                const a = r.avisos.find(x => x.producto_id === it.id && (x.variante_id || null) === (it.variante_id || null));
+                if (!a) return [it];
+                if (a.tipo === 'stock' && a.disponible > 0) return [{ ...it, qty: a.disponible }];
+                return [];
+              });
+            }
+            return n;
+          });
+        }
+        // Elegir solo la opción de envío cuando hay una sola; limpiar elecciones que ya no existen
+        setEnvioSel(prev => {
+          let cambio = false; const n = { ...prev };
+          for (const s of r.secciones || []) {
+            const ops = s.envio?.opciones || [];
+            if (n[s.seccion_id] && !ops.some(o => o.id === n[s.seccion_id])) { delete n[s.seccion_id]; cambio = true; }
+            if (!n[s.seccion_id] && ops.length === 1 && entregaTipo === 'envio' && cp) { n[s.seccion_id] = ops[0].id; cambio = true; }
+          }
+          return cambio ? n : prev;
+        });
+      } catch (e) {
+        if (seq === reqSeq.current) setCotError(e.message || 'No pudimos calcular el carrito');
+      } finally {
+        if (seq === reqSeq.current) setCotizando(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [itemsKey, entregaTipo, cp, cupon, envioKey, user?.id]);
 
   // Pop-up de carrito mixto: una vez por pedido (mientras el carrito tenga 2+ tiendas)
   useEffect(() => {
-    if (seccionesConItems.length > 1 && !window.__mixPopupShown) {
-      setShowMixPopup(true);
-      window.__mixPopupShown = true;
-    }
+    if (seccionesConItems.length > 1 && !window.__mixPopupShown) { setShowMixPopup(true); window.__mixPopupShown = true; }
+    if (seccionesConItems.length <= 1) window.__mixPopupShown = false;
   }, [seccionesConItems.length]);
 
   useEffect(() => {
-    if (seccionesConItems.length <= 1) window.__mixPopupShown = false; // reset para el próximo carrito mixto
-  }, [seccionesConItems.length]);
-
-  // Load payment methods for the first section with items
-  useEffect(() => {
-    if (seccionesConItems.length > 0) {
-      api.getMetodosPago(seccionesConItems[0].id).then(setMetodos).catch(() => {});
-    }
+    if (seccionesConItems.length > 0) api.getMetodosPago(seccionesConItems[0].id).then(setMetodos).catch(() => {});
   }, [seccionesConItems.length]);
 
   if (!allItems.length) {
     return (
-      <div style={{ padding: '48px 20px', textAlign: 'center', maxWidth: 500, margin: '0 auto' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🛒</div>
-        <h3 style={{ fontWeight: 800, marginBottom: 12 }}>Tu carrito está vacío</h3>
+      <div className="cart-empty">
+        {/* Al confirmar, el carrito queda vacío: la pantalla de éxito tiene que mostrarse igual */}
+        {exito && <PedidoExitoModal exito={exito} config={config} onClose={() => { setExito(null); nav('landing'); }} />}
+        <div className="cart-empty-ico"><ShoppingCart size={40} /></div>
+        <h3>Tu carrito está vacío</h3>
+        <p>Cuando agregues productos los vas a ver acá.</p>
         <button onClick={() => nav('landing')} className="btn btn-primary">Ver productos</button>
       </div>
     );
   }
 
-  const subtotal = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
-  const subtotalUSDT = allItems.filter(i => esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
-  const ahorroDesc = allItems.filter(i => !esUSDT(i)).reduce((s, i) => s + Math.max(0, Number(i.precio_base || 0) - puItem(i)) * i.qty, 0);
-  // Solo contar el envío de secciones que REALMENTE tienen items en el carrito
-  // (evita costos fantasma de una sección que quedó en el estado tras vaciarse).
-  const seccionesConItemsIds = new Set(allItems.map(i => i.seccion_id));
-  const costoEnvioTotal = Object.entries(envio).reduce((s, [secId, e]) => {
-    if (!seccionesConItemsIds.has(Number(secId)) && !seccionesConItemsIds.has(secId)) return s;
-    return s + (Number(e?.costo) || 0);
-  }, 0);
-  const total = Math.max(0, subtotal - descSano(descuento, subtotal) + envioSano(costoEnvioTotal, subtotal));
+  const srvSec = (secId) => cot?.secciones?.find(s => String(s.seccion_id) === String(secId));
+  const srvItem = (secId, it) => srvSec(secId)?.items.find(x => x.producto_id === it.id && (x.variante_id || null) === (it.variante_id || null));
+  const totales = cot?.totales || { subtotal: 0, envio: 0, descuento: 0, total: 0, total_usdt: 0 };
+  const necesitaCp = entregaTipo === 'envio' && (cot?.secciones || []).some(s => s.requiere_envio && s.envio.opciones.length > 0) && !cp;
+  const errores = cot?.errores || [];
+  const puedeSeguir = !!cot && !cotizando && !cotError && !errores.length && !necesitaCp;
+  const ahorro = (cot?.secciones || []).reduce((a, s) => a + s.items.filter(i => i.moneda === 'ARS').reduce((b, i) => b + Math.max(0, i.precio_base - i.precio_unitario) * i.cantidad, 0), 0);
 
-  // Info de compra mínima por sección (NO bloquea el carrito: el mínimo aplica
-  // solo si eligen ENVÍO, y eso se valida en el paso Entrega del checkout).
-  // Con retiro en el local no hay mínimo.
-  // Bloqueo del botón: si eligió ENVÍO (o la sección exige mínimo en retiro) y no llega.
-  const algunaBajoMin = seccionesConItems.some(sec => {
-    const min = Number(config[`compra_minima_${sec.id}`]) || 0;
-    if (min <= 0) return false;
-    const aplicaRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
-    if (entregaTipo === 'retiro' && !aplicaRetiro) return false;
-    const ss = allItems.filter(i => i.seccion_id === sec.id).reduce((a, i) => a + (Number(i.precio_unitario || i.precio_base) || 0) * i.qty, 0);
-    return ss < min;
-  });
+  const aplicarCp = () => {
+    const limpio = cpInput.replace(/\D/g, '');
+    if (limpio.length < 4) { toast('Ingresá un código postal válido', 'error'); return; }
+    setCp(limpio); try { localStorage.setItem('gm_cp', limpio); } catch {}
+  };
 
-  // Guardar como presupuesto (cliente → admin lo ve en tab presupuestos)
   const guardarPresupuesto = async () => {
     if (!user) { toast('Necesitás iniciar sesión para guardar un presupuesto', 'warning'); nav('login'); return; }
     try {
-      const pedidos = seccionesConItems.map(sec => {
-        const secItems = allItems.filter(i => i.seccion_id === sec.id);
-        const secSubtotal = secItems.reduce((s, i) => s + puItem(i) * i.qty, 0);
-        return {
-          seccion_id: sec.id, tipo: 'presupuesto', estado: 'pendiente', metodo_pago: metodoPago, notas,
-          subtotal: secSubtotal, descuento: 0, total: secSubtotal,
-          items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: puItem(i), precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
-        };
-      }).filter(pp => pp.items.length);
-      for (const p of pedidos) await api.createPedido(p);
-      // Vaciar carrito tras guardar el presupuesto
+      for (const sec of seccionesConItems) {
+        const items = allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty }));
+        if (items.length) await api.createPedido({ seccion_id: sec.id, tipo: 'presupuesto', items });
+      }
       seccionesConItems.forEach(sec => clearCart(sec.id));
-      toast('¡Presupuesto guardado! Te avisaremos cuando lo revisemos.');
+      toast('¡Presupuesto guardado! Te avisamos cuando lo revisemos.');
       nav('account');
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  // Compartir carrito: genera un LINK que precarga el carrito + texto con el detalle
+  // Compartir carrito: link que precarga el carrito + texto con el detalle
   const compartirCarrito = () => {
-    // Codificar items mínimos en la URL: [{s:secId, p:prodId, q:qty}]
     const payload = allItems.map(i => ({ s: i.seccion_id, p: i.id, q: i.qty }));
-    const encoded = btoa(encodeURIComponent(JSON.stringify(payload))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');  // base64url: seguro para compartir por WhatsApp/celular
+    const encoded = btoa(encodeURIComponent(JSON.stringify(payload))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const link = `${window.location.origin}${window.location.pathname}?carrito=${encoded}`;
-    let txt = `🛒 *Carrito armado para vos*\n\n`;
-    seccionesConItems.forEach(sec => {
-      const secItems = allItems.filter(i => i.seccion_id === sec.id);
-      txt += `📦 *${sec.nombre}*\n`;
-      secItems.forEach(i => { txt += `• ${i.nombre || i.modelo} x${i.qty} — ${fmtARS((i.precio_unitario || i.precio_base) * i.qty)}\n`; });
+    let txt = `*Carrito armado para vos*\n\n`;
+    for (const s of cot?.secciones || []) {
+      txt += `*${s.nombre}*\n`;
+      s.items.forEach(i => { txt += `• ${i.nombre_producto}${i.variante_label ? ` (${i.variante_label})` : ''} x${i.cantidad} — ${fmtMon(i.precio_unitario * i.cantidad, i.moneda)}\n`; });
       txt += '\n';
-    });
-    txt += `*Total: ${fmtARS(total)}*\n\n👉 Abrí este link para continuar la compra:\n${link}`;
-    if (navigator.share) {
-      navigator.share({ title: 'Carrito', text: txt }).catch(() => {});
-    } else {
-      const waNum2 = config.whatsapp_flotante || config.whatsapp || '';
-      if (waNum2) window.open(`https://api.whatsapp.com/send?phone=${waNum2}&text=${encodeURIComponent(txt)}`, '_blank');
-      else { navigator.clipboard.writeText(txt).then(() => toast('Link del carrito copiado')).catch(() => toast('No se pudo copiar', 'error')); }
     }
+    txt += `*Total: ${fmtARS(totales.total)}*${totales.total_usdt > 0 ? ` + ${fmtMon(totales.total_usdt, 'USDT')}` : ''}\n\nAbrí este link para continuar la compra:\n${link}`;
+    if (navigator.share) navigator.share({ title: 'Carrito', text: txt }).catch(() => {});
+    else navigator.clipboard.writeText(txt).then(() => toast('Detalle del carrito copiado')).catch(() => toast('No se pudo copiar', 'error'));
   };
 
-  // Abre el modal de checkout. El mínimo de compra NO bloquea acá:
-  // se valida en el paso "Entrega" y solo si eligen envío (retiro no tiene mínimo).
   const abrirCheckout = () => {
-    if (!user) { toast('Necesitás iniciar sesión', 'warning'); nav('login'); return; }
-    const totalCarrito = allItems.reduce((s, i) => s + puItem(i) * i.qty, 0);
-    trackEvent('begin_checkout', 'InitiateCheckout', { value: totalCarrito, currency: 'ARS', num_items: allItems.length });
+    if (!user) { toast('Necesitás iniciar sesión para comprar', 'warning'); nav('login'); return; }
+    if (!puedeSeguir) return;
+    trackEvent('begin_checkout', 'InitiateCheckout', { value: totales.total, currency: 'ARS', num_items: allItems.length });
     setShowCheckout(true);
   };
 
-  // Crea el pedido con los datos del checkout (datosCheckout viene del modal)
-  const checkout = async (datosCheckout) => {
-    const dc = datosCheckout || {};
-    const datosEnvioJSON = JSON.stringify({
-      contacto: dc.contacto || {},
-      entrega: dc.entrega || {},
-    });
+  const checkout = async (dc) => {
+    const datosEnvioJSON = JSON.stringify({ contacto: dc.contacto || {}, entrega: dc.entrega || {} });
     const datosFactJSON = dc.facturacion && dc.facturacion.necesita ? JSON.stringify(dc.facturacion) : '';
-    const pedidos = seccionesConItems.map(sec => {
-      const secItems = allItems.filter(i => i.seccion_id === sec.id);
-      const secSubtotal = secItems.reduce((s, i) => s + puItem(i) * i.qty, 0);
-      const secEnvio = envio[sec.id];
-      const tieneReserva = secItems.some(i => i._preventa);
-      return {
-        seccion_id: sec.id, metodo_pago: dc.metodoPago || metodoPago,
-        notas: tieneReserva ? `${dc.notas || notas} [RESERVA/PREVENTA — requiere seña]`.trim() : (dc.notas || notas), cupon_codigo: cupon,
-        subtotal: secSubtotal, descuento: seccionesConItems.length === 1 ? descuento : 0,
-        total: Math.max(0, secSubtotal - descSano(seccionesConItems.length === 1 ? descuento : 0, secSubtotal) + envioSano(secEnvio?.costo || 0, secSubtotal)),
-        costo_envio: envioSano(secEnvio?.costo || 0, secSubtotal), metodo_envio: secEnvio?.nombre || '', cp_destino: dc.entrega?.cp || '',
-        estado_pago: tieneReserva ? 'senado' : 'impago',
-        datos_envio: datosEnvioJSON, datos_facturacion: datosFactJSON,
-        items: secItems.map(i => ({ producto_id: i.id, categoria: i.categoria, modelo: i.modelo, nombre_producto: i.nombre || i.modelo, cantidad: i.qty, precio_unitario: puItem(i), precio_base: i.precio_base, _preventa: i._preventa || false, variante_id: i.variante_id || null, variante_label: i.variante_label || '' }))
-      };
-    }).filter(pp => pp.items.length);
+    const pedidos = seccionesConItems.map(sec => ({
+      seccion_id: sec.id, envio_id: envioSel[sec.id] || null, metodo_pago: dc.metodoPago, notas: dc.notas || '',
+      datos_envio: datosEnvioJSON, datos_facturacion: datosFactJSON,
+      items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty, nombre_producto: i.nombre || i.modelo })),
+    })).filter(p => p.items.length);
     try {
-      const r = await api.createPedidosMulti(pedidos, testMode);
-      // Analytics: compra realizada
-      const totalCompra = pedidos.reduce((s, p) => s + Number(p.total || 0), 0);
-      trackEvent('purchase', 'Purchase', { value: totalCompra, currency: 'ARS', num_items: allItems.length });
+      const r = await api.createPedidosMulti(pedidos, testMode, { entrega: { tipo: entregaTipo, cp }, cupon });
+      const tot = r?.totales || totales;
+      trackEvent('purchase', 'Purchase', { value: tot.total, currency: 'ARS', num_items: allItems.length });
       seccionesConItems.forEach(sec => clearCart(sec.id));
       setShowCheckout(false);
-      const nums = (r?.pedidos || []).map(p => p.id).filter(Boolean);
-      setExito({ nums, total: totalCompra, contacto: (datosCheckout && datosCheckout.contacto) || {} });
-    } catch (e) { toast(e.message, 'error'); }
+      setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {} });
+    } catch (e) { toast(e.message, 'error'); throw e; }
   };
 
   return (
-    <div style={{ padding: '24px 20px', maxWidth: 700, margin: '0 auto' }}>
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12 }}>← Volver</button>
-      <h2 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🛒 Carrito</h2>
-      {testMode && <div style={{ background: 'var(--warning)', color: '#000', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, display: 'inline-block', marginBottom: 12 }}>🧪 MODO PRUEBA — los pedidos se marcan como test</div>}
+    <div className="cart-page">
+      <button onClick={() => nav('landing')} className="link-btn back-link">← Seguir comprando</button>
+      <h2 className="cart-title"><ShoppingCart size={24} /> Carrito</h2>
+      {testMode && <div className="test-pill"><FlaskConical size={13} /> MODO PRUEBA — los pedidos se marcan como test</div>}
       {exito && <PedidoExitoModal exito={exito} config={config} onClose={() => { setExito(null); nav('landing'); }} />}
-      {showCheckout && (
-        <CheckoutModal
-          user={user}
-          secciones={secciones}
-          seccionesConItems={seccionesConItems}
-          allItems={allItems}
-          envio={envio}
-          metodos={metodos}
-          config={config}
-          cupon={cupon}
-          descuento={descuento}
-          testMode={testMode}
-          onConfirm={checkout}
-          onClose={() => setShowCheckout(false)}
-        />
+      {showCheckout && cot && (
+        <CheckoutModal user={user} cot={cot} entregaTipo={entregaTipo} cp={cp} metodos={metodos} config={config} testMode={testMode}
+          onConfirm={checkout} onClose={() => setShowCheckout(false)} />
       )}
 
       {showMixPopup && (
         <div className="modal-overlay" onClick={() => setShowMixPopup(false)} style={{ zIndex: 3000 }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
             <div style={{ padding: '28px 24px' }}>
-              <div style={{ fontSize: 44, marginBottom: 12 }}>🏪</div>
+              <div className="mix-ico"><Store size={30} /></div>
               <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Tenés productos de {seccionesConItems.length} tiendas</h2>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
-                Cada tienda se despacha por <strong>separado</strong> desde su propio depósito y cotiza su <strong>propio envío</strong>. Vas a ver un solo total, pero vas a recibir <strong>un pedido por cada tienda</strong>. Los productos no se mezclan en un mismo envío.
+                Cada tienda se despacha por <strong>separado</strong> desde su propio depósito y tiene su <strong>propio envío</strong>. Vas a ver un solo total, pero recibís <strong>un pedido por cada tienda</strong>.
               </p>
               <button className="btn btn-primary" onClick={() => setShowMixPopup(false)} style={{ width: '100%' }}>Entendido</button>
             </div>
           </div>
         </div>
       )}
-      {seccionesConItems.length > 1 && <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>ℹ️ Tenés productos de {seccionesConItems.length} tiendas. Se genera un pedido separado por cada una (no se mezclan).</div>}
 
       {avisos.length > 0 && (
-        <div style={{ background: 'var(--warning-light, rgba(245,180,60,0.12))', border: '1px solid var(--warning, #e8a13a)', borderRadius: 12, padding: '12px 14px', marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>⚠️ El carrito se actualizó</div>
-          {avisos.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 3 }}>• {a}</div>)}
-          <button onClick={() => setAvisos([])} style={{ marginTop: 6, background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12, cursor: 'pointer', padding: 0 }}>Entendido</button>
+        <div className="cart-aviso">
+          <div className="cart-aviso-t"><AlertCircle size={15} /> El carrito se actualizó</div>
+          {avisos.map((a, i) => <div key={i} className="cart-aviso-l">• {a}</div>)}
+          <button onClick={() => setAvisos([])} className="link-btn">Entendido</button>
         </div>
       )}
 
-      {/* ── ¿CÓMO LO RECIBÍS? — elegir antes, estilo Mercado Libre ── */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 6, marginBottom: 16, display: 'flex', gap: 6, boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)' }}>
-        <button onClick={() => setEntregaTipo('retiro')} style={{ flex: 1, padding: '12px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, transition: 'all .25s cubic-bezier(0.32,0.72,0,1)', background: entregaTipo === 'retiro' ? 'var(--primary)' : 'transparent', color: entregaTipo === 'retiro' ? '#fff' : 'var(--text-secondary)', boxShadow: entregaTipo === 'retiro' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none' }}>🏪 Retiro en el local</button>
-        <button onClick={() => setEntregaTipo('envio')} style={{ flex: 1, padding: '12px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, transition: 'all .25s cubic-bezier(0.32,0.72,0,1)', background: entregaTipo === 'envio' ? 'var(--primary)' : 'transparent', color: entregaTipo === 'envio' ? '#fff' : 'var(--text-secondary)', boxShadow: entregaTipo === 'envio' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none' }}>📦 Envío a domicilio</button>
+      {/* ¿Cómo lo recibís? */}
+      <div className="entrega-switch" role="tablist">
+        <button role="tab" aria-selected={entregaTipo === 'retiro'} className={entregaTipo === 'retiro' ? 'sel' : ''} onClick={() => setEntregaTipo('retiro')}><Store size={16} /> Retiro en el local</button>
+        <button role="tab" aria-selected={entregaTipo === 'envio'} className={entregaTipo === 'envio' ? 'sel' : ''} onClick={() => setEntregaTipo('envio')}><Truck size={16} /> Envío a domicilio</button>
       </div>
+      {entregaTipo === 'envio' && (
+        <div className="cp-box">
+          <label htmlFor="cart-cp"><MapPin size={15} /> ¿Dónde lo recibís?</label>
+          <div className="cp-row">
+            <input id="cart-cp" value={cpInput} onChange={e => setCpInput(e.target.value.replace(/[^0-9]/g, '').slice(0, 8))} placeholder="Código postal" inputMode="numeric" onKeyDown={e => e.key === 'Enter' && aplicarCp()} />
+            <button className="btn btn-dark" onClick={aplicarCp}>{cp && cpInput === cp ? 'Listo' : 'Calcular'}</button>
+          </div>
+          {!cp && <small>Con tu código postal calculamos el envío de cada tienda.</small>}
+        </div>
+      )}
 
       {seccionesConItems.map(sec => {
         const secItems = allItems.filter(i => i.seccion_id === sec.id);
-        const secSubtotal = secItems.filter(i => !esUSDT(i)).reduce((s, i) => s + puItem(i) * i.qty, 0);
-        const secSubtotalUSDT = secItems.filter(esUSDT).reduce((s, i) => s + puItem(i) * i.qty, 0);
-        const gratisDesde = Number(config[`envio_gratis_desde_${sec.id}`]) || 0;
-        const faltaGratis = gratisDesde > 0 ? Math.max(0, gratisDesde - secSubtotal) : 0;
-        const pctGratis = gratisDesde > 0 ? Math.min(100, (secSubtotal / gratisDesde) * 100) : 0;
-        const compraMinima = Number(config[`compra_minima_${sec.id}`]) || 0;
-        const faltaMin = compraMinima > 0 ? Math.max(0, compraMinima - secSubtotal) : 0;
-        const pctMin = compraMinima > 0 ? Math.min(100, (secSubtotal / compraMinima) * 100) : 0;
+        const s = srvSec(sec.id);
+        const secSubtotal = s ? s.subtotal : 0;
+        const gratisDesde = s ? s.envio.umbral : (Number(config[`envio_gratis_desde_${sec.id}`]) || 0);
+        const compraMinima = s ? s.compra_minima : (Number(config[`compra_minima_${sec.id}`]) || 0);
+        const aplicaRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
+        const minEnvio = (entregaTipo === 'envio' || aplicaRetiro) ? compraMinima : 0;
+        const gratis = entregaTipo === 'envio' ? gratisDesde : 0;
+        const tope = Math.max(minEnvio, gratis) || 1;
+        const pct = Math.min(100, (secSubtotal / tope) * 100);
+        const llegoMin = minEnvio <= 0 || secSubtotal >= minEnvio;
+        const llegoGratis = !!s?.envio.gratis_seccion || (gratis > 0 && secSubtotal >= gratis);
         return (
-          <div key={sec.id} style={{ marginBottom: 24 }}>
-            <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>({secItems.length} items)</span></h3>
-            {/* ── BARRA ÚNICA DE PROGRESO (mínimo envío → envío gratis), estilo hitos ── */}
-            {(() => {
-              const aplicaRetiro = config[`min_aplica_retiro_${sec.id}`] === 'true';
-              // Si eligió RETIRO y esta sección no exige mínimo en retiro:
-              // el mínimo no corre. Solo mostramos envío gratis si aplica (informativo).
-              const minCorre = entregaTipo === 'envio' || aplicaRetiro;
-              const minEnvio = minCorre ? compraMinima : 0;   // hito 1
-              const gratis = entregaTipo === 'envio' ? gratisDesde : 0; // envío gratis solo tiene sentido con envío
-              if (minEnvio <= 0 && gratis <= 0) return null;
+          <section key={sec.id} className="cart-sec">
+            <h3 className="cart-sec-t">{sec.nombre} <span>{secItems.length} {secItems.length === 1 ? 'producto' : 'productos'}</span></h3>
 
-              const tope = Math.max(minEnvio, gratis) || 1;
-              const pct = Math.min(100, (secSubtotal / tope) * 100);
-              const posMin = minEnvio > 0 ? Math.min(100, (minEnvio / tope) * 100) : null;
-              const posGratis = gratis > 0 ? Math.min(100, (gratis / tope) * 100) : null;
-
-              const llegoMin = minEnvio <= 0 || secSubtotal >= minEnvio;
-              const llegoGratis = gratis > 0 && secSubtotal >= gratis;
-
-              let msg, msgColor;
-              if (!llegoMin) {
-                const falta = minEnvio - secSubtotal;
-                msg = <>Te faltan <b>{fmtARS(falta)}</b> para {entregaTipo === 'envio' ? 'habilitar el envío' : 'llegar al mínimo'}</>;
-                msgColor = 'var(--accent)';
-              } else if (gratis > 0 && !llegoGratis) {
-                const falta = gratis - secSubtotal;
-                msg = <>¡Listo para enviar! Te faltan <b>{fmtARS(falta)}</b> para <b>envío gratis</b></>;
-                msgColor = 'var(--primary)';
-              } else if (llegoGratis) {
-                msg = <>🎉 ¡Tenés <b>envío gratis</b>!</>;
-                msgColor = 'var(--success)';
-              } else {
-                msg = entregaTipo === 'retiro'
-                  ? <>✓ Listo para retirar en el local</>
-                  : <>✓ Mínimo alcanzado — envío habilitado</>;
-                msgColor = 'var(--success)';
-              }
-
-              return (
-                <div style={{ marginBottom: 14, background: 'var(--bg-card)', borderRadius: 16, padding: '14px 16px', boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.06)' }}>
-                  <div style={{ position: 'relative', height: 10, marginBottom: 22, marginTop: 4 }}>
-                    <div style={{ position: 'absolute', inset: 0, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: llegoGratis ? 'var(--success)' : `linear-gradient(90deg, var(--primary), var(--accent))`, transition: 'width .5s cubic-bezier(0.32,0.72,0,1)' }} />
-                    </div>
-                    {posMin !== null && posMin < 100 && (
-                      <div style={{ position: 'absolute', left: `${posMin}%`, top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: 999, background: llegoMin ? 'var(--success)' : 'var(--bg)', border: `2.5px solid ${llegoMin ? 'var(--success)' : 'var(--accent)'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: llegoMin ? 'var(--success)' : 'var(--accent)' }}>{entregaTipo === 'envio' ? 'Envío' : 'Mínimo'}</div>
-                      </div>
-                    )}
-                    {posGratis !== null && (
-                      <div style={{ position: 'absolute', left: `${posGratis}%`, top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: 999, background: llegoGratis ? 'var(--success)' : 'var(--bg)', border: `2.5px solid ${llegoGratis ? 'var(--success)' : 'var(--primary)'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: llegoGratis ? 'var(--success)' : 'var(--primary)' }}>Gratis</div>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: msgColor, lineHeight: 1.4 }}>{msg}</div>
+            {(minEnvio > 0 || gratis > 0) && s && (
+              <div className="meta-bar">
+                <div className="meta-track"><div className={`meta-fill${llegoGratis ? ' ok' : ''}`} style={{ width: `${pct}%` }} />
+                  {minEnvio > 0 && minEnvio < tope && <div className={`meta-hito${llegoMin ? ' ok' : ''}`} style={{ left: `${(minEnvio / tope) * 100}%` }}><span>{entregaTipo === 'envio' ? 'Envío' : 'Mínimo'}</span></div>}
+                  {gratis > 0 && <div className={`meta-hito gratis${llegoGratis ? ' ok' : ''}`} style={{ left: `${Math.min(100, (gratis / tope) * 100)}%` }}><span>Gratis</span></div>}
                 </div>
-              );
-            })()}
-            {secItems.map(i => (
-              <div key={`${i.id}_${i.variante_id || 0}`} className="card" style={{ padding: 12, marginBottom: 6, display: 'flex', gap: 10, alignItems: 'center', borderRadius: 12 }}>
-                {i.imagen ? <img src={i.imagen} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📱</div>}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{i.nombre || i.modelo}</div>
-                  {i.variante_label && <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>{i.variante_label}</div>}
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.categoria} — {Number(i.precio_base) > Number(i.precio_unitario) && !esUSDT(i) ? <><span style={{ textDecoration: 'line-through' }}>{fmtARS(i.precio_base)}</span> <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{fmtARS(i.precio_unitario)}</span></> : fmtMon(i.precio_unitario || i.precio_base, monedaItem(i))} c/u</div>
+                <div className={`meta-msg${!llegoMin ? ' warn' : llegoGratis ? ' ok' : ''}`}>
+                  {!llegoMin ? <>Te faltan <b>{fmtARS(minEnvio - secSubtotal)}</b> para {entregaTipo === 'envio' ? 'habilitar el envío' : 'llegar al mínimo'}</>
+                    : llegoGratis ? <><CheckCircle size={14} /> ¡Tenés <b>envío gratis</b> en esta tienda!</>
+                    : gratis > 0 ? <>Te faltan <b>{fmtARS(gratis - secSubtotal)}</b> para tener <b>envío gratis</b></>
+                    : <><Check size={14} /> Mínimo alcanzado</>}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>−</button>
-                  <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v), i.variante_id); }} style={{ width: 48, padding: '6px 4px', fontWeight: 800, fontSize: 13, textAlign: 'center', border: 'none', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderRadius: 0, background: 'transparent' }} />
-                  <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1, i.variante_id)} style={{ background: 'none', border: 'none', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>+</button>
-                </div>
-                <span style={{ fontWeight: 800, minWidth: 70, textAlign: 'right', fontSize: 14 }}>{fmtMon(puItem(i) * i.qty, monedaItem(i))}</span>
-                <button onClick={() => removeFromCart(sec.id, i.id, i.variante_id)} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>✕</button>
-              </div>
-            ))}
-            {/* Shipping for this section */}
-            <AndreaniCalculator seccionId={sec.id} peso={0.5} volumen={0.001} onSelect={e => setEnvio(prev => ({ ...prev, [sec.id]: e }))} />
-            {envio[sec.id] && <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', marginTop: 4 }}>✓ {envio[sec.id].nombre}: {fmtARS(envio[sec.id].costo)}</div>}
-            {/* Subtotal de esta tienda */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal {sec.nombre}</span>
-              <span style={{ fontSize: 15, fontWeight: 800 }}>{fmtARS(secSubtotal + (envio[sec.id]?.costo || 0))}</span>
-            </div>
-            {secSubtotalUSDT > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Subtotal USDT {sec.nombre}</span>
-                <span style={{ fontSize: 15, fontWeight: 800 }}>{fmtMon(secSubtotalUSDT, 'USDT')}</span>
               </div>
             )}
-          </div>
+
+            {secItems.map(i => {
+              const si = srvItem(sec.id, i);
+              const pu = si ? si.precio_unitario : puItem(i);
+              const mon = si ? si.moneda : monedaItem(i);
+              const base = si ? si.precio_base : Number(i.precio_base) || 0;
+              return (
+                <div key={lineKey(i.id, i.variante_id)} className="cart-line">
+                  {i.imagen ? <img src={i.imagen} alt="" className="cart-line-img" /> : <div className="cart-line-img ph"><Smartphone size={20} /></div>}
+                  <div className="cart-line-info">
+                    <div className="cart-line-name">{i.nombre || i.modelo}</div>
+                    {i.variante_label && <div className="cart-line-var">{i.variante_label}</div>}
+                    <div className="cart-line-pu">{mon === 'ARS' && base > pu ? <><s>{fmtARS(base)}</s> <b>{fmtARS(pu)}</b></> : fmtMon(pu, mon)} c/u</div>
+                  </div>
+                  <div className="qty-ctl">
+                    <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1, i.variante_id)} aria-label="Restar uno">−</button>
+                    <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v), i.variante_id); }} aria-label="Cantidad" />
+                    <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1, i.variante_id)} aria-label="Sumar uno">+</button>
+                  </div>
+                  <span className="cart-line-total">{si ? fmtMon(pu * i.qty, mon) : '…'}</span>
+                  <button onClick={() => removeFromCart(sec.id, i.id, i.variante_id)} className="cart-line-del" aria-label="Quitar del carrito"><Trash2 size={15} /></button>
+                </div>
+              );
+            })}
+
+            {/* Envío de esta tienda */}
+            {s && s.requiere_envio && entregaTipo === 'envio' && (
+              <div className="envio-opts">
+                {!cp && s.envio.opciones.length > 0 ? <div className="envio-calc-muted">Ingresá tu código postal arriba para ver las opciones de envío.</div>
+                  : s.envio.a_coordinar ? <div className="envio-calc-muted"><Info size={14} /> El envío de esta tienda se coordina por WhatsApp después de la compra.</div>
+                  : s.envio.opciones.map(o => (
+                    <label key={o.id} className={`envio-opt${envioSel[sec.id] === o.id ? ' sel' : ''}`}>
+                      <input type="radio" name={`envio-${sec.id}`} checked={envioSel[sec.id] === o.id} onChange={() => setEnvioSel(prev => ({ ...prev, [sec.id]: o.id }))} />
+                      <span className="envio-opt-ico"><RenderIcon value={o.icono || 'truck'} size={18} /></span>
+                      <span className="envio-opt-info"><b>{o.nombre}</b>{(o.tiempo_estimado || o.descripcion) && <small>{[o.tiempo_estimado, o.descripcion].filter(Boolean).join(' · ')}</small>}</span>
+                      <span className="envio-opt-precio">{o.costo > 0 ? fmtARS(o.costo) : <span className="envio-gratis-tag">Gratis{o.costo_original > 0 && <s>{fmtARS(o.costo_original)}</s>}</span>}</span>
+                    </label>
+                  ))}
+              </div>
+            )}
+            {s && entregaTipo === 'retiro' && s.requiere_envio && <div className="envio-calc-muted"><Store size={14} /> Retirás en el local. Te avisamos cuando esté listo.</div>}
+
+            <div className="cart-sec-sub">
+              <span>Total {sec.nombre}{s && s.envio.costo > 0 ? ' (con envío)' : ''}</span>
+              <span>{s ? fmtARS(s.total) : '…'}</span>
+            </div>
+            {s && s.subtotal_usdt > 0 && <div className="cart-sec-sub"><span>Subtotal USDT {sec.nombre}</span><span>{fmtMon(s.subtotal_usdt, 'USDT')}</span></div>}
+          </section>
         );
       })}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-        <input placeholder="Código de cupón" value={cupon} onChange={e => setCupon(e.target.value.toUpperCase())} style={{ flex: 1, borderRadius: 10, padding: '10px 14px', border: '1.5px solid var(--border)' }} />
-        <button onClick={async () => { try { const r = await api.validarCupon(cupon, seccionesConItems[0]?.id, subtotal, metodoPago, allItems, user?.id); setDescuento(r.descuento); toast(`Cupón: -${fmtARS(r.descuento)}`); } catch (e) { toast(e.message, 'error'); } }}
-          className="btn btn-outline" style={{ fontWeight: 700 }}>APLICAR</button>
+      {/* Cupón */}
+      <div className="cupon-box">
+        {cupon && cot?.cupon?.ok ? (
+          <div className="cupon-ok"><Tag size={15} /> Cupón <b>{cot.cupon.codigo}</b> aplicado <button className="link-btn" onClick={() => { setCupon(''); setCuponInput(''); }}>Quitar</button></div>
+        ) : (
+          <div className="cupon-row">
+            <input placeholder="Código de cupón" value={cuponInput} onChange={e => setCuponInput(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && cuponInput.trim() && setCupon(cuponInput.trim())} />
+            <button className="btn btn-outline" onClick={() => cuponInput.trim() && setCupon(cuponInput.trim())}>Aplicar</button>
+          </div>
+        )}
       </div>
 
-      {metodos.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Método de pago</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {metodos.map(m => (
-              <button key={m.id} onClick={() => setMetodoPago(m.nombre)}
-                style={{ padding: '8px 14px', borderRadius: 10, border: metodoPago === m.nombre ? '2px solid var(--primary)' : '1.5px solid var(--border)', background: metodoPago === m.nombre ? 'var(--primary-light)' : 'var(--bg-card)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-                <RenderIcon value={m.icono} size={14} /> {m.nombre}
-              </button>
-            ))}
-          </div>
+      <div className="cart-totales">
+        {cot && cot.secciones.length > 1 && cot.secciones.map(s => (
+          <div key={s.seccion_id} className="cart-tot-l muted"><span>{s.nombre}</span><span>{fmtARS(s.total)}</span></div>
+        ))}
+        <div className="cart-tot-l"><span>Productos</span><span>{fmtARS(totales.subtotal)}</span></div>
+        {ahorro > 0 && <div className="cart-tot-l ok small"><span>Ya incluye {fmtARS(ahorro)} de descuentos</span><span /></div>}
+        {entregaTipo === 'envio' && <div className="cart-tot-l"><span>Envío</span><span>{totales.envio > 0 ? fmtARS(totales.envio) : (cp ? 'Gratis / a coordinar' : 'Ingresá tu CP')}</span></div>}
+        {totales.descuento > 0 && <div className="cart-tot-l ok"><span>Cupón</span><span>-{fmtARS(totales.descuento)}</span></div>}
+        <div className="cart-tot-sep" />
+        <div className="cart-tot-total"><span>Total</span><span>{cotizando && !cot ? '…' : fmtARS(totales.total)}</span></div>
+        {totales.total_usdt > 0 && <div className="cart-tot-total usdt"><span>Total USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
+        {totales.total_usdt > 0 && <p className="cart-tot-nota">Los productos en USDT se pagan aparte (los datos aparecen en el checkout).</p>}
+      </div>
+
+      {(cotError || errores.length > 0 || necesitaCp) && (
+        <div className="cart-errores">
+          {cotError && <div><AlertCircle size={14} /> {cotError}</div>}
+          {necesitaCp && <div><MapPin size={14} /> Ingresá tu código postal para calcular el envío.</div>}
+          {!necesitaCp && errores.map((e, i) => <div key={i}><AlertCircle size={14} /> {e.mensaje}</div>)}
         </div>
       )}
 
-      <textarea placeholder="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)} rows={2} style={{ width: '100%', borderRadius: 10, padding: '10px 14px', border: '1.5px solid var(--border)', marginTop: 16 }} />
-
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginTop: 16 }}>
-        {seccionesConItems.length > 1 && (
-          <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-            {seccionesConItems.map(sec => {
-              const ss = allItems.filter(i => i.seccion_id === sec.id && !esUSDT(i)).reduce((a, i) => a + (i.precio_unitario || i.precio_base) * i.qty, 0);
-              return <div key={sec.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}><span style={{ color: 'var(--text-secondary)' }}>Subtotal {sec.nombre}</span><span style={{ fontWeight: 700 }}>{fmtARS(ss + (envio[sec.id]?.costo || 0))}</span></div>;
-            })}
-          </div>
-        )}
-        {ahorroDesc > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuentos aplicados</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(ahorroDesc)}</span></div>}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtARS(subtotal)}</span></div>
-        {costoEnvioTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--text-muted)' }}>Envío</span><span style={{ fontWeight: 700 }}>{fmtARS(costoEnvioTotal)}</span></div>}
-        {descuento > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}><span style={{ color: 'var(--success)' }}>Descuento</span><span style={{ fontWeight: 700, color: 'var(--success)' }}>-{fmtARS(descuento)}</span></div>}
-        <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22 }}><span style={{ fontWeight: 700 }}>Total</span><span style={{ fontWeight: 900 }}>{fmtARS(total)}</span></div>
-        {subtotalUSDT > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--border)' }}><span style={{ fontWeight: 700 }}>Total USDT</span><span style={{ fontWeight: 900 }}>{fmtMon(subtotalUSDT, 'USDT')}</span></div>
-        )}
-        {subtotalUSDT > 0 && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Los ítems en USDT se cobran aparte (los datos de pago aparecen en el checkout). No se suman a los pesos.</p>}
-      </div>
-
-      <button onClick={abrirCheckout} disabled={algunaBajoMin} style={{ width: '100%', marginTop: 16, padding: 14, background: algunaBajoMin ? 'var(--border)' : 'var(--primary)', color: algunaBajoMin ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: algunaBajoMin ? 'not-allowed' : 'pointer' }}>
-        {algunaBajoMin ? '🔒 No llegás al mínimo para envío' : (testMode ? '🧪 CONTINUAR (PRUEBA)' : 'CONTINUAR AL CHECKOUT →')}
+      <button onClick={abrirCheckout} disabled={!puedeSeguir} className="btn btn-primary cart-cta">
+        {cotizando ? 'Calculando…' : !puedeSeguir ? <><Lock size={15} /> Completá lo que falta</> : (testMode ? 'Continuar (prueba) →' : 'Continuar al checkout →')}
       </button>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button onClick={guardarPresupuesto} style={{ flex: 1, padding: 12, background: 'var(--bg-card)', border: '1.5px solid var(--primary)', color: 'var(--primary)', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-          📋 GUARDAR COMO PRESUPUESTO
-        </button>
-        <button onClick={compartirCarrito} style={{ flex: 1, padding: 12, background: 'var(--bg-card)', border: '1.5px solid var(--success)', color: 'var(--success)', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-          📤 COMPARTIR CARRITO
-        </button>
+      <div className="cart-sec-actions">
+        <button onClick={guardarPresupuesto} className="btn btn-outline"><ClipboardList size={15} /> Guardar como presupuesto</button>
+        <button onClick={compartirCarrito} className="btn btn-outline"><Share2 size={15} /> Compartir carrito</button>
       </div>
     </div>
   );
@@ -3522,7 +3379,7 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, store
 // PRODUCT DETAIL PAGE
 // ═══════════════════════════════════════════════════════════
 function ProductDetailPage() {
-  const { selectedProduct: p, seccionActual: navSec, secciones, nav, toast, addToCart, config, user, design } = useContext(Ctx);
+  const { selectedProduct: p, seccionActual: navSec, secciones, nav, toast, addToCart, config, user, design, precioEfectivo, ajusteCliente, precioFinalCliente } = useContext(Ctx);
   // Sección REAL del producto (no la de navegación) — evita mostrar Local cuando el producto es de Deposito
   const sec = (p?.seccion_id && secciones.find(s => String(s.id) === String(p.seccion_id))) || navSec;
   const [prodBadges, setProdBadges] = useState([]);
@@ -3563,7 +3420,7 @@ function ProductDetailPage() {
 
   if (!p) return <Landing />;
 
-  const precioBase = Number(p.precio_base) || 0;
+  const precioBase = precioEfectivo(p); // lista del cliente + oferta (igual que el servidor)
   // Precio real de una variante (usa oferta si es válida)
   const varPrecio = (v) => { const of = Number(v?.precio_oferta) || 0; const pr = Number(v?.precio) || 0; return (of > 0 && of < pr) ? of : pr; };
   const tieneVariantes = usaVariantes && variantes.length > 0;
@@ -3574,11 +3431,12 @@ function ProductDetailPage() {
   const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : 'ARS');
   // Si venimos del listado con el precio ya calculado (promo/oferta/revendedor aplicados), lo respetamos tal cual
   // y NO volvemos a aplicar la promo (evita el doble descuento al abrir el producto).
-  const usarNav = !tieneVariantes && !matched && Number(p.precioFinal) > 0;
-  const promoInfoProd = usarNav ? null : aplicarPromo(precioSinPromo, p, promos, p.seccion_id || sec?.id, monedaFinal);
+  // El precio siempre se recalcula acá (antes se usaba el que traía el listado y podía no coincidir con el carrito)
+  const usarNav = false;
+  const promoInfoProd = ajusteCliente(precioSinPromo, p, promos, p.seccion_id || sec?.id, monedaFinal, tieneVariantes);
   let precioFinal = usarNav ? Number(p.precioFinal) : (promoInfoProd ? promoInfoProd.final : precioSinPromo);
   const hayPromo = usarNav ? (Number(p.precioOriginal) > 0 && Number(p.precioOriginal) > precioFinal) : !!promoInfoProd;
-  const precioOriginal = usarNav ? (Number(p.precioOriginal) > 0 ? Number(p.precioOriginal) : null) : (hayPromo ? precioSinPromo : p.precioOriginal);
+  const precioOriginal = hayPromo ? precioSinPromo : (!tieneVariantes && Number(p.precio_base) > precioSinPromo ? Number(p.precio_base) : null);
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
   const umbralGratis = Number(config['envio_gratis_desde_' + (p.seccion_id || sec?.id)]) || 0;
   const envioGratisProd = !p.excluir_envio_gratis && (!!p.envio_gratis || (umbralGratis > 0 && precioFinal >= umbralGratis));
@@ -3754,7 +3612,7 @@ function ProductDetailPage() {
                   </div>
                 </div>
               ) : (
-                <button className="btn btn-outline" onClick={() => setShowNotify(true)} style={{ width: '100%' }}>🔔 Avisame cuando llegue</button>
+                <button className="btn btn-outline" onClick={() => setShowNotify(true)} style={{ width: '100%' }}><Bell size={15} style={{ verticalAlign: '-2px' }} /> Avisame cuando llegue</button>
               )}
             </div>
           ) : (
@@ -3794,7 +3652,7 @@ function ProductDetailPage() {
           {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} url={shareUrl} onClose={() => setShowRedes(false)} />}
 
           {p.sku && !p.sku.startsWith('RXZ-') && <p className="pdp-sku">SKU: {p.sku}</p>}
-          {p.notas && <div className="pdp-note">📝 {p.notas}</div>}
+          {p.notas && <div className="pdp-note"><FileText size={15} style={{ verticalAlign: '-2px' }} /> {p.notas}</div>}
 
           {/* Carteles de confianza */}
           {prodBadges.length > 0 && (
@@ -3804,9 +3662,8 @@ function ProductDetailPage() {
               ))}
             </div>
           )}
-          {/* Andreani + custom shipping calculator */}
-          <AndreaniCalculator seccionId={sec?.id} peso={p.peso} volumen={(p.alto * p.ancho * p.largo) / 1000000 || 0.001}
-            onSelect={(envio) => toast(`${envio.nombre}: ${fmtARS(envio.costo)}`)} />
+          {/* Calculador de envío por código postal (misma cotización que el carrito) */}
+          <EnvioCalculadorProducto producto={{ ...p, seccion_id: p.seccion_id || sec?.id }} varianteId={matched?.id} qty={qty} />
         </div>
       </div>
 
@@ -3818,7 +3675,7 @@ function ProductDetailPage() {
               <div key={rp.id} className="card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => { window.__secId = rp.seccion_id; nav('product', rp); }}>
                 {rp.imagen ? <img src={rp.imagen} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ico n="cart" s={28} /></div>}
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rp.nombre || rp.modelo}</div>
-                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{fmtARS(rp.precio_oferta > 0 ? rp.precio_oferta : rp.precio_base)}</div>
+                <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{rp.usa_variantes ? 'Ver opciones' : rp.es_preventa ? `Reservá a ${fmtARS(Number(rp.preventa_descuento_pct) > 0 ? Math.round(Number(rp.precio_base) * (1 - Number(rp.preventa_descuento_pct) / 100)) : rp.precio_base)}` : (precioFinalCliente(rp, promos, rp.seccion_id) > 0 ? fmtARS(precioFinalCliente(rp, promos, rp.seccion_id)) : 'Consultar precio')}</div>
               </div>
             ))}
           </div>
@@ -3913,46 +3770,49 @@ function RegisterPage() {
 
 // ═══ FORGOT PASSWORD PAGE ═══
 function ForgotPasswordPage() {
-  const { nav, toast } = useContext(Ctx);
+  const { nav, toast, config } = useContext(Ctx);
   const [step, setStep] = useState(1);
   const [usuario, setUsuario] = useState('');
   const [codigo, setCodigo] = useState('');
   const [newPass, setNewPass] = useState('');
-  const [result, setResult] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const wa = String(config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '').replace(/\D/g, '');
 
   const requestCode = async () => {
-    try {
-      const r = await api.forgotPassword(usuario);
-      setResult(r); setStep(2);
-      toast(r.mensaje || 'Código generado');
-    } catch (e) { toast(e.message, 'error'); }
+    if (!usuario.trim()) { toast('Escribí tu usuario o email', 'error'); return; }
+    setEnviando(true);
+    try { await api.forgotPassword(usuario.trim()); setStep(2); }
+    catch (e) { toast(e.message, 'error'); }
+    setEnviando(false);
   };
   const resetPass = async () => {
-    try {
-      await api.resetPassword(codigo, newPass);
-      toast('Contraseña cambiada. Iniciá sesión.'); nav('login');
-    } catch (e) { toast(e.message, 'error'); }
+    try { await api.resetPassword(codigo.trim(), newPass); toast('Contraseña cambiada. Ya podés ingresar.'); nav('login'); }
+    catch (e) { toast(e.message, 'error'); }
   };
 
   return (
     <div style={{ maxWidth: 420, margin: '48px auto', padding: '0 16px' }}>
       <div className="card" style={{ padding: 32, borderRadius: 20 }}>
-        <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 16 }}>Recuperar contraseña</h2>
+        <h2 style={{ fontWeight: 900, fontSize: 22, marginBottom: 8 }}>Recuperar contraseña</h2>
         {step === 1 ? (
           <>
-            <div className="form-group"><label className="form-label">Usuario o email</label><input value={usuario} onChange={e => setUsuario(e.target.value)} onKeyDown={e => e.key === 'Enter' && requestCode()} /></div>
-            <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={requestCode}>Enviar código</button>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Te mandamos un código al email de tu cuenta.</p>
+            <div className="form-group"><label className="form-label">Usuario o email</label><input value={usuario} onChange={e => setUsuario(e.target.value)} onKeyDown={e => e.key === 'Enter' && requestCode()} autoComplete="username" /></div>
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={requestCode} disabled={enviando}>{enviando ? 'Enviando…' : 'Enviar código'}</button>
           </>
         ) : (
           <>
-            {result?.codigo && <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: 12, borderRadius: 8, marginBottom: 12, textAlign: 'center' }}><div style={{ fontSize: 11, fontWeight: 600 }}>Tu código de recuperación:</div><div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.05em', userSelect: 'all' }}>{result.codigo}</div></div>}
-            {result?.telefono && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>También por WhatsApp: <a href={`https://wa.me/${result.telefono}?text=Tu código de recuperación: ${result.codigo}`} target="_blank" rel="noopener" style={{ color: '#25d366', fontWeight: 700 }}>Enviar por WA</a></p>}
-            <div className="form-group"><label className="form-label">Código</label><input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="KICKS-XXXXXX" /></div>
-            <div className="form-group"><label className="form-label">Nueva contraseña</label><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Mín 8 chars, 1 mayúscula, 1 número" /></div>
+            <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: 12, borderRadius: 10, marginBottom: 14, fontSize: 13, lineHeight: 1.5 }}>
+              Si los datos coinciden con una cuenta con email, te llegó un código. Revisá también la carpeta de spam. Vence en 1 hora.
+            </div>
+            <div className="form-group"><label className="form-label">Código</label><input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="Código del email" autoComplete="one-time-code" /></div>
+            <div className="form-group"><label className="form-label">Nueva contraseña</label><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="8+ caracteres, una mayúscula y un número" autoComplete="new-password" /></div>
             <button className="btn btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={resetPass}>Cambiar contraseña</button>
+            <button className="link-btn" style={{ width: '100%', marginTop: 10 }} onClick={() => setStep(1)}>No me llegó, volver a pedir</button>
           </>
         )}
-        <p style={{ textAlign: 'center', marginTop: 16 }}><a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>← Volver al login</a></p>
+        {wa && <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12.5, color: 'var(--text-muted)' }}>¿No tenés email en tu cuenta? <a href={`https://wa.me/${wa}?text=${encodeURIComponent('Hola, necesito recuperar el acceso a mi cuenta.')}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 700 }}>Escribinos por WhatsApp</a></p>}
+        <p style={{ textAlign: 'center', marginTop: 12 }}><a href="#" onClick={e => { e.preventDefault(); nav('login'); }} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>← Volver al login</a></p>
       </div>
     </div>
   );
@@ -3960,7 +3820,7 @@ function ForgotPasswordPage() {
 
 function AccountPanel() {
   const { user, setUser, toast, nav, handleLogout, userLista, config } = useContext(Ctx);
-  const [f, setF] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '', direccion: user?.direccion || '', nombre_fantasia: user?.nombre_fantasia || '', password: '' });
+  const [f, setF] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '', direccion: user?.direccion || '', nombre_fantasia: user?.nombre_fantasia || '', password: '', password_actual: '' });
   const [saving, setSaving] = useState(false);
   const [accTab, setAccTab] = useState('datos');
   const [misPedidos, setMisPedidos] = useState([]);
@@ -3979,9 +3839,9 @@ function AccountPanel() {
   const save = async () => {
     setSaving(true);
     try {
-      const data = { ...f }; if (!data.password) delete data.password;
+      const data = { ...f }; if (!data.password) { delete data.password; delete data.password_actual; }
       const updated = await api.updateMe(data);
-      setUser(updated); toast('Datos actualizados');
+      setUser(updated); setF(prev => ({ ...prev, password: '', password_actual: '' })); toast('Datos actualizados');
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -4001,7 +3861,7 @@ function AccountPanel() {
 
       {/* Tabs: Datos / Pedidos / Presupuestos */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {[{ id: 'datos', label: '👤 Datos' }, { id: 'pedidos', label: '📦 Mis pedidos' }, { id: 'presupuestos', label: '📋 Presupuestos' }].map(t => (
+        {[{ id: 'datos', label: 'Datos' }, { id: 'pedidos', label: 'Mis pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }].map(t => (
           <button key={t.id} onClick={() => setAccTab(t.id)} style={{ flex: 1, padding: '10px 8px', borderRadius: 10, border: accTab === t.id ? '2px solid var(--primary)' : '1.5px solid var(--border)', background: accTab === t.id ? 'var(--primary-light)' : 'var(--bg-card)', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}>{t.label}</button>
         ))}
       </div>
@@ -4014,6 +3874,7 @@ function AccountPanel() {
           <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>DIRECCIÓN</label><input value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} /></div>
           <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
           <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
+          {f.password && <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>CONTRASEÑA ACTUAL</label><input type="password" value={f.password_actual} onChange={e => setF({ ...f, password_actual: e.target.value })} placeholder="Para confirmar el cambio" autoComplete="current-password" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>La nueva necesita 8+ caracteres, una mayúscula y un número.</small></div>}
           <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
           <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
         </div>
@@ -4081,7 +3942,7 @@ function AccountPanel() {
                 </div>
               )}
               {viewDetail.estado_pago === 'pagado' && <div style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 700, background: 'var(--border-light)', padding: 8, borderRadius: 8 }}>✓ Pagado completo</div>}
-              {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}>📝 {viewDetail.notas}</div>}
+              {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /> {viewDetail.notas}</div>}
             </div>
           </div>
         </div>
@@ -4101,7 +3962,7 @@ function CuentaBloqueada({ estado }) {
   return (
     <div style={{ maxWidth: 480, margin: '48px auto', padding: '0 16px' }}>
       <div className="card" style={{ padding: 36, textAlign: 'center' }}>
-        <div style={{ fontSize: 44, marginBottom: 12 }}>{esVencido ? '⏰' : '🔒'}</div>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>{esVencido ? <Clock size={44} /> : <Lock size={44} />}</div>
         <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>{esVencido ? 'Tu prueba terminó' : 'Tu cuenta está suspendida'}</h2>
         <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: '0 0 22px', lineHeight: 1.5 }}>
           {esVencido
@@ -4274,7 +4135,7 @@ function AdminPanel() {
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 12, width: '100%' }}>← Volver a tienda</button>
         {user?.es_owner && (
-          <button className="btn btn-primary btn-sm" onClick={() => { try { const u = new URL(window.location.href); u.searchParams.set('comerciapp', '1'); window.location.href = u.pathname + '?' + u.searchParams.toString(); } catch { window.location.href = '/?comerciapp=1'; } }} style={{ marginBottom: 12, width: '100%' }}>🌐 Panel de webs</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { try { const u = new URL(window.location.href); u.searchParams.set('comerciapp', '1'); window.location.href = u.pathname + '?' + u.searchParams.toString(); } catch { window.location.href = '/?comerciapp=1'; } }} style={{ marginBottom: 12, width: '100%' }}><Globe size={15} style={{ verticalAlign: '-2px' }} /> Panel de webs</button>
         )}
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>Panel Admin</h3>
         {puede('config') && <MantenimientoToggle />}
@@ -4534,7 +4395,7 @@ function PagosTenantModal({ tenant, onClose }) {
                       <strong style={{ color: '#16a34a' }}>{fmt(p.monto)}</strong> <span style={{ color: 'var(--text-muted)' }}>· {fmtF(p.pagado_en)}{p.metodo ? ' · ' + p.metodo : ''}{p.periodo ? ' · ' + p.periodo : ''}</span>
                       {p.proximo_venc && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Próx. venc: {fmtF(p.proximo_venc)}</div>}
                     </div>
-                    <button onClick={() => borrar(p.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 16 }}>🗑</button>
+                    <button onClick={() => borrar(p.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 16 }}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
                   </div>
                 ))}
               </div>}
@@ -4796,7 +4657,7 @@ function AdminOwner() {
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Administrá las tiendas de tus clientes. {tenants.length} {tenants.length === 1 ? 'tienda' : 'tiendas'}.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-outline" onClick={() => setShowCobros(true)}>💰 Cobros</button>
+          <button className="btn btn-outline" onClick={() => setShowCobros(true)}><Wallet size={15} style={{ verticalAlign: '-2px' }} /> Cobros</button>
           <button className="btn btn-outline" onClick={() => setShowPrecios(true)}>Editar precios</button>
           <button className="btn btn-outline" onClick={() => setShowOferta(true)}>Editar oferta</button>
           <button className="btn btn-primary" onClick={() => { setCreds(null); setShowCrear(true); }}>+ Nueva tienda</button>
@@ -5196,7 +5057,7 @@ function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, 
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <strong style={{ fontSize: 16 }}>📸 Venta con escáner{cliente ? ` · ${cliente.nombre}` : ''}</strong>
+        <strong style={{ fontSize: 16 }}><Camera size={15} style={{ verticalAlign: '-2px' }} /> Venta con escáner{cliente ? ` · ${cliente.nombre}` : ''}</strong>
         <button className="btn btn-outline btn-sm" onClick={onClose}>✕ Cerrar</button>
       </div>
 
@@ -5446,13 +5307,13 @@ function AdminVentaManual() {
       <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
         {cliente ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontSize: 14 }}>👤 Cliente: <strong>{cliente.nombre}</strong></span>
+            <span style={{ fontSize: 14 }}><User size={15} style={{ verticalAlign: '-2px' }} /> Cliente: <strong>{cliente.nombre}</strong></span>
             <button className="btn btn-outline btn-sm" onClick={() => setCliente(null)}>Quitar</button>
           </div>
         ) : (
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <input placeholder="👤 Asignar a un cliente (opcional): buscá por nombre..." value={busqCliente} onChange={e => buscarCliente(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+              <input placeholder="Asignar a un cliente (opcional): buscá por nombre..." value={busqCliente} onChange={e => buscarCliente(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
               <button className="btn btn-outline btn-sm" onClick={() => setShowNuevoCliente(!showNuevoCliente)}>+ Nuevo cliente</button>
             </div>
             {resClientes.length > 0 && (
@@ -5486,19 +5347,19 @@ function AdminVentaManual() {
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>Dale estos datos al cliente para que pueda comprar online la próxima vez. Puede cambiar la contraseña desde su perfil.</p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => imprimirCredenciales(credsNuevoCliente)}>🖨️ Imprimir ficha</button>
+            <button className="btn btn-primary btn-sm" onClick={() => imprimirCredenciales(credsNuevoCliente)}><Printer size={15} style={{ verticalAlign: '-2px' }} /> Imprimir ficha</button>
             <button className="btn btn-outline btn-sm" onClick={() => setCredsNuevoCliente(null)}>Cerrar</button>
           </div>
         </div>
       )}
 
       <div style={{ position: 'relative', marginBottom: 16 }}>
-        <input placeholder="🔍 Buscar producto por nombre o SKU..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
+        <input placeholder="Buscar producto por nombre o SKU..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
         {resultados.length > 0 && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
             {resultados.map(p => (
               <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
-                {p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📦</div>}
+                {p.imagen ? <img src={p.imagen} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}><Package size={15} style={{ verticalAlign: '-2px' }} /></div>}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></div>
                   {p.seccion_nombre && <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: p.seccion_color || '#888', display: 'inline-block' }}></span>{p.seccion_nombre}</div>}
@@ -5518,13 +5379,13 @@ function AdminVentaManual() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           ref={scanInputRef}
-          placeholder="📷 Escaneá con pistola acá (o escribí el código y Enter)"
+          placeholder="Escaneá con pistola acá (o escribí el código y Enter)"
           value={scanBuffer}
           onChange={e => setScanBuffer(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarPorCodigo(scanBuffer); setScanBuffer(''); } }}
           style={{ flex: 1, minWidth: 220, borderColor: 'var(--accent)' }}
         />
-        <button className="btn btn-primary btn-sm" onClick={() => setScanCam(true)}>📸 Escanear con cámara (modo venta rápida)</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setScanCam(true)}><Camera size={15} style={{ verticalAlign: '-2px' }} /> Escanear con cámara (modo venta rápida)</button>
       </div>
       )}
       {scanCam && <CamScanner
@@ -5651,10 +5512,10 @@ function AdminOrdenesCompra() {
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontWeight: 900, fontSize: 18 }}><span>Total</span><span>{fmtARS(ver.total)}</span></div>
-              {ver.notas && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>📝 {ver.notas}</div>}
+              {ver.notas && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}><FileText size={15} style={{ verticalAlign: '-2px' }} /> {ver.notas}</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                 {!ver.recibida && <button className="btn btn-success" onClick={() => recibir(ver.id)} style={{ flex: 1 }}>✓ Marcar recibida (sumar stock)</button>}
-                <button className="btn btn-danger" onClick={() => borrar(ver.id)}>🗑</button>
+                <button className="btn btn-danger" onClick={() => borrar(ver.id)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
               </div>
             </div>
           </div>
@@ -5703,10 +5564,10 @@ function OrdenCompraModal({ secciones, onClose, onSaved, toast }) {
             <select value={seccionId} onChange={e => setSeccionId(e.target.value)} style={{ width: 160 }}>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select>
           </div>
           <div style={{ position: 'relative', marginBottom: 10 }}>
-            <input placeholder="🔍 Buscar producto..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
+            <input placeholder="Buscar producto..." value={busq} onChange={e => buscar(e.target.value)} style={{ width: '100%' }} />
             {resultados.length > 0 && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
-                {resultados.map(p => <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }}>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} /> : <span style={{ fontSize: 16 }}>📦</span>}<span style={{ flex: 1 }}>{p.nombre || p.modelo}{p.seccion_nombre && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> · {p.seccion_nombre}</span>}</span></div>)}
+                {resultados.map(p => <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }}>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} /> : <span style={{ fontSize: 16 }}><Package size={15} style={{ verticalAlign: '-2px' }} /></span>}<span style={{ flex: 1 }}>{p.nombre || p.modelo}{p.seccion_nombre && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> · {p.seccion_nombre}</span>}</span></div>)}
               </div>
             )}
           </div>
@@ -6111,10 +5972,10 @@ function AdminCategorias() {
             <strong style={{ fontSize: 14 }}>{c.nombre}</strong>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{c.cantidad} producto{c.cantidad !== 1 ? 's' : ''}</span>
           </div>
-          <button onClick={() => toggleVisible(c.nombre)} title={c.visible ? 'Ocultar' : 'Mostrar'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>{c.visible ? '👁️' : '🚫'}</button>
+          <button onClick={() => toggleVisible(c.nombre)} title={c.visible ? 'Ocultar' : 'Mostrar'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>{c.visible ? <Eye size={16} /> : <EyeOff size={16} />}</button>
           <button className="btn btn-outline btn-sm" onClick={() => setRenaming({ nombre: c.nombre, nuevo: c.nombre })}>Renombrar</button>
           <button className="btn btn-outline btn-sm" onClick={() => setMerging({ desde: c.nombre, hasta: '' })}>Fusionar</button>
-          <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}>🗑</button>
+          <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
         </div>
       ))}
 
@@ -6310,19 +6171,19 @@ function AdminProductos() {
         <h3>Productos ({total})</h3>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Nuevo</button>
-          <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)}>📥 Importar</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)}><Archive size={15} style={{ verticalAlign: '-2px' }} /> Importar</button>
           <button className="btn btn-outline btn-sm" onClick={async () => {
             if (!confirm('Generar código de barras a todos los productos de esta sección que no tengan uno. ¿Continuar?')) return;
             try { const r = await api.generarCodigos(adminSeccion); toast(`${r.generados} códigos generados`); load(); } catch (e) { toast(e.message, 'error'); }
-          }}>🏷️ Generar códigos</button>
-          <button className="btn btn-outline btn-sm" onClick={() => setShowPriceAdj(true)}>💲 Ajustar precios</button>
-          <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}>📜 Historial</button>
+          }}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Generar códigos</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowPriceAdj(true)}><DollarSign size={15} style={{ verticalAlign: '-2px' }} /> Ajustar precios</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowHistory(true)}><History size={15} style={{ verticalAlign: '-2px' }} /> Historial</button>
           <button className="btn btn-outline btn-sm" onClick={repararFotosRxz} disabled={reparandoFotos} title="Mueve a Cloudinary las fotos que aún apuntan a rxz (arregla las rotas de depósito)">{reparandoFotos ? 'Reparando…' : 'Reparar fotos'}</button>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <select value={secFiltro} onChange={e => { setSecFiltro(e.target.value); setPagina(1); }} style={{ width: 200 }}>
-          <option value="all">📦 Todas las secciones</option>
+          <option value="all"><Package size={15} style={{ verticalAlign: '-2px' }} /> Todas las secciones</option>
           {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
         <input placeholder="Buscar por nombre o SKU..." value={busq} onChange={e => { setBusq(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 160 }} />
@@ -6343,7 +6204,7 @@ function AdminProductos() {
         <div style={{ background: 'var(--primary-light)', border: '1.5px solid var(--primary)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <strong style={{ fontSize: 13, color: 'var(--primary)' }}>{seleccion.size} seleccionado{seleccion.size !== 1 ? 's' : ''}</strong>
           <button className="btn btn-primary btn-sm" onClick={() => setShowMasa(true)}>Acciones en masa</button>
-          <button className="btn btn-outline btn-sm" onClick={() => printEtiquetasMasa([...seleccion])}>🏷️ Imprimir etiquetas</button>
+          <button className="btn btn-outline btn-sm" onClick={() => printEtiquetasMasa([...seleccion])}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Imprimir etiquetas</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSeleccion(new Set())}>Deseleccionar</button>
         </div>
       )}
@@ -6360,7 +6221,7 @@ function AdminProductos() {
       {/* Product table */}
       <div style={{ overflowX: 'auto' }}>
         <table className="admin-table">
-          <thead><tr><th style={{width:34}}><input type="checkbox" checked={productosVista.length > 0 && seleccion.size === productosVista.length} onChange={toggleAll} /></th><th style={{width:50}}>Img</th><th>Producto</th><th>Categoría</th>{secFiltro === 'all' && <th>Sección</th>}<th style={{width:90}}>Precio</th><th style={{width:90}}>Oferta</th><th style={{width:70}}>Stock</th><th style={{width:50}}>👁</th><th style={{width:110}}>Acc.</th></tr></thead>
+          <thead><tr><th style={{width:34}}><input type="checkbox" checked={productosVista.length > 0 && seleccion.size === productosVista.length} onChange={toggleAll} /></th><th style={{width:50}}>Img</th><th>Producto</th><th>Categoría</th>{secFiltro === 'all' && <th>Sección</th>}<th style={{width:90}}>Precio</th><th style={{width:90}}>Oferta</th><th style={{width:70}}>Stock</th><th style={{width:50}}><Eye size={14} /></th><th style={{width:110}}>Acc.</th></tr></thead>
           <tbody>
             {productosVista.map(p => {
               const secNombre = secciones.find(s => s.id === p.seccion_id)?.nombre || '';
@@ -6443,7 +6304,7 @@ function AdminProductos() {
                   <option value="false">Ocultar</option>
                 </select>
               )}
-              {masaAccion.tipo === 'borrar' && <p style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>⚠️ Se eliminarán {seleccion.size} productos. No se puede deshacer.</p>}
+              {masaAccion.tipo === 'borrar' && <p style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}><AlertTriangle size={15} style={{ verticalAlign: '-2px' }} /> Se eliminarán {seleccion.size} productos. No se puede deshacer.</p>}
               <button className="btn btn-primary" onClick={aplicarMasa} style={{ width: '100%' }}>Aplicar a {seleccion.size} productos</button>
             </div>
           </div>
@@ -6487,27 +6348,6 @@ function MultiImageUpload({ productoId, imagenInicial }) {
     setUploading(false);
   };
 
-  // Imprime una etiqueta con el código de barras del producto
-  const printEtiqueta = (prod, opts = {}) => {
-    const conPrecio = opts.conPrecio || false;
-    const codigo = prod.codigo_barras || ('P' + String(prod.id).padStart(6, '0'));
-    const nombre = prod.nombre || prod.modelo || '';
-    const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
-    const html = `<div style="border:1px solid #000;padding:10px;display:inline-block;margin:6px;text-align:center;page-break-inside:avoid">
-        <div style="font-size:13px;font-weight:bold;margin-bottom:6px;max-width:280px">${nombre}</div>
-        <img src="${barcodeUrl}" style="max-width:280px;display:block;margin:0 auto" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <div style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${codigo}*</div>
-        <div style="font-size:14px;font-family:monospace;margin-top:4px">${codigo}</div>
-        ${conPrecio ? `<div style="font-size:12px;color:#333;margin-top:4px">${fmtARS(prod.precio_base)}</div>` : ''}
-      </div>`;
-    const w = window.open('', '', 'width=500,height=400');
-    if (!w) { toast('El navegador bloqueó la ventana de impresión. Permití los pop-ups para este sitio.', 'error'); return; }
-    w.document.write(`<html><head><title>Etiqueta ${codigo}</title></head>
-      <body style="font-family:sans-serif;margin:0;padding:10px">${html}
-        <script>window.onload=function(){var imgs=Array.prototype.slice.call(document.images);var pend=imgs.filter(function(i){return !i.complete});if(pend.length===0){setTimeout(function(){window.print()},300);return}var d=0;function fin(){d++;if(d>=pend.length)setTimeout(function(){window.print()},200)}pend.forEach(function(i){i.addEventListener('load',fin);i.addEventListener('error',fin)});setTimeout(function(){window.print()},2500)}<\/script>
-      </body></html>`);
-    w.document.close();
-  };
   const remove = async (id) => { try { await api.deleteProductoImagen(id); setImgs(imgs.filter(i => i.id !== id)); } catch (e) { toast(e.message, 'error'); } };
   // Reordenar: mover una imagen a la izquierda o derecha y persistir el nuevo orden
   const mover = async (idx, dir) => {
@@ -6532,7 +6372,7 @@ function MultiImageUpload({ productoId, imagenInicial }) {
   };
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-      <h4 style={{ marginBottom: 8, fontSize: 14 }}>📸 Galería de imágenes ({imgs.length})</h4>
+      <h4 style={{ marginBottom: 8, fontSize: 14 }}><Camera size={15} style={{ verticalAlign: '-2px' }} /> Galería de imágenes ({imgs.length})</h4>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Arrastrá varias imágenes a la zona de abajo. Reordenalas <b>arrastrando</b> (o con ← → en el celu) y eliminá con ✕. La primera es la principal.</p>
       <div
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -6652,7 +6492,7 @@ function AtributosEditor({ value, onChange }) {
       </label>
       {usa && (
         <div style={{ marginTop: 10 }}>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Cargá los atributos (ej: <b>Método de Pago</b>, <b>Licencia</b>, <b>Color</b>) con sus valores. Tocá 📷 en un valor para darle una <b>foto</b> (ej: por color: al elegirlo, cambia la imagen en la tienda). Después tocá <b>Generar combinaciones</b> y poné precio/stock a cada fila. Con variantes activas, el <b>precio base y stock del producto se ignoran</b>.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Cargá los atributos (ej: <b>Método de Pago</b>, <b>Licencia</b>, <b>Color</b>) con sus valores. Tocá el ícono de cámara en un valor para darle una <b>foto</b> (ej: por color: al elegirlo, cambia la imagen en la tienda). Después tocá <b>Generar combinaciones</b> y poné precio/stock a cada fila. Con variantes activas, el <b>precio base y stock del producto se ignoran</b>.</p>
           {atributos.map((a, ai) => (
             <div key={ai} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
@@ -6677,7 +6517,7 @@ function AtributosEditor({ value, onChange }) {
             <button type="button" className="btn btn-outline btn-sm" onClick={addAtr}>+ Agregar atributo</button>
             <button type="button" className="btn btn-primary btn-sm" onClick={generar} disabled={!atrsLimpios().length}>Generar combinaciones {totalCombos > 1 ? `(${totalCombos})` : ''}</button>
           </div>
-          {desincronizado && <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}>⚠️ Cambiaste los atributos. Tocá <b>Generar combinaciones</b> para actualizar la tabla (se conservan los precios ya cargados).</p>}
+          {desincronizado && <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}><AlertTriangle size={15} style={{ verticalAlign: '-2px' }} /> Cambiaste los atributos. Tocá <b>Generar combinaciones</b> para actualizar la tabla (se conservan los precios ya cargados).</p>}
           {variantes.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
@@ -6772,6 +6612,28 @@ function CatOptions({ seccionId, exclude }) {
 }
 
 // ─── PRODUCT MODAL (add/edit with image upload + precios fijos) ───
+// Imprime una etiqueta con el código de barras del producto
+function printEtiqueta(prod, opts = {}) {
+  const conPrecio = opts.conPrecio || false;
+  const codigo = prod.codigo_barras || ('P' + String(prod.id).padStart(6, '0'));
+  const nombre = String(prod.nombre || prod.modelo || '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
+  const html = `<div style="border:1px solid #000;padding:10px;display:inline-block;margin:6px;text-align:center;page-break-inside:avoid">
+      <div style="font-size:13px;font-weight:bold;margin-bottom:6px;max-width:280px">${nombre}</div>
+      <img src="${barcodeUrl}" style="max-width:280px;display:block;margin:0 auto" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <div style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${codigo}*</div>
+      <div style="font-size:14px;font-family:monospace;margin-top:4px">${codigo}</div>
+      ${conPrecio ? `<div style="font-size:12px;color:#333;margin-top:4px">${fmtARS(prod.precio_base)}</div>` : ''}
+    </div>`;
+  const w = window.open('', '', 'width=500,height=400');
+  if (!w) { window.alert('El navegador bloqueó la ventana de impresión. Permití los pop-ups para este sitio.'); return; }
+  w.document.write(`<html><head><title>Etiqueta ${codigo}</title></head>
+    <body style="font-family:sans-serif;margin:0;padding:10px">${html}
+      <script>window.onload=function(){var imgs=Array.prototype.slice.call(document.images);var pend=imgs.filter(function(i){return !i.complete});if(pend.length===0){setTimeout(function(){window.print()},300);return}var d=0;function fin(){d++;if(d>=pend.length)setTimeout(function(){window.print()},200)}pend.forEach(function(i){i.addEventListener('load',fin);i.addEventListener('error',fin)});setTimeout(function(){window.print()},2500)}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
 function ProductModal({ product, onClose }) {
   const { secciones, adminSeccion, toast, listas, preciosFijos, setPreciosFijos } = useContext(Ctx);
   const isEdit = !!product;
@@ -6877,7 +6739,7 @@ function ProductModal({ product, onClose }) {
             <div className="form-group"><label className="form-label">Código de barras (para escanear en ventas)</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input value={f.codigo_barras || ''} onChange={e => setF({ ...f, codigo_barras: e.target.value })} placeholder="Se genera solo al guardar" style={{ flex: 1 }} />
-                {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f, { conPrecio: window.confirm('¿Incluir el precio en la etiqueta?\n\n(Aceptar = con precio, Cancelar = sin precio)') })}>🏷️ Imprimir etiqueta</button>}
+                {isEdit && f.id && <button type="button" className="btn btn-outline btn-sm" onClick={() => printEtiqueta(f, { conPrecio: window.confirm('¿Incluir el precio en la etiqueta?\n\n(Aceptar = con precio, Cancelar = sin precio)') })}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Imprimir etiqueta</button>}
               </div>
               <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Si lo dejás vacío, el sistema le asigna un código único (P + número). Podés imprimir la etiqueta y pegarla al producto.</small>
             </div>
@@ -6929,7 +6791,7 @@ function ProductModal({ product, onClose }) {
           {/* ── PREVENTA / próximo ingreso ── */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, margin: '12px 0' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              <input type="checkbox" checked={f.es_preventa || false} onChange={e => setF({ ...f, es_preventa: e.target.checked })} /> 🔜 Producto en preventa / próximo a ingresar
+              <input type="checkbox" checked={f.es_preventa || false} onChange={e => setF({ ...f, es_preventa: e.target.checked })} /> <Clock size={14} style={{ verticalAlign: '-2px' }} /> Producto en preventa / próximo a ingresar
             </label>
             {f.es_preventa && (
               <div style={{ marginTop: 12 }}>
@@ -6954,7 +6816,7 @@ function ProductModal({ product, onClose }) {
                       const resv = reservadoReal !== null ? reservadoReal : (f.preventa_reservado || 0);
                       if (!confirm(`¿Recibiste la preventa de "${f.nombre || f.modelo}"?\n\nCupo de preventa: ${f.preventa_cupo || 0}\nYa reservadas (pedidos reales): ${resv}\n\nSe sumarán al stock físico las que sobran (cupo menos reservadas) y se desactivará la preventa.`)) return;
                       try { const r = await api.recibirPreventa(f.id); toast(`Recibido: +${r.sumado_a_stock} al stock físico, ${r.reservas_tomadas} ya reservadas`); onClose(); } catch (e) { toast(e.message, 'error'); }
-                    }}>📦 Recibí la preventa</button>
+                    }}><Package size={15} style={{ verticalAlign: '-2px' }} /> Recibí la preventa</button>
                   </div>
                 )}
               </div>
@@ -7050,9 +6912,9 @@ function ImportModal({ onClose }) {
     setUploading(true); setResult('');
     try {
       const r = await api.bulkProductos(data.productos, { modo, faltantes, seccion_id: importSecId });
-      setResult(`✅ ${r.insertados || 0} nuevos · ${r.actualizados || 0} actualizados${r.saltados ? ` · ${r.saltados} saltados` : ''}${r.marcadosSinStock ? ` · ${r.marcadosSinStock} marcados sin stock` : ''}`);
+      setResult(`${r.insertados || 0} nuevos · ${r.actualizados || 0} actualizados${r.saltados ? ` · ${r.saltados} saltados` : ''}${r.marcadosSinStock ? ` · ${r.marcadosSinStock} marcados sin stock` : ''}`);
       setData(null);
-    } catch (e) { setResult(`❌ Error: ${e.message}`); }
+    } catch (e) { setResult(`Error: ${e.message}`); }
     setUploading(false);
   };
 
@@ -7087,7 +6949,7 @@ function ImportModal({ onClose }) {
           {data && (
             <div style={{ marginTop: 12 }}>
               <p style={{ fontWeight: 700 }}>{data.total} productos detectados <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>({data.conSku} con SKU)</span></p>
-              {data.conSku < data.total && <p style={{ fontSize: 12, color: 'var(--warning)' }}>⚠️ {data.total - data.conSku} sin SKU: se crearán siempre como nuevos (no se pueden actualizar ni marcar sin stock).</p>}
+              {data.conSku < data.total && <p style={{ fontSize: 12, color: 'var(--warning)' }}><AlertTriangle size={15} style={{ verticalAlign: '-2px' }} /> {data.total - data.conSku} sin SKU: se crearán siempre como nuevos (no se pueden actualizar ni marcar sin stock).</p>}
               <button className="btn btn-primary" onClick={doUpload} disabled={uploading} style={{ marginTop: 12 }}>{uploading ? 'Importando...' : `Importar ${data.total} productos`}</button>
             </div>
           )}
@@ -7330,7 +7192,7 @@ function AdminPedidos({ filtroTipo }) {
         <h3>Pedidos</h3>
         <div style={{ display: 'flex', gap: 6 }}>
           {ordTab === 'presupuestos' && <button className="btn btn-primary btn-sm" onClick={() => setShowPresupuesto(true)}>+ Nuevo presupuesto</button>}
-          <button className="btn btn-outline btn-sm" onClick={exportExcel}>📊 Exportar Excel</button>
+          <button className="btn btn-outline btn-sm" onClick={exportExcel}><BarChart3 size={15} style={{ verticalAlign: '-2px' }} /> Exportar Excel</button>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -7353,8 +7215,8 @@ function AdminPedidos({ filtroTipo }) {
         <div key={p.id} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => setViewOrder(p)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <strong>{numOrden(p)}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>🧪 TEST</span>}
-              {p.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6 }}>🔖 RESERVA</span>}
+              <strong>{numOrden(p)}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}><FlaskConical size={15} style={{ verticalAlign: '-2px' }} /> TEST</span>}
+              {p.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6 }}><Bookmark size={15} style={{ verticalAlign: '-2px' }} /> RESERVA</span>}
               {p.seccion_nombre && <span style={{ background: p.seccion_color || 'var(--primary)', color: '#fff', padding: '1px 8px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{p.seccion_nombre}</span>}
               {' — '}{p.usuario_nombre || '(sin nombre)'} {p.nombre_fantasia && `(${p.nombre_fantasia})`}
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
@@ -7624,15 +7486,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
         </div>
       )}
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}>🔖 RESERVA / PREVENTA</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}><Bookmark size={15} style={{ verticalAlign: '-2px' }} /> RESERVA / PREVENTA</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {/* Client info */}
           <div className="card" style={{ padding: 12, marginBottom: 12 }}>
             <strong>{o.usuario_nombre}</strong> {o.nombre_fantasia && `(${o.nombre_fantasia})`}
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {o.usuario_telefono && <span>📱 {o.usuario_telefono} </span>}
-              {o.usuario_email && <span>✉️ {o.usuario_email} </span>}
-              {o.usuario_direccion && <span>📍 {o.usuario_direccion}</span>}
+              {o.usuario_telefono && <span><Smartphone size={15} style={{ verticalAlign: '-2px' }} /> {o.usuario_telefono} </span>}
+              {o.usuario_email && <span><Mail size={15} style={{ verticalAlign: '-2px' }} /> {o.usuario_email} </span>}
+              {o.usuario_direccion && <span><MapPin size={15} style={{ verticalAlign: '-2px' }} /> {o.usuario_direccion}</span>}
             </div>
           </div>
 
@@ -7703,7 +7565,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <input placeholder="Buscar producto para agregar..." value={addSearch} onChange={e => setAddSearch(e.target.value)} />
               {searchResults.length > 0 && (
                 <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', maxHeight: 150, overflowY: 'auto', marginTop: 4 }}>
-                  {searchResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }} onClick={() => addItem(p)}>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} /> : <span>📦</span>}<span style={{ flex: 1 }}>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''} — ${fmt(p.precio_base)}</span></div>)}
+                  {searchResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }} onClick={() => addItem(p)}>{p.imagen ? <img src={p.imagen} alt="" style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} /> : <span><Package size={15} style={{ verticalAlign: '-2px' }} /></span>}<span style={{ flex: 1 }}>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''} — ${fmt(p.precio_base)}</span></div>)}
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
@@ -7782,7 +7644,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           {/* HISTORIAL DE CAMBIOS (auditoría: quién cambió el estado y cuándo) */}
           {historial.length > 0 && (
             <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
-              <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>🕘 Historial de cambios</div>
+              <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}><History size={15} style={{ verticalAlign: '-2px' }} /> Historial de cambios</div>
               {historial.map(h => (
                 <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--border-light)' }}>
                   <span>{h.detalle}</span>
@@ -7793,20 +7655,20 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               ))}
             </div>
           )}
-          {o.notas && <p style={{ fontSize: 13 }}>📝 {o.notas}</p>}
-          {o.cupon_codigo && <p style={{ fontSize: 13 }}>🎟️ Cupón: {o.cupon_codigo}</p>}
+          {o.notas && <p style={{ fontSize: 13 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /> {o.notas}</p>}
+          {o.cupon_codigo && <p style={{ fontSize: 13 }}><Ticket size={15} style={{ verticalAlign: '-2px' }} /> Cupón: {o.cupon_codigo}</p>}
 
           {/* Datos de entrega y facturación del checkout */}
           {(datosEnvio || datosFact) && (
             <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, lineHeight: 1.6 }}>
               {datosEnvio?.contacto && (datosEnvio.contacto.nombre || datosEnvio.contacto.telefono) && (
                 <div style={{ marginBottom: datosEnvio?.entrega ? 8 : 0 }}>
-                  <strong>📇 Contacto:</strong> {datosEnvio.contacto.nombre}{datosEnvio.contacto.telefono ? ` · ${datosEnvio.contacto.telefono}` : ''}{datosEnvio.contacto.email ? ` · ${datosEnvio.contacto.email}` : ''}
+                  <strong><User size={15} style={{ verticalAlign: '-2px' }} /> Contacto:</strong> {datosEnvio.contacto.nombre}{datosEnvio.contacto.telefono ? ` · ${datosEnvio.contacto.telefono}` : ''}{datosEnvio.contacto.email ? ` · ${datosEnvio.contacto.email}` : ''}
                 </div>
               )}
               {datosEnvio?.entrega && (
                 <div style={{ marginBottom: datosFact ? 8 : 0 }}>
-                  <strong>{datosEnvio.entrega.tipo === 'envio' ? '📦 Envío a:' : '🏪 Retiro en el local'}</strong>
+                  <strong>{datosEnvio.entrega.tipo === 'envio' ? <><Package size={14} /> Envío a:</> : <><Store size={14} /> Retiro en el local</>}</strong>
                   {datosEnvio.entrega.tipo === 'envio' && (
                     <span> {datosEnvio.entrega.calle} {datosEnvio.entrega.numero}{datosEnvio.entrega.piso ? `, ${datosEnvio.entrega.piso}` : ''}, {datosEnvio.entrega.localidad} (CP {datosEnvio.entrega.cp}){datosEnvio.entrega.dni ? ` · DNI ${datosEnvio.entrega.dni}` : ''}</span>
                   )}
@@ -7814,7 +7676,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               )}
               {datosFact && (
                 <div style={{ paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
-                  <strong>🧾 Facturación:</strong> {datosFact.razon_social} · {datosFact.cuit_dni}
+                  <strong><Receipt size={15} style={{ verticalAlign: '-2px' }} /> Facturación:</strong> {datosFact.razon_social} · {datosFact.cuit_dni}
                   {datosFact.condicion_iva && <span> · {datosFact.condicion_iva.replace(/_/g, ' ')}</span>}
                   {datosFact.domicilio_fiscal && <div style={{ color: 'var(--text-muted)' }}>Domicilio fiscal: {datosFact.domicilio_fiscal}</div>}
                 </div>
@@ -7826,21 +7688,21 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
             <button className="btn btn-outline btn-sm" onClick={() => printOrder('A4')}><Ico n="printer" s={15} /> Remito A4</button>
             <select className="btn btn-outline btn-sm" defaultValue="" onChange={e => { if (e.target.value) { printOrder(e.target.value); e.target.value = ''; } }} style={{ cursor: 'pointer' }}>
-              <option value="">🖨️ Térmica...</option>
+              <option value=""><Printer size={15} style={{ verticalAlign: '-2px' }} /> Térmica...</option>
               <option value="50mm">Térmica 50mm</option>
               <option value="58mm">Térmica 58mm</option>
               <option value="80mm">Térmica 80mm</option>
               <option value="100mm">Térmica 100mm</option>
             </select>
-            <button className="btn btn-outline btn-sm" onClick={cloneOrder}>📋 Duplicar</button>
+            <button className="btn btn-outline btn-sm" onClick={cloneOrder}><ClipboardList size={15} style={{ verticalAlign: '-2px' }} /> Duplicar</button>
             {o.tipo === 'presupuesto' && <button className="btn btn-success btn-sm" onClick={async () => {
               try {
                 const val = await api.validarConversion(o.id);
                 if (val.tiene_cambios) {
                   const msgs = val.cambios.map(c => {
-                    if (c.tipo === 'eliminado') return `❌ ${c.item}: ${c.detalle}`;
-                    if (c.tipo === 'stock') return `⚠️ ${c.item}: ${c.detalle}`;
-                    if (c.tipo === 'precio') return `💰 ${c.item}: ${c.detalle}`;
+                    if (c.tipo === 'eliminado') return `${c.item}: ${c.detalle}`;
+                    if (c.tipo === 'stock') return `${c.item}: ${c.detalle}`;
+                    if (c.tipo === 'precio') return `${c.item}: ${c.detalle}`;
                     return c.detalle;
                   }).join('\n');
                   if (!window.confirm(`Hay cambios desde que se creó el presupuesto:\n\n${msgs}\n\n¿Convertir a pedido de todas formas?`)) return;
@@ -7850,9 +7712,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               } catch (e) { toast(e.message, 'error'); }
             }}>✓ Convertir a pedido</button>}
             {o.tipo === 'pedido' && <button className="btn btn-outline btn-sm" onClick={async () => { if (!confirm('¿Volver este pedido a presupuesto? Se devolverá el stock descontado.')) return; try { await api.updatePedido(o.id, { tipo: 'presupuesto', estado: 'pendiente' }); toast('Volvió a presupuesto'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>↩ Volver a presupuesto</button>}
-            {(o.usuario_telefono) && <button className="btn btn-outline btn-sm" onClick={() => { const tel = (o.usuario_telefono || '').replace(/\D/g, ''); const num = tel.startsWith('54') ? tel : `54${tel}`; openWA(num, `Hola ${o.usuario_nombre || ''}, respecto a tu pedido #${o.id}:`); }}>📱 WhatsApp</button>}
-            <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.archivarPedido(o.id); toast('Archivado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>📥 Archivar</button>
-            <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar este pedido?')) return; try { await api.deletePedido(o.id); toast('Eliminado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}>🗑 Eliminar</button>
+            {(o.usuario_telefono) && <button className="btn btn-outline btn-sm" onClick={() => { const tel = (o.usuario_telefono || '').replace(/\D/g, ''); const num = tel.startsWith('54') ? tel : `54${tel}`; openWA(num, `Hola ${o.usuario_nombre || ''}, respecto a tu pedido #${o.id}:`); }}><Smartphone size={15} style={{ verticalAlign: '-2px' }} /> WhatsApp</button>}
+            <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.archivarPedido(o.id); toast('Archivado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}><Archive size={15} style={{ verticalAlign: '-2px' }} /> Archivar</button>
+            <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar este pedido?')) return; try { await api.deletePedido(o.id); toast('Eliminado'); onClose(); } catch (e) { toast(e.message, 'error'); } }}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /> Eliminar</button>
           </div>
         </div>
       </div>
@@ -7894,7 +7756,7 @@ function AdminUsuarios() {
             <div>
               <strong>{u.nombre}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>@{u.usuario}</span>
               {u.nombre_fantasia && <span style={{ fontSize: 12, marginLeft: 4 }}>({u.nombre_fantasia})</span>}
-              {u.notas_admin && <span style={{ fontSize: 11, color: 'var(--primary)', marginLeft: 8 }}>📝</span>}
+              {u.notas_admin && <span style={{ fontSize: 11, color: 'var(--primary)', marginLeft: 8 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /></span>}
             </div>
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               <span style={{ background: u.aprobado === false ? 'var(--warning-light)' : u.activo ? 'var(--success-light)' : 'var(--danger-light)', color: u.aprobado === false ? 'var(--warning)' : u.activo ? 'var(--success)' : 'var(--danger)', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
@@ -7953,7 +7815,7 @@ function UserModal({ u, onClose }) {
   const aprobar = async (lid) => {
     setSv(true);
     try {
-      await api.aprobarUsuario(u.id, lid); toast('Aprobado ✅');
+      await api.aprobarUsuario(u.id, lid); toast('Aprobado');
       if (u.telefono) { const msg = `Hola ${u.nombre}, tu cuenta ya está activa. Tu usuario es: *${u.usuario}*`; openWA(`54${u.telefono.replace(/\D/g, '')}`, msg); }
       onClose();
     } catch (e) { toast(e.message, 'error'); }
@@ -7974,7 +7836,7 @@ function UserModal({ u, onClose }) {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {listas.map(l => <button key={l.id} className="btn btn-sm" style={{ borderColor: l.color, color: l.color }} onClick={() => aprobar(l.id)} disabled={sv}>{l.nombre}</button>)}
               </div>
-              <button className="btn btn-danger btn-sm" onClick={rechazar} disabled={sv} style={{ marginTop: 8 }}>❌ Rechazar</button>
+              <button className="btn btn-danger btn-sm" onClick={rechazar} disabled={sv} style={{ marginTop: 8 }}><XCircle size={15} style={{ verticalAlign: '-2px' }} /> Rechazar</button>
             </div>
           )}
 
@@ -8014,7 +7876,7 @@ function UserModal({ u, onClose }) {
           </div>
           <div className="form-group" style={{ marginTop: 12 }}><label className="form-label">Notas internas (solo admin)</label><textarea value={f.notas_admin} onChange={e => setF({ ...f, notas_admin: e.target.value })} rows={2} placeholder="Ej: Paga a 30 días, viene los viernes..." /></div>
           {!isNew && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}><input type="checkbox" checked={f.activo !== false} onChange={e => setF({ ...f, activo: e.target.checked })} /> {f.activo !== false ? '✅ Cuenta activa' : '🔴 Cuenta suspendida'}</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}><input type="checkbox" checked={f.activo !== false} onChange={e => setF({ ...f, activo: e.target.checked })} /> {f.activo !== false ? <><CheckCircle size={14} /> Cuenta activa</> : <><XCircle size={14} /> Cuenta suspendida</>}</label>
           )}
         </div>
         {!isNew && showHist && (
@@ -8074,26 +7936,26 @@ function UserModal({ u, onClose }) {
         <div className="modal-footer" style={{ flexWrap: 'wrap', gap: 8 }}>
           {!isNew && (
             <>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowHist(!showHist)}>{showHist ? 'Ocultar historial' : '📊 Ver historial'}</button>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowCta(!showCta)}>{showCta ? 'Ocultar cuenta' : '💳 Cuenta corriente'}</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowHist(!showHist)}>{showHist ? 'Ocultar historial' : <><BarChart3 size={14} /> Ver historial</>}</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowCta(!showCta)}>{showCta ? 'Ocultar cuenta' : <><CreditCard size={14} /> Cuenta corriente</>}</button>
             </>
           )}
           {!isNew && (
-            <button className="btn btn-outline btn-sm" onClick={async () => { const r = await api.resetPassword(u.id); toast('Contraseña reseteada a 1234'); if (r.telefono) { openWA(`54${r.telefono.replace(/\D/g, '')}`, `Hola ${r.nombre}, tu contraseña fue reseteada. Tu nueva contraseña es: 1234`); } }} style={{ marginRight: 'auto' }}>🔑 Reset pass</button>
+            <button className="btn btn-outline btn-sm" onClick={async () => { if (!window.confirm(`¿Generar una contraseña temporal nueva para ${u.nombre || u.usuario}?`)) return; try { const r = await api.resetPasswordAdmin(u.id); window.prompt('Contraseña temporal (copiala y pasásela al cliente). Después la puede cambiar en Mi cuenta:', r.codigo); if (r.telefono && window.confirm('¿Mandársela por WhatsApp?')) { openWA(`54${r.telefono.replace(/\D/g, '')}`, `Hola ${r.nombre || ''}, tu contraseña temporal es: ${r.codigo} . Podés cambiarla desde Mi cuenta.`); } } catch (e) { toast(e.message, 'error'); } }} style={{ marginRight: 'auto' }}>Resetear contraseña</button>
           )}
           {!isNew && (
             <button className="btn btn-outline btn-sm" onClick={async () => {
               const desactivar = f.activo;
               if (!confirm(desactivar ? `¿Sacarle el acceso a ${u.nombre}? No va a poder entrar, pero se conserva su historial. Podés reactivarlo cuando quieras.` : `¿Reactivar el acceso de ${u.nombre}?`)) return;
               try { await api.suspenderUsuario(u.id, !desactivar); setF({ ...f, activo: !desactivar }); toast(desactivar ? 'Acceso desactivado' : 'Acceso reactivado'); } catch (e) { toast(e.message, 'error'); }
-            }}>{f.activo ? '🚫 Sacar acceso' : '✅ Dar acceso'}</button>
+            }}>{f.activo ? <><Ban size={14} /> Sacar acceso</> : <><CheckCircle size={14} /> Dar acceso</>}</button>
           )}
           {!isNew && (
             <button className="btn btn-danger btn-sm" onClick={async () => {
-              if (!confirm(`¿ELIMINAR a ${u.nombre} por completo?\n\n⚠️ Esto borra el usuario Y todos sus pedidos/historial. No se puede deshacer.\n\nSi solo querés sacarle el acceso, usá "Sacar acceso" en su lugar.`)) return;
+              if (!confirm(`¿ELIMINAR a ${u.nombre} por completo?\n\nATENCIÓN: esto borra el usuario Y todos sus pedidos/historial. No se puede deshacer.\n\nSi solo querés sacarle el acceso, usá "Sacar acceso" en su lugar.`)) return;
               if (!confirm('Última confirmación: se borra todo de este cliente. ¿Seguro?')) return;
               try { await api.deleteUsuario(u.id); toast('Usuario eliminado'); onClose(true); } catch (e) { toast(e.message, 'error'); }
-            }}>🗑️ Eliminar</button>
+            }}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /> Eliminar</button>
           )}
           <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={save} disabled={sv}>{sv ? 'Guardando...' : 'Guardar'}</button>
@@ -8201,13 +8063,13 @@ function AdminNotifStock() {
           </div>
           {g.esperando.map(n => (
             <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
-              <span>{n.canal === 'whatsapp' ? `📱 ${n.telefono}` : n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
+              <span>{n.canal === 'whatsapp' ? `${n.telefono}` : n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {n.canal === 'whatsapp' && n.telefono
                   ? <button className="btn btn-success btn-sm" onClick={() => { let t = n.telefono.replace(/\D/g, ''); if (t.startsWith('0')) t = t.slice(1); if (!t.startsWith('54')) t = '549' + t; window.open(`https://wa.me/${t}?text=${encodeURIComponent(`¡Hola! El producto ${g.nombre} que esperabas ya está disponible. ¿Lo querés?`)}`, '_blank'); }}>WhatsApp</button>
                   : <a href={`mailto:${n.email}?subject=¡Volvió el stock!&body=Hola, el producto ${g.nombre} que esperabas ya está disponible.`} className="btn btn-success btn-sm" style={{ textDecoration: 'none' }}>Email</a>}
                 <button className="btn btn-outline btn-sm" onClick={() => avisar(n.id)}>✓ Avisado</button>
-                <button className="btn btn-danger btn-sm" onClick={() => borrar(n.id)}>🗑</button>
+                <button className="btn btn-danger btn-sm" onClick={() => borrar(n.id)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
               </div>
             </div>
           ))}
@@ -8333,7 +8195,7 @@ function AdminReportes() {
             <div className="card" style={{ padding: 18 }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Costo</div><div style={{ fontSize: 26, fontWeight: 900, color: 'var(--danger)' }}>{fmtARS(rep.ganancias.costo)}</div></div>
             <div className="card" style={{ padding: 18, background: 'var(--success)', color: '#fff' }}><div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, opacity: 0.9 }}>Ganancia estimada</div><div style={{ fontSize: 26, fontWeight: 900 }}>{fmtARS(rep.ganancias.ganancia)}</div></div>
           </div>
-          {rep.ganancias.costo === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, marginTop: -8 }}>💡 Cargá el "precio de costo" en tus productos para ver la ganancia real.</p>}
+          {rep.ganancias.costo === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, marginTop: -8 }}><Lightbulb size={15} style={{ verticalAlign: '-2px' }} /> Cargá el "precio de costo" en tus productos para ver la ganancia real.</p>}
 
           {/* Más vendidos */}
           <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Más vendidos</h4>
@@ -8417,7 +8279,7 @@ function AdminCarritosAbandonados() {
       <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Carritos abandonados ({carritos.length})</h3>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Clientes que agregaron productos pero no completaron la compra. Contactalos por WhatsApp para recuperar la venta.</p>
 
-      {carritos.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay carritos abandonados 🎉</p> : carritos.map(c => (
+      {carritos.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay carritos abandonados</p> : carritos.map(c => (
         <div key={c.id} className="card" style={{ padding: 14, marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
             <div>
@@ -8431,7 +8293,7 @@ function AdminCarritosAbandonados() {
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-success btn-sm" onClick={() => contactar(c)}>WhatsApp</button>
                 <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}>✓ Recuperado</button>
-                <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)}>🗑</button>
+                <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
               </div>
             </div>
           </div>
@@ -8537,7 +8399,7 @@ function AdminCupones() {
               </div>
               <div className="form-group"><label className="form-label">Productos (buscar)</label>
                 <input placeholder="Buscar productos..." value={prodSearch} onChange={e => searchProds(e.target.value)} />
-                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 150, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)' }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span>📦</span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
+                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 150, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border-light)' }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span><Package size={15} style={{ verticalAlign: '-2px' }} /></span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
                 {selProds.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>{selProds.map(p => <span key={p.id} style={{ background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontSize: 12, cursor: 'pointer' }} onClick={() => setSelProds(selProds.filter(sp => sp.id !== p.id))}>{p.nombre || p.modelo} ✕</span>)}</div>}
               </div>
             </div>
@@ -8617,7 +8479,7 @@ function AdminPromociones() {
               </div>
               <div className="form-group"><label className="form-label">Productos (buscar)</label>
                 <input placeholder="Buscar..." value={prodSearch} onChange={e => searchProds(e.target.value)} />
-                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 120, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '4px 8px', cursor: 'pointer', fontSize: 13 }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span>📦</span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
+                {prodResults.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 4, maxHeight: 120, overflowY: 'auto', marginTop: 4 }}>{prodResults.map(p => <div key={p.id} style={{ padding: '4px 8px', cursor: 'pointer', fontSize: 13 }} onClick={() => { if (!selProds.find(sp => sp.id === p.id)) setSelProds([...selProds, p]); setProdResults([]); setProdSearch(''); }}><span style={{display:'flex',gap:8,alignItems:'center'}}>{p.imagen ? <img src={p.imagen} alt="" style={{width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0}} /> : <span><Package size={15} style={{ verticalAlign: '-2px' }} /></span>}<span>{p.nombre || p.modelo} — {p.categoria}{p.seccion_nombre ? ` · ${p.seccion_nombre}` : ''}</span></span></div>)}</div>}
                 {selProds.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>{selProds.map(p => <span key={p.id} style={{ background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontSize: 12, cursor: 'pointer' }} onClick={() => setSelProds(selProds.filter(sp => sp.id !== p.id))}>{p.nombre || p.modelo} ✕</span>)}</div>}
               </div>
               <div className="form-row">
@@ -8713,7 +8575,7 @@ function AdminOrdenSecciones() {
           <span style={{ width: 12, height: 12, borderRadius: '50%', background: s.color || 'var(--primary)', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <strong style={{ fontSize: 14 }}>{s.nombre}</strong>
-            {s.requiere_aprobacion && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>🔒 con aprobación</span>}
+            {s.requiere_aprobacion && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}><Lock size={15} style={{ verticalAlign: '-2px' }} /> con aprobación</span>}
           </div>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{i + 1}</span>
           <button className="btn btn-outline btn-sm" onClick={() => toggleVisible(s)} title={s.visible === false ? 'Mostrar' : 'Ocultar'}>
@@ -8743,7 +8605,7 @@ function useDnDReorder(items, setItems, onSave) {
 function AdminBadges() {
   const { secciones, toast } = useContext(Ctx);
   const [bgs, setBgs] = useState([]); const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ icono: '⭐', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 });
+  const [form, setForm] = useState({ icono: 'star', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 });
   const [edit, setEdit] = useState(null);
   useEffect(() => { api.getBadgesAll().then(b => setBgs(b.sort((a,c) => (a.orden||0) - (c.orden||0)))); }, []);
   const reload = () => api.getBadgesAll().then(b => setBgs(b.sort((a,c) => (a.orden||0) - (c.orden||0))));
@@ -8755,7 +8617,7 @@ function AdminBadges() {
   const secNames = (ids) => { if (!ids) return 'Todas'; const arr = ids.split(',').map(Number).filter(Boolean); if (!arr.length) return 'Todas'; return arr.map(id => secciones.find(s => s.id === id)?.nombre).filter(Boolean).join(', '); };
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: '⭐', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Badges de confianza</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ icono: 'star', texto: '', color: 'var(--primary)', secciones_ids: '', visible: true, orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran debajo de los productos como indicadores de confianza. Arrastrá ⠿ para reordenar, tocá el ojo para activar/desactivar.</p>
       {bgs.map((b, i) => (<div key={b.id} draggable onDragStart={() => dnd.start(i)} onDragEnter={() => dnd.enter(i)} onDragEnd={dnd.end} onDragOver={e => e.preventDefault()} className="card" style={{ padding: 12, marginBottom: 8, cursor: 'grab', opacity: b.visible ? 1 : 0.5 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ opacity: 0.35 }}>⠿</span><RenderIcon value={b.icono} size={16} /><strong>{b.texto}</strong><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({secNames(b.secciones_ids)})</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => toggleVisible(b)} title={b.visible ? 'Ocultar' : 'Mostrar'} style={{ padding: '2px 8px' }}>{b.visible ? <Ico n="eye" s={15} /> : <Ico n="eye-off" s={15} />}</button><button className="btn btn-outline btn-sm" onClick={() => { setEdit(b); setForm(b); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar badge?')) return; try { await api.deleteBadge(b.id); toast('Eliminado'); reload(); } catch (e) { toast(e.message, 'error'); } }}><Ico n="trash" s={15} /></button></div></div></div>))}
       {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} badge</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
@@ -8773,7 +8635,7 @@ function AdminBadges() {
 function AdminMetodosPago() {
   const { secciones, toast, config, setConfig } = useContext(Ctx);
   const [mps, setMps] = useState([]); const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ nombre: '', descripcion: '', instrucciones: '', icono: '💳', seccion_id: null, activo: true, orden: 0 });
+  const [form, setForm] = useState({ nombre: '', descripcion: '', instrucciones: '', icono: 'credit-card', seccion_id: null, activo: true, orden: 0 });
   const [descuentoPct, setDescuentoPct] = useState('');
   const [edit, setEdit] = useState(null);
   const loadMps = () => api.getMetodosPagoAll().then(m => setMps(m.sort((a,b) => (a.orden||0) - (b.orden||0))));
@@ -8781,7 +8643,7 @@ function AdminMetodosPago() {
   const [usdt, setUsdt] = useState({ wallet: config.usdt_wallet || '', red: config.usdt_red || '', alias: config.usdt_alias || '', instrucciones: config.usdt_instrucciones || '' });
   const saveUsdt = async () => { try { const upd = { usdt_wallet: usdt.wallet || '', usdt_red: usdt.red || '', usdt_alias: usdt.alias || '', usdt_instrucciones: usdt.instrucciones || '' }; await api.updateConfig(upd); setConfig({ ...config, ...upd }); toast('Datos de pago USDT guardados'); } catch (e) { toast(e.message, 'error'); } };
   const descKey = (nombre) => `descuento_${(nombre || '').toLowerCase().replace(/\s+/g, '_')}`;
-  const openNew = () => { setEdit(null); setForm({ nombre: '', descripcion: '', instrucciones: '', icono: '💳', seccion_id: null, activo: true, orden: 0 }); setDescuentoPct(''); setShow(true); };
+  const openNew = () => { setEdit(null); setForm({ nombre: '', descripcion: '', instrucciones: '', icono: 'credit-card', seccion_id: null, activo: true, orden: 0 }); setDescuentoPct(''); setShow(true); };
   const openEdit = (m) => { setEdit(m); setForm(m); setDescuentoPct(config[descKey(m.nombre)] || ''); setShow(true); };
   const save = async () => { if (!form.nombre?.trim()) { toast('El nombre del método de pago es obligatorio', 'error'); return; } try {
     if (edit) await api.updateMetodoPago(edit.id, form); else await api.createMetodoPago(form);
@@ -9186,7 +9048,7 @@ function AdminDiseno() {
                   <div className="form-group"><label className="form-label">Mensaje inicial</label><input value={des.whatsapp_mensaje || ''} onChange={e => set({ whatsapp_mensaje: e.target.value })} placeholder="Hola, quiero consultar..." /></div>
                 </div>
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-                  <h4 style={{ marginBottom: 8, fontSize: 14 }}>🛡️ Tarjetas de confianza</h4>
+                  <h4 style={{ marginBottom: 8, fontSize: 14 }}><Shield size={15} style={{ verticalAlign: '-2px' }} /> Tarjetas de confianza</h4>
                   {[1, 2, 3].map(n => (
                     <div key={n} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div style={{ width: 150 }}><IconPicker label={`Ícono ${n}`} value={des[`confianza_${n}_icono`] || ''} onChange={v => set({ [`confianza_${n}_icono`]: v })} /></div>
@@ -9206,8 +9068,8 @@ function AdminDiseno() {
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Vista previa en vivo</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <div className="editor-device-btns">
-                <button className={predev === 'desktop' ? 'active' : ''} onClick={() => setPredev('desktop')} title="Escritorio">🖥️</button>
-                <button className={predev === 'mobile' ? 'active' : ''} onClick={() => setPredev('mobile')} title="Celular">📱</button>
+                <button className={predev === 'desktop' ? 'active' : ''} onClick={() => setPredev('desktop')} title="Escritorio"><Monitor size={16} /></button>
+                <button className={predev === 'mobile' ? 'active' : ''} onClick={() => setPredev('mobile')} title="Celular"><Smartphone size={16} /></button>
               </div>
               <button className="btn btn-outline btn-sm" onClick={() => setPreviewKey(k => k + 1)} title="Recargar preview"><Ico n="refresh-cw" s={14} /></button>
             </div>
@@ -9457,7 +9319,7 @@ function AdminSlider() {
 // SEARCH RESULTS PAGE
 // ═══════════════════════════════════════════════════════════
 function SearchResultsPage() {
-  const { globalSearch, setGlobalSearch, globalResults, doGlobalSearch, nav, toast, addToCart, getPrice, userLista, config, user, secciones, promos } = useContext(Ctx);
+  const { globalSearch, setGlobalSearch, globalResults, doGlobalSearch, nav, toast, addToCart, getPrice, userLista, config, user, secciones, promos, precioLista, precioEfectivo, ajusteCliente } = useContext(Ctx);
   const [favIds, setFavIds] = useState(new Set());
   useEffect(() => { if (user) api.getFavoritos().then(fs => setFavIds(new Set(fs.map(f => f.producto_id)))).catch(() => {}); }, [user]);
   const toggleFav = async (pid) => { try { if (favIds.has(pid)) { await api.removeFavorito(pid); setFavIds(prev => { const n = new Set(prev); n.delete(pid); return n; }); toast('Quitado de favoritos'); } else { await api.addFavorito(pid); setFavIds(prev => new Set(prev).add(pid)); toast('Agregado a favoritos'); } } catch {} };
@@ -9485,15 +9347,15 @@ function SearchResultsPage() {
             <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary)', marginBottom: 12, cursor: 'pointer' }} onClick={() => nav('section', sec.id)}>{sec.nombre} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>({r.productos.length})</span></h3>
             <div className="product-grid">
               {r.productos.map(p => {
-                const precio = getPrice ? getPrice(p.precio_base, userLista, p.id) : (Number(p.precio_base) || 0);
-                const tieneOferta = p.precio_oferta && Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base);
-                const efectivo = tieneOferta ? Number(p.precio_oferta) : Number(precio);
-                const promoInfo = !p.usa_variantes ? aplicarPromo(efectivo, p, promos, sec.id, 'ARS') : null;
+                const precio = precioLista(p);
+                const tieneOferta = Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < precio;
+                const efectivo = precioEfectivo(p);
+                const promoInfo = !p.usa_variantes ? ajusteCliente(efectivo, p, promos, sec.id, 'ARS') : null;
                 const sinStock = p.stock === 0 && !p.permitir_sin_stock && !p.es_digital;
                 return (
                   <div key={p.id} className="kicks-card product-card" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
                     {user && <button className={`card-fav${favIds.has(p.id) ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}><Ico n="heart" s={16} fill={favIds.has(p.id)} /></button>}
-                    <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => { setSelectedProduct && window.__secId; nav('product', { ...p, seccion_id: sec.id }); }}>
+                    <div className="product-img-wrap" style={{ cursor: 'pointer' }} onClick={() => nav('product', { ...p, seccion_id: sec.id })}>
                       {p.imagen
                         ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
                         : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>}
@@ -9529,7 +9391,7 @@ function SearchResultsPage() {
 }
 
 function FavoritosPage() {
-  const { nav, toast, addToCart, getPrice, userLista } = useContext(Ctx);
+  const { nav, toast, addToCart, getPrice, userLista, precioFinalCliente, promos } = useContext(Ctx);
   const [favs, setFavs] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { api.getFavoritos().then(f => { setFavs(f); setLoading(false); }).catch(() => setLoading(false)); }, []);
@@ -9537,7 +9399,7 @@ function FavoritosPage() {
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← Volver</button>
-      <h2 style={{ fontWeight: 800, marginBottom: 16 }}>❤️ Mis favoritos ({favs.length})</h2>
+      <h2 style={{ fontWeight: 800, marginBottom: 16 }}><Heart size={15} style={{ verticalAlign: '-2px' }} /> Mis favoritos ({favs.length})</h2>
       {loading ? <div className="spinner" /> : favs.length === 0 ? (
         <div className="empty-state"><h3>No tenés favoritos todavía</h3><p>Tocá el corazón en los productos para guardarlos acá.</p></div>
       ) : (
@@ -9545,12 +9407,12 @@ function FavoritosPage() {
           {favs.map(f => (
             <div key={f.id} className="card" style={{ overflow: 'hidden' }}>
               <div style={{ cursor: 'pointer' }} onClick={() => nav('section', f.seccion_id)}>
-                {f.imagen ? <img src={f.imagen} alt="" style={{ width: '100%', height: 160, objectFit: 'contain', background: 'var(--bg)', padding: 8 }} /> : <div style={{ height: 160, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#ccc' }}>📱</div>}
+                {f.imagen ? <img src={f.imagen} alt="" style={{ width: '100%', height: 160, objectFit: 'contain', background: 'var(--bg)', padding: 8 }} /> : <div style={{ height: 160, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#ccc' }}><Smartphone size={15} style={{ verticalAlign: '-2px' }} /></div>}
               </div>
               <div style={{ padding: 12 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>{f.categoria}</div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{f.nombre || f.modelo}</div>
-                {(() => { const _fp = getPrice ? getPrice(f.precio_base, userLista, f.producto_id || f.id) : (Number(f.precio_base) || 0); return _fp > 0 ? <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(_fp)}</div> : <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Consultar precio</div>; })()}
+                {(() => { const _fp = precioFinalCliente({ ...f, id: f.producto_id || f.id }, promos, f.seccion_id); return _fp > 0 ? <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{fmtARS(_fp)}</div> : <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Consultar precio</div>; })()}
                 <div style={{ display: 'flex', gap: 6 }}>
                   {f.usa_variantes ? <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => nav('product', { ...f, id: f.producto_id || f.id })}>Ver opciones</button> : f.stock > 0 && <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { addToCart(f.seccion_id, f, 1); toast('Agregado'); }}>Agregar</button>}
                   <button className="btn btn-outline btn-sm" onClick={() => remove(f.producto_id)}><Ico n="trash" s={15} /></button>
@@ -9750,7 +9612,7 @@ function AdminConfig() {
 
       {/* Mantenimiento */}
       <div className="card" style={{ padding: 16 }}>
-        <h4 style={{ marginBottom: 8 }}>🔧 Modo mantenimiento</h4>
+        <h4 style={{ marginBottom: 8 }}><Wrench size={15} style={{ verticalAlign: '-2px' }} /> Modo mantenimiento</h4>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><input type="checkbox" checked={m.activo} onChange={e => setM({ ...m, activo: e.target.checked })} /> Activar mantenimiento</label>
         <div className="form-group"><label className="form-label">Mensaje personalizado</label><input value={m.mensaje} onChange={e => setM({ ...m, mensaje: e.target.value })} placeholder="Estamos trabajando en mejoras..." /></div>
         <div className="form-group"><label className="form-label">Fecha de vuelta (countdown)</label><input type="datetime-local" value={m.countdown} onChange={e => setM({ ...m, countdown: e.target.value })} /></div>

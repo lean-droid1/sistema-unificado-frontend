@@ -177,7 +177,9 @@ export async function getHistorialPedido(pedidoId) { return f(`/api/pedidos/${pe
 export async function addPago(pedidoId, datos) { return f(`/api/pedidos/${pedidoId}/pagos`, { method: 'POST', body: JSON.stringify(datos) }); }
 export async function deletePago(pedidoId, pagoId) { return f(`/api/pedidos/${pedidoId}/pagos/${pagoId}`, { method: 'DELETE' }); }
 export async function createPedido(data) { return f('/api/pedidos', { method: 'POST', body: JSON.stringify(data) }); }
-export async function createPedidosMulti(pedidos, is_test=false) { return f('/api/pedidos/multi', { method: 'POST', body: JSON.stringify({ pedidos, is_test }) }); }
+export async function createPedidosMulti(pedidos, is_test=false, extra={}) { return f('/api/pedidos/multi', { method: 'POST', body: JSON.stringify({ pedidos, is_test, ...extra }) }); }
+// Precios, envío por tienda, cupón y totales calculados por el servidor (lo mismo que se va a cobrar)
+export async function cotizarCarrito(body) { return f('/api/carrito/cotizar', { method: 'POST', body: JSON.stringify(body) }); }
 export async function updatePedido(id, data) { return f(`/api/pedidos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function validarConversion(id) { return f(`/api/pedidos/${id}/validar-conversion`, { method: 'POST' }); }
 export async function getProducto(id) { return f(`/api/productos/id/${id}`); }
