@@ -1027,3 +1027,56 @@ body.con-barra-compra .wa-widget { bottom: 86px !important; }
 .pm-card .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0 12px; }
 .pm-card .form-row > .form-group:has(> small) { grid-column: 1 / -1; }
 @media (max-width: 768px) { .pm-card .form-row { grid-template-columns: 1fr 1fr; } }
+
+/* ── Galería de fotos del producto (panel) ── */
+.spin { animation: spin 0.9s linear infinite; }
+.gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; padding: 8px; border: 2px dashed transparent; border-radius: 12px; transition: border-color .15s, background .15s; }
+.gal-grid.drag { border-color: var(--primary); background: var(--bg-secondary); }
+.gal-item { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg-secondary); cursor: grab; }
+.gal-item.principal { border: 2px solid var(--primary); }
+.gal-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gal-badge { position: absolute; top: 5px; left: 5px; background: var(--primary); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+.gal-del { position: absolute; top: 5px; right: 5px; width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.gal-del:hover { background: var(--danger); }
+.gal-move { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 4px; background: linear-gradient(transparent, rgba(0,0,0,.55)); opacity: 0; transition: opacity .15s; }
+.gal-item:hover .gal-move, .gal-item:focus-within .gal-move { opacity: 1; }
+.gal-move button { width: 26px; height: 22px; border: none; border-radius: 6px; background: rgba(255,255,255,.9); color: #111; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.gal-move button:disabled { opacity: .3; cursor: default; }
+.gal-add { aspect-ratio: 1; border: 2px dashed var(--border); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color .15s, color .15s; }
+.gal-add:hover { border-color: var(--primary); color: var(--primary); }
+.gal-add.cargando { cursor: progress; }
+.gal-url { display: flex; gap: 8px; margin-top: 8px; }
+.gal-url input { flex: 1; min-width: 0; }
+@media (hover: none) { .gal-move { opacity: 1; } }
+
+/* ── Pop-ups (panel) ── */
+.popup-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.popup-row-thumbs { display: flex; flex-shrink: 0; }
+.popup-row-thumbs img, .popup-row-sin { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; border: 2px solid var(--bg-card); background: var(--bg-secondary); }
+.popup-row-thumbs img + img { margin-left: -18px; }
+.popup-row-sin { display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.popup-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.popup-row-info strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.popup-row-info span { font-size: 12px; color: var(--text-muted); }
+.chip-estado { border: 1px solid var(--border); background: transparent; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.chip-estado.on { color: var(--success); border-color: var(--success); }
+.chip-estado.off { color: var(--text-muted); }
+
+/* ── Pop-up promocional (tienda) ── */
+.popup-overlay { padding: 16px; }
+.popup-promo { position: relative; width: min(440px, 100%); max-height: calc(100vh - 32px); background: var(--bg-card); color: var(--text); border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.35); display: flex; flex-direction: column; animation: waPop .25s ease; }
+.popup-promo.solo-texto { padding-top: 28px; }
+.popup-cerrar { position: absolute; top: 10px; right: 10px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.popup-cerrar:hover { background: rgba(0,0,0,.75); }
+.popup-media { position: relative; display: grid; background: #000; }
+.popup-media img { grid-area: 1 / 1; width: 100%; max-height: calc(100vh - 170px); object-fit: contain; opacity: 0; transition: opacity .45s ease; pointer-events: none; }
+.popup-media img.activa { opacity: 1; pointer-events: auto; }
+.popup-flecha { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,.85); color: #111; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.popup-flecha.izq { left: 8px; } .popup-flecha.der { right: 8px; }
+.popup-puntos { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; z-index: 2; }
+.popup-puntos button { width: 8px; height: 8px; padding: 0; border-radius: 999px; border: none; background: rgba(255,255,255,.55); cursor: pointer; transition: width .2s, background .2s; }
+.popup-puntos button.on { width: 20px; background: #fff; }
+.popup-pie { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 10px; text-align: center; }
+.popup-pie h3 { margin: 0; font-size: 18px; line-height: 1.25; }
+.popup-pie .btn { width: 100%; }
+@media (max-width: 480px) { .popup-flecha { width: 30px; height: 30px; } }

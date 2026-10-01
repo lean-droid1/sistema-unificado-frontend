@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -2094,7 +2094,13 @@ function Landing() {
   }, []);
 
   useEffect(() => {
-    api.getPopups().then(p => { if (p.length) setShowPopup(p[0]); }).catch(() => {});
+    // Pop-up: una sola vez por visita (no reaparece cada vez que vuelve al inicio)
+    api.getPopups().then(p => {
+      if (!p.length) return;
+      const clave = `popup_visto_${p[0].id}`;
+      try { if (sessionStorage.getItem(clave)) return; sessionStorage.setItem(clave, '1'); } catch {}
+      setShowPopup(p[0]);
+    }).catch(() => {});
     api.getSlider().then(s => setSliders(s)).catch(() => {});
     if (user) api.getFavoritos().then(favs => setFavIds(new Set(favs.map(f => f.producto_id)))).catch(() => {});
     // Load first 8 products per visible section
@@ -2234,16 +2240,7 @@ function Landing() {
   return (
     <div className="landing">
       {/* Popup */}
-      {showPopup && (
-        <div className="modal-overlay" onClick={() => setShowPopup(null)}>
-          <div className="modal popup-modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowPopup(null)}>✕</button>
-            <h3>{showPopup.titulo}</h3>
-            {showPopup.imagen && <img src={showPopup.imagen} alt="" style={{ maxWidth: '100%', borderRadius: 8, margin: '12px 0' }} />}
-            {showPopup.url_destino && <a href={showPopup.url_destino} target="_blank" rel="noopener" className="btn btn-primary" style={{ marginTop: 8 }}>Ver más</a>}
-          </div>
-        </div>
-      )}
+      {showPopup && <PopupPromo popup={showPopup} onClose={() => setShowPopup(null)} />}
 
       {/* ── SLIDER BANNERS ── estilo demo con overlay de texto */}
       {sliders.length > 0 && (
@@ -6322,6 +6319,10 @@ function AdminProductos() {
       while (vueltas < 300) {
         vueltas++;
         const r = await api.rehostFotosRxz(20);
+        if (r.via_bot) {
+          toast(r.restantes ? `${r.restantes} productos con fotos del proveedor. Las sube el bot solo después de cada ciclo (o mandale /reparar_fotos por Telegram).` : 'No hay fotos del proveedor pendientes', r.restantes ? 'warning' : 'success');
+          break;
+        }
         totalMig += r.migradas || 0;
         if ((r.migradas || 0) === 0 || (r.restantes || 0) === 0) {
           if ((r.restantes || 0) === 0 && totalMig > 0) toast(`Listo: ${totalMig} imágenes movidas a Cloudinary`);
@@ -6519,7 +6520,53 @@ function AdminProductos() {
   );
 }
 
-// ─── MULTI IMAGE UPLOAD ───
+// ─── GALERÍA DE FOTOS (presentacional) ───
+// Subir varias, quitar y reordenar (arrastrando o con las flechas). La primera es la principal.
+function GaleriaFotos({ items, uploading, onFiles, onRemove, onMove }) {
+  const [dragOver, setDragOver] = useState(false);
+  const dragIdx = useRef(null);
+  const soltarArchivos = (e) => { const fl = e.dataTransfer && e.dataTransfer.files; if (fl && fl.length) onFiles(fl); };
+  return (
+    <div className={`gal-grid${dragOver ? ' drag' : ''}`}
+      onDragOver={e => { e.preventDefault(); if (dragIdx.current == null) setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => { e.preventDefault(); setDragOver(false); if (dragIdx.current == null) soltarArchivos(e); }}>
+      {items.map((it, idx) => (
+        <div key={it.key} className={`gal-item${idx === 0 ? ' principal' : ''}`} draggable
+          onDragStart={() => { dragIdx.current = idx; }}
+          onDragEnd={() => { dragIdx.current = null; }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragOver(false); const from = dragIdx.current; dragIdx.current = null; if (from != null) { if (from !== idx) onMove(from, idx); } else soltarArchivos(e); }}>
+          <img src={it.url} alt="" draggable={false} />
+          {idx === 0 && <span className="gal-badge">Principal</span>}
+          <button type="button" className="gal-del" onClick={() => onRemove(idx)} aria-label="Quitar foto" title="Quitar"><X size={13} /></button>
+          <div className="gal-move">
+            <button type="button" disabled={idx === 0} onClick={() => onMove(idx, idx - 1)} aria-label="Mover antes"><ChevronLeft size={14} /></button>
+            <button type="button" disabled={idx === items.length - 1} onClick={() => onMove(idx, idx + 1)} aria-label="Mover después"><ChevronRight size={14} /></button>
+          </div>
+        </div>
+      ))}
+      <label className={`gal-add${uploading ? ' cargando' : ''}`}>
+        {uploading ? <RefreshCw size={18} className="spin" /> : <ImagePlus size={20} />}
+        <span>{uploading ? 'Subiendo…' : 'Agregar'}</span>
+        <input type="file" accept="image/*" multiple disabled={uploading} onChange={e => { onFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
+      </label>
+    </div>
+  );
+}
+const moverEnLista = (arr, from, to) => { const a = [...arr]; const [m] = a.splice(from, 1); a.splice(to, 0, m); return a; };
+// Sube archivos EN SERIE (uno tras otro) para que queden en el orden elegido. Devuelve las URLs subidas.
+async function subirFotosEnSerie(fileList, toast) {
+  const files = Array.from(fileList || []).filter(f => f && f.type && f.type.startsWith('image/'));
+  const urls = [];
+  for (const file of files) {
+    try { const r = await api.uploadImagen(file); if (r && r.url) urls.push(r.url); }
+    catch { toast(`Error al subir ${file.name || 'una imagen'}`, 'error'); }
+  }
+  return urls;
+}
+
+// ─── MULTI IMAGE UPLOAD (producto ya creado: guarda directo en la base) ───
 function MultiImageUpload({ productoId, imagenInicial }) {
   const { toast } = useContext(Ctx);
   const [imgs, setImgs] = useState([]);
@@ -6536,71 +6583,26 @@ function MultiImageUpload({ productoId, imagenInicial }) {
       } catch {}
     })();
   }, [productoId]);
-  // Sube varios archivos EN SERIE (uno tras otro) para que no se pisen y queden en orden.
   const uploadFiles = async (fileList) => {
-    const files = Array.from(fileList || []).filter(f => f && f.type && f.type.startsWith('image/'));
-    if (!files.length) return;
+    if (uploading) return;
     setUploading(true);
+    const urls = await subirFotosEnSerie(fileList, toast);
     let orden = imgs.length;
-    for (const file of files) {
-      try {
-        const r = await api.uploadImagen(file);
-        await api.addProductoImagen(productoId, r.url, orden);
-        orden++;
-      } catch { toast(`Error al subir ${file.name || 'una imagen'}`, 'error'); }
-    }
-    try { const updated = await api.getProductoImagenes(productoId); setImgs(updated); } catch {}
+    for (const u of urls) { try { await api.addProductoImagen(productoId, u, orden++); } catch (e) { toast(e.message, 'error'); } }
+    try { setImgs(await api.getProductoImagenes(productoId)); } catch {}
     setUploading(false);
   };
-
-  const remove = async (id) => { try { await api.deleteProductoImagen(id); setImgs(imgs.filter(i => i.id !== id)); } catch (e) { toast(e.message, 'error'); } };
-  // Reordenar: mover una imagen a la izquierda o derecha y persistir el nuevo orden
-  const mover = async (idx, dir) => {
-    const nuevo = idx + dir;
-    if (nuevo < 0 || nuevo >= imgs.length) return;
-    const arr = [...imgs];
-    [arr[idx], arr[nuevo]] = [arr[nuevo], arr[idx]];
+  const remove = async (idx) => { const img = imgs[idx]; if (!img) return; try { await api.deleteProductoImagen(img.id); setImgs(imgs.filter(i => i.id !== img.id)); } catch (e) { toast(e.message, 'error'); } };
+  const mover = async (from, to) => {
+    if (to < 0 || to >= imgs.length) return;
+    const arr = moverEnLista(imgs, from, to);
     setImgs(arr);
-    try { await api.ordenarProductoImagenes(productoId, arr.map(i => i.id)); } catch (e) { toast('No se pudo guardar el orden', 'error'); }
-  };
-  const [dragOver, setDragOver] = useState(false);
-  // Reordenar arrastrando (desktop). En celu se usan las flechas ← →.
-  const dragIdx = useRef(null);
-  const reordenarDrop = async (toIdx) => {
-    const from = dragIdx.current; dragIdx.current = null;
-    if (from == null || from === toIdx) return;
-    const arr = [...imgs];
-    const [moved] = arr.splice(from, 1);
-    arr.splice(toIdx, 0, moved);
-    setImgs(arr);
-    try { await api.ordenarProductoImagenes(productoId, arr.map(i => i.id)); } catch (e) { toast('No se pudo guardar el orden', 'error'); }
+    try { await api.ordenarProductoImagenes(productoId, arr.map(i => i.id)); } catch { toast('No se pudo guardar el orden', 'error'); }
   };
   return (
-    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-      <h4 style={{ marginBottom: 8, fontSize: 14 }}><Camera size={15} style={{ verticalAlign: '-2px' }} /> Galería de imágenes ({imgs.length})</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Arrastrá varias imágenes a la zona de abajo. Reordenalas <b>arrastrando</b> (o con ← → en el celu) y eliminá con ✕. La primera es la principal.</p>
-      <div
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={e => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files); }}
-        style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, padding: 8, borderRadius: 10, border: dragOver ? '2px dashed var(--primary)' : '2px dashed transparent', background: dragOver ? 'var(--bg-secondary)' : 'transparent', transition: 'all .15s' }}
-      >
-        {imgs.map((img, idx) => (
-          <div key={img.id} draggable onDragStart={() => { dragIdx.current = idx; }} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.stopPropagation(); e.preventDefault(); reordenarDrop(idx); }} style={{ position: 'relative', width: 80, cursor: 'grab' }}>
-            <img src={img.url} alt="" draggable={false} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: idx === 0 ? '2px solid var(--primary)' : '1px solid var(--border)' }} />
-            {idx === 0 && <span style={{ position: 'absolute', top: 2, left: 2, background: 'var(--primary)', color: '#fff', fontSize: 9, padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>Principal</span>}
-            <button onClick={() => remove(img.id)} style={{ position: 'absolute', top: -6, right: -6, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, fontSize: 11, cursor: 'pointer' }}>✕</button>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 2 }}>
-              <button onClick={() => mover(idx, -1)} disabled={idx === 0} style={{ border: 'none', background: 'var(--bg-secondary)', borderRadius: 4, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1, fontSize: 12, padding: '0 6px' }}>←</button>
-              <button onClick={() => mover(idx, 1)} disabled={idx === imgs.length - 1} style={{ border: 'none', background: 'var(--bg-secondary)', borderRadius: 4, cursor: idx === imgs.length - 1 ? 'default' : 'pointer', opacity: idx === imgs.length - 1 ? 0.3 : 1, fontSize: 12, padding: '0 6px' }}>→</button>
-            </div>
-          </div>
-        ))}
-        <label style={{ width: 80, height: 80, border: '2px dashed var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 24, color: 'var(--text-muted)' }}>
-          {uploading ? '...' : '+'}
-          <input type="file" accept="image/*" multiple onChange={e => { uploadFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
-        </label>
-      </div>
+    <div>
+      <p className="form-hint" style={{ marginBottom: 8 }}>{imgs.length} {imgs.length === 1 ? 'foto' : 'fotos'}. Arrastrá varias juntas. Reordenalas arrastrando o con las flechas; la primera es la principal.</p>
+      <GaleriaFotos items={imgs.map(i => ({ key: i.id, url: i.url }))} uploading={uploading} onFiles={uploadFiles} onRemove={remove} onMove={mover} />
     </div>
   );
 }
@@ -6872,16 +6874,27 @@ function ProductModal({ product, onClose }) {
     const o = {}; preciosFijos.filter(x => x.producto_id === product.id).forEach(x => { o[x.lista_precio_id] = x.precio_fijo; }); return o;
   });
 
-  const handleImageUpload = async (file) => {
+  // Fotos elegidas ANTES de crear el producto: se suben a Cloudinary y se guardan en la galería al crear.
+  const [fotosNuevas, setFotosNuevas] = useState([]);
+  const [urlFoto, setUrlFoto] = useState('');
+  const subirNuevas = async (files) => {
+    if (uploading) return;
     setUploading(true);
-    try { const r = await api.uploadImagen(file); setF({ ...f, imagen: r.url }); } catch (e) { toast('Error al subir imagen', 'error'); }
+    const urls = await subirFotosEnSerie(files, toast);
+    setFotosNuevas(prev => [...prev, ...urls.filter(u => !prev.includes(u))]);
     setUploading(false);
+  };
+  const agregarUrlFoto = () => {
+    const u = urlFoto.trim();
+    if (!/^https?:\/\//i.test(u)) { toast('Pegá una URL que empiece con http', 'warning'); return; }
+    setFotosNuevas(prev => prev.includes(u) ? prev : [...prev, u]); setUrlFoto('');
   };
 
   const save = async () => {
     setSaving(true);
     try {
       const payload = { ...f, usa_variantes: !!varData.usa_variantes };
+      if (!yaCreado && fotosNuevas.length) payload.imagen = fotosNuevas[0];
       let prodId = idActual;
       if (yaCreado) {
         await api.updateProducto(idActual, payload);
@@ -6893,6 +6906,7 @@ function ProductModal({ product, onClose }) {
       } else {
         const creado = await api.createProducto(payload);
         prodId = creado?.id;
+        if (prodId) for (let i = 0; i < fotosNuevas.length; i++) await api.addProductoImagen(prodId, fotosNuevas[i], i).catch(() => {});
       }
       // Guardar atributos + variantes combinadas (aplica al crear y al editar → misma plantilla)
       if (prodId) {
@@ -6908,8 +6922,8 @@ function ProductModal({ product, onClose }) {
       } else {
         // Recién creado: NO cerramos, pasamos a modo edición para cargar la galería de fotos
         setCreatedId(prodId);
-        setF({ ...f, id: prodId });
-        toast('Producto creado ✓ Ahora podés cargar las fotos y guardar');
+        setF({ ...f, id: prodId, imagen: payload.imagen || f.imagen });
+        toast(fotosNuevas.length ? `Producto creado con ${fotosNuevas.length} ${fotosNuevas.length === 1 ? 'foto' : 'fotos'}` : 'Producto creado. Ya podés sumarle fotos.');
       }
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
@@ -6990,17 +7004,18 @@ function ProductModal({ product, onClose }) {
             <div className="pm-col">
               <section className="pm-card">
                 <h4 className="pm-title">Fotos</h4>
-              {/* Imagen principal: SOLO antes de crear. Una vez creado (o en edición) manda la galería. */}
+              {/* Antes de crear: se eligen todas las fotos acá; al crear quedan en la galería. */}
               {!yaCreado && (
-              <div className="form-group">
-                <label className="form-label">Imagen principal</label>
-                <div className="dropzone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleImageUpload(file); }}>
-                  {uploading ? <span>Subiendo...</span> : f.imagen ? <img src={f.imagen} alt="" style={{ maxHeight: 100 }} /> : <span>Arrastrá una imagen o hacé clic</span>}
-                  <input type="file" accept="image/*" onChange={e => { const file = e.target.files[0]; if (file) handleImageUpload(file); }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+                <div>
+                  <p className="form-hint" style={{ marginBottom: 8 }}>Subí todas las fotos juntas (podés arrastrarlas). La primera es la principal.</p>
+                  <GaleriaFotos items={fotosNuevas.map(u => ({ key: u, url: u }))} uploading={uploading} onFiles={subirNuevas}
+                    onRemove={idx => setFotosNuevas(fotosNuevas.filter((_, i) => i !== idx))}
+                    onMove={(a, b) => { if (b >= 0 && b < fotosNuevas.length) setFotosNuevas(moverEnLista(fotosNuevas, a, b)); }} />
+                  <div className="gal-url">
+                    <input value={urlFoto} onChange={e => setUrlFoto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarUrlFoto(); } }} placeholder="O pegá la URL de una imagen" />
+                    <button type="button" className="btn btn-outline btn-sm" onClick={agregarUrlFoto}>Agregar</button>
+                  </div>
                 </div>
-                {f.imagen && <input value={f.imagen} onChange={e => setF({ ...f, imagen: e.target.value })} placeholder="O pegá URL de imagen" style={{ marginTop: 8 }} />}
-                <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Al crear el producto vas a poder sumar más fotos (galería).</small>
-              </div>
               )}
               {/* Galería de varias fotos: en edición y también apenas se crea el producto */}
               {yaCreado && <MultiImageUpload productoId={idActual} imagenInicial={product?.imagen || f.imagen} />}
@@ -8891,28 +8906,85 @@ function AdminPromociones() {
 }
 
 // ─── ADMIN: Popups ───
+const imagenesPopup = (p) => { const arr = Array.isArray(p && p.imagenes) ? p.imagenes.filter(Boolean) : []; return arr.length ? arr : (p && p.imagen ? [p.imagen] : []); };
 function AdminPopups() {
-  const { secciones, toast } = useContext(Ctx);
+  const { toast } = useContext(Ctx);
+  const vacio = { titulo: '', imagenes: [], url_destino: '', secciones_ids: '', activo: true };
   const [popups, setPopups] = useState([]); const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ titulo: '', imagen: '', url_destino: '', secciones_ids: '', activo: true });
+  const [form, setForm] = useState(vacio);
   const [edit, setEdit] = useState(null);
-  useEffect(() => { api.getPopupsAll().then(setPopups); }, []);
-  const save = async () => { try { if (edit) await api.updatePopup(edit.id, form); else await api.createPopup(form); api.getPopupsAll().then(setPopups); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const [subiendo, setSubiendo] = useState(false);
+  const [urlImg, setUrlImg] = useState('');
+  const cargar = () => api.getPopupsAll().then(setPopups).catch(() => {});
+  useEffect(() => { cargar(); }, []);
+  const abrir = (p) => { setEdit(p || null); setForm(p ? { ...p, imagenes: imagenesPopup(p) } : vacio); setUrlImg(''); setShow(true); };
+  const save = async () => {
+    if (!form.imagenes.length && !form.titulo.trim()) { toast('Poné al menos un título o una imagen', 'warning'); return; }
+    try { const body = { ...form, imagen: form.imagenes[0] || '' }; if (edit) await api.updatePopup(edit.id, body); else await api.createPopup(body); cargar(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); }
+  };
+  const subir = async (files) => { if (subiendo) return; setSubiendo(true); const urls = await subirFotosEnSerie(files, toast); setForm(fm => ({ ...fm, imagenes: [...fm.imagenes, ...urls.filter(u => !fm.imagenes.includes(u))].slice(0, 10) })); setSubiendo(false); };
+  const agregarUrl = () => { const u = urlImg.trim(); if (!/^https?:\/\//i.test(u)) { toast('Pegá una URL que empiece con http', 'warning'); return; } setForm(fm => ({ ...fm, imagenes: fm.imagenes.includes(u) ? fm.imagenes : [...fm.imagenes, u].slice(0, 10) })); setUrlImg(''); };
+  const toggleActivo = async (p) => { try { await api.updatePopup(p.id, { ...p, imagenes: imagenesPopup(p), activo: !p.activo }); cargar(); } catch (e) { toast(e.message, 'error'); } };
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3>Pop-ups promocionales</h3><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ titulo: '', imagen: '', url_destino: '', secciones_ids: '', activo: true }); setShow(true); }}>+ Nuevo</button></div>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Se muestran al entrar a la tienda. Solo el primero activo aparece.</p>
-      {popups.map(p => (<div key={p.id} className="card" style={{ padding: 12, marginBottom: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><strong>{p.titulo}</strong> <span style={{ fontSize: 12, color: p.activo ? 'var(--success)' : 'var(--danger)' }}>{p.activo ? 'Activo' : 'Inactivo'}</span></div><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => { setEdit(p); setForm(p); setShow(true); }}><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" onClick={async () => { await api.deletePopup(p.id); api.getPopupsAll().then(setPopups); }}><Ico n="trash" s={15} /></button></div></div></div>))}
-      {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} pop-up</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
-        <div className="form-group"><label className="form-label">Título</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
-        <div className="form-group"><label className="form-label">Imagen</label>
-          <input type="file" accept="image/*" onChange={async e => { const file = e.target.files[0]; if (file) { try { const r = await api.uploadImagen(file); setForm({ ...form, imagen: r.url }); } catch { toast('Error al subir', 'error'); } } }} />
-          {form.imagen && <img src={form.imagen} alt="" style={{ maxHeight: 80, marginTop: 8, borderRadius: 8 }} />}
-          <input value={form.imagen} onChange={e => setForm({ ...form, imagen: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}><h3>Pop-ups promocionales</h3><button className="btn btn-primary btn-sm" onClick={() => abrir(null)}>+ Nuevo</button></div>
+      <p className="form-hint" style={{ marginBottom: 12 }}>Se muestra el más nuevo que esté activo, una vez por visita. Si tiene varias imágenes, pasan solas como carrusel.</p>
+      {popups.length === 0 && <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Todavía no hay pop-ups.</div>}
+      {popups.map(p => { const imgs = imagenesPopup(p); return (
+        <div key={p.id} className="card popup-row">
+          <div className="popup-row-thumbs">{imgs.slice(0, 3).map((u, k) => <img key={k} src={u} alt="" />)}{!imgs.length && <span className="popup-row-sin"><Camera size={18} /></span>}</div>
+          <div className="popup-row-info"><strong>{p.titulo || 'Sin título'}</strong><span>{imgs.length} {imgs.length === 1 ? 'imagen' : 'imágenes'}{p.url_destino ? ' · con enlace' : ''}</span></div>
+          <button type="button" className={`chip-estado ${p.activo ? 'on' : 'off'}`} onClick={() => toggleActivo(p)} title="Activar / desactivar">{p.activo ? 'Activo' : 'Inactivo'}</button>
+          <div style={{ display: 'flex', gap: 4 }}><button className="btn btn-outline btn-sm" onClick={() => abrir(p)} aria-label="Editar"><Ico n="edit" s={15} /></button><button className="btn btn-danger btn-sm" aria-label="Eliminar" onClick={async () => { if (!confirm('¿Eliminar este pop-up?')) return; await api.deletePopup(p.id); cargar(); }}><Ico n="trash" s={15} /></button></div>
+        </div>); })}
+      {show && (<div className="modal-overlay" onClick={() => setShow(false)}><div className="modal modal-lg" onClick={e => e.stopPropagation()}><div className="modal-header"><span className="modal-title">{edit ? 'Editar' : 'Nuevo'} pop-up</span><button className="modal-close" onClick={() => setShow(false)}>✕</button></div><div className="modal-body">
+        <div className="form-group"><label className="form-label">Título</label><input value={form.titulo || ''} onChange={e => setForm({ ...form, titulo: e.target.value })} placeholder="Ej: Hot Sale — 20% off en herramientas" /></div>
+        <div className="form-group"><label className="form-label">Imágenes (hasta 10)</label>
+          <GaleriaFotos items={form.imagenes.map(u => ({ key: u, url: u }))} uploading={subiendo} onFiles={subir}
+            onRemove={idx => setForm({ ...form, imagenes: form.imagenes.filter((_, k) => k !== idx) })}
+            onMove={(a, b) => { if (b >= 0 && b < form.imagenes.length) setForm({ ...form, imagenes: moverEnLista(form.imagenes, a, b) }); }} />
+          <div className="gal-url"><input value={urlImg} onChange={e => setUrlImg(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarUrl(); } }} placeholder="O pegá la URL de una imagen" /><button type="button" className="btn btn-outline btn-sm" onClick={agregarUrl}>Agregar</button></div>
+          <small className="form-hint">Recomendado: imágenes verticales o cuadradas (1080 × 1350 o 1080 × 1080).</small>
         </div>
-        <div className="form-group"><label className="form-label">URL destino</label><input value={form.url_destino} onChange={e => setForm({ ...form, url_destino: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">Enlace del botón (opcional)</label><input value={form.url_destino || ''} onChange={e => setForm({ ...form, url_destino: e.target.value })} placeholder="https://… o /seccion/…" /></div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={form.activo !== false} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
       </div><div className="modal-footer"><button className="btn btn-outline" onClick={() => setShow(false)}>Cancelar</button><button className="btn btn-primary" onClick={save}>Guardar</button></div></div></div>)}
+    </div>
+  );
+}
+
+// Pop-up de la tienda: carrusel si tiene varias imágenes (pasa solo cada 4 s, con flechas y puntos).
+function PopupPromo({ popup, onClose }) {
+  const imgs = imagenesPopup(popup);
+  const [i, setI] = useState(0);
+  const [pausa, setPausa] = useState(false);
+  const toque = useRef(null);
+  useEffect(() => { if (imgs.length < 2 || pausa) return; const t = setInterval(() => setI(x => (x + 1) % imgs.length), 4000); return () => clearInterval(t); }, [imgs.length, pausa]);
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const ir = (d) => { setPausa(true); setI(x => (x + d + imgs.length) % imgs.length); };
+  const destino = popup.url_destino;
+  const abrirDestino = () => { if (!destino) return; if (/^https?:\/\//i.test(destino) && !destino.includes(window.location.host)) window.open(destino, '_blank', 'noopener'); else window.location.href = destino; };
+  return (
+    <div className="modal-overlay popup-overlay" onClick={onClose}>
+      <div className={`popup-promo${imgs.length ? '' : ' solo-texto'}`} onClick={e => e.stopPropagation()} role="dialog" aria-label={popup.titulo || 'Promoción'}>
+        <button type="button" className="popup-cerrar" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
+        {imgs.length > 0 && (
+          <div className="popup-media" onTouchStart={e => { toque.current = e.touches[0].clientX; }} onTouchEnd={e => { if (toque.current == null || imgs.length < 2) return; const dx = e.changedTouches[0].clientX - toque.current; toque.current = null; if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1); }}>
+            {imgs.map((u, k) => <img key={k} src={u} alt={popup.titulo || ''} className={k === i ? 'activa' : ''} onClick={abrirDestino} style={{ cursor: destino ? 'pointer' : 'default' }} />)}
+            {imgs.length > 1 && <>
+              <button type="button" className="popup-flecha izq" onClick={() => ir(-1)} aria-label="Anterior"><ChevronLeft size={20} /></button>
+              <button type="button" className="popup-flecha der" onClick={() => ir(1)} aria-label="Siguiente"><ChevronRight size={20} /></button>
+              <div className="popup-puntos">{imgs.map((_, k) => <button key={k} type="button" className={k === i ? 'on' : ''} onClick={() => { setPausa(true); setI(k); }} aria-label={`Imagen ${k + 1}`} />)}</div>
+            </>}
+          </div>
+        )}
+        {(popup.titulo || destino) && (
+          <div className="popup-pie">
+            {popup.titulo && <h3>{popup.titulo}</h3>}
+            {destino && <button type="button" className="btn btn-primary" onClick={abrirDestino}>Ver más</button>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
