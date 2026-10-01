@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban } from 'lucide-react';
+import { SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -389,6 +389,19 @@ function IconPicker({ value, onChange, label }) {
 
 // ─── ANDREANI CALCULATOR (product detail) ───
 
+// ¿La pantalla cumple esta media query? (ej: '(max-width: 768px)' = celular). Se actualiza al girar/redimensionar.
+function useMediaQuery(q) {
+  const get = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(q).matches : false);
+  const [ok, setOk] = useState(get);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const m = window.matchMedia(q); const on = () => setOk(m.matches);
+    on(); m.addEventListener ? m.addEventListener('change', on) : m.addListener(on);
+    return () => { m.removeEventListener ? m.removeEventListener('change', on) : m.removeListener(on); };
+  }, [q]);
+  return ok;
+}
+
 // Context for shared state
 const Ctx = createContext();
 
@@ -717,6 +730,8 @@ export default function App() {
       if ((window.location.pathname + window.location.search) !== url) window.history.pushState({ scrollY: 0 }, '', url);
     } catch (e) {}
     setMobileMenu(false); window.scrollTo(0, 0);
+    // Después de pintar la página nueva, volver a subir (si no, a veces arrancaba un poco bajada, debajo de la cabecera)
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, 0)));
   }, [secciones, seccionActual, page, selectedProduct, globalSearch]);
   // Refs para leer estado actual dentro del listener de popstate (que se registra una sola vez)
   const seccionesRef = useRef([]); seccionesRef.current = secciones;
@@ -1069,9 +1084,12 @@ const RED_LABELS = {
 function redIconTipo(tipo) { return (tipo === 'whatsapp_canal' || tipo === 'whatsapp_grupo') ? 'whatsapp' : tipo; }
 
 function HeaderSearch() {
-  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones, getPrice, userLista, precioFinalCliente, promos } = useContext(Ctx);
+  const { globalSearch, setGlobalSearch, doGlobalSearch, globalResults, setGlobalResults, nav, secciones, getPrice, userLista, precioFinalCliente, promos, page, selectedProduct, seccionActual } = useContext(Ctx);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+  // Al cambiar de página, el desplegable se cierra (antes quedaba abierto tapando la página nueva)
+  useEffect(() => { setOpen(false); }, [page, selectedProduct?.id, seccionActual?.id]);
 
   // cerrar dropdown al click fuera
   useEffect(() => {
@@ -1083,7 +1101,7 @@ function HeaderSearch() {
   // debounce
   useEffect(() => {
     if (globalSearch.length < 2) { setGlobalResults(null); return; }
-    const t = setTimeout(() => { doGlobalSearch(globalSearch); setOpen(true); }, 350);
+    const t = setTimeout(() => { doGlobalSearch(globalSearch); if (document.activeElement === inputRef.current) setOpen(true); }, 350);
     return () => clearTimeout(t);
   }, [globalSearch]);
 
@@ -1106,7 +1124,7 @@ function HeaderSearch() {
   return (
     <div className="header-search-wrap" ref={wrapRef} style={{ position: 'relative' }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input className="header-search-input" placeholder="Buscar por marca, modelo o repuesto..." value={globalSearch}
+      <input ref={inputRef} className="header-search-input" placeholder="Buscar repuestos, herramientas…" aria-label="Buscar productos" value={globalSearch}
         onChange={e => setGlobalSearch(e.target.value)}
         onFocus={() => { if (flat.length) setOpen(true); }}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doGlobalSearch(); setOpen(false); nav('search'); } if (e.key === 'Escape') setOpen(false); }} />
@@ -1155,21 +1173,33 @@ function TextBar({ barra }) {
 }
 
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch, seccionActual } = useContext(Ctx);
   const [mobMenu, setMobMenu] = useState(false);
   const showSearch = !['admin','login','register','forgot','maintenance'].includes(page);
   const barrasTop = (barras || []).filter(b => b.activo && b.posicion === 'top');
   const barrasSearch = (barras || []).filter(b => b.activo && b.posicion === 'search');
+  // Celular: una sola barra con todas las frases (antes eran dos y ocupaban media pantalla)
+  const barraUnida = (barrasTop[0] || barrasSearch[0]) ? { ...(barrasTop[0] || barrasSearch[0]), id: 'unida', frases: [...barrasTop, ...barrasSearch].map(b => b.frases || '').join(' | ') } : null;
+  // Menú de tiendas: avisar con un difuminado cuando hay más para deslizar
+  const secnavRef = useRef(null);
+  const [secnavFade, setSecnavFade] = useState({ izq: false, der: false });
+  const medirSecnav = () => { const el = secnavRef.current; if (!el) return; setSecnavFade({ izq: el.scrollLeft > 4, der: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 }); };
+  useEffect(() => { medirSecnav(); window.addEventListener('resize', medirSecnav); return () => window.removeEventListener('resize', medirSecnav); }, [secciones.length, showSearch]);
 
   return (
+    <>
+    {showSearch && (barrasTop.length > 0 || barrasSearch.length > 0) && (
+      <div className="header-topbars">
+        <div className="desktop-block">{barrasTop.map(b => <TextBar key={b.id} barra={b} />)}</div>
+        <div className="mobile-block">{barraUnida && <TextBar barra={barraUnida} />}</div>
+      </div>
+    )}
     <header className="header">
-      {/* BARRA SUPERIOR (arriba de todo) */}
-      {showSearch && barrasTop.map(b => <TextBar key={b.id} barra={b} />)}
 
       {/* ROW 1: logo + buscador + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
-          {design.logo_url ? <img src={design.logo_url} alt="" style={{ height: 46 }} /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+          {design.logo_url ? <img src={design.logo_url} alt={design.nombre_tienda || 'Inicio'} className="header-logo-img" /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
         </button>
         {/* Buscador inline (siempre visible, al lado del logo) */}
         {showSearch && (
@@ -1196,19 +1226,21 @@ function Header() {
         </div>
       </div>
 
-      {/* BARRA BAJO EL BUSCADOR */}
-      {showSearch && barrasSearch.map(b => <TextBar key={b.id} barra={b} />)}
+      {/* BARRA BAJO EL BUSCADOR (solo compu; en celular va unida arriba) */}
+      {showSearch && barrasSearch.length > 0 && <div className="desktop-block">{barrasSearch.map(b => <TextBar key={b.id} barra={b} />)}</div>}
 
       {/* NAV SECCIONES (fijo, scrolleable en mobile) */}
       {showSearch && secciones.length > 0 && (
-        <nav className="header-secnav">
+        <div className={`secnav-wrap${secnavFade.izq ? ' fade-izq' : ''}${secnavFade.der ? ' fade-der' : ''}`}>
+        <nav className="header-secnav" ref={secnavRef} onScroll={medirSecnav}>
           <button className={`secnav-item${page === 'landing' ? ' active' : ''}`} onClick={() => nav('landing')}>Inicio</button>
           {secciones.map(s => (
-            <button key={s.id} className="secnav-item" onClick={() => nav('section', s.id)} style={{ '--sec-color': s.color || 'var(--primary)' }}>
+            <button key={s.id} className={`secnav-item${(page === 'section' || page === 'product') && seccionActual?.id === s.id ? ' active' : ''}`} onClick={() => nav('section', s.id)} style={{ '--sec-color': s.color || 'var(--primary)' }}>
               {s.nombre}{s.requiere_aprobacion ? <Lock size={12} style={{ marginLeft: 4, verticalAlign: '-1px' }} /> : null}
             </button>
           ))}
         </nav>
+        </div>
       )}
 
       {/* MARQUEE de badges de confianza (si hay badges y no hay barra configurada) */}
@@ -1249,6 +1281,7 @@ function Header() {
         </div>
       )}
     </header>
+    </>
   );
 }
 
@@ -2095,9 +2128,12 @@ function Landing() {
             ? <img src={p.imagen} alt="" className="product-img" loading="lazy" />
             : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><Ico n="cart" s={36} /></div>
           }
-          {!p.es_preventa && (tieneOferta || promoInfo) && <span className="pbadge pbadge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{tieneOferta ? descPct : promoInfo.pct}% OFF</span>}
-          {envioGratisCard && <span className="pbadge pbadge-shipping" style={{ position: 'absolute', top: 10 + ((tieneOferta || promoInfo) ? 30 : 0), left: 10, background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
-          {sinStock && !puedeComprar && <span style={{ position: 'absolute', top: 10 + (tieneOferta ? 30 : 0) + (envioGratisCard ? 30 : 0), left: 10, background: 'var(--text-muted)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock</span>}
+          {/* Etiquetas en una fila (antes se apilaban y tapaban la foto) */}
+          <div className="product-badges">
+            {!p.es_preventa && (tieneOferta || promoInfo) && <span className="pbadge pbadge-discount">{tieneOferta ? descPct : promoInfo.pct}% OFF</span>}
+            {envioGratisCard && <span className="pbadge pbadge-envio"><Truck size={10} strokeWidth={2.5} /> Gratis</span>}
+            {sinStock && !puedeComprar && <span className="pbadge pbadge-sinstock">Sin stock</span>}
+          </div>
           {p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--purple)', color: '#fff', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Digital</span>}
           {sinStock && p.permitir_sin_stock && !p.es_digital && <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--warning)', color: '#000', padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 10, fontWeight: 700 }}>Sin stock OK</span>}
         </div>
@@ -2186,12 +2222,16 @@ function Landing() {
 
       {/* ── SLIDER BANNERS ── estilo demo con overlay de texto */}
       {sliders.length > 0 && (
-        <div style={{ maxWidth: 1600, margin: '16px auto 0', padding: '0 20px' }}>
+        <div className="landing-block landing-hero" style={{ maxWidth: 1600, margin: '16px auto 0', padding: '0 20px' }}>
           <div className="hero-slider">
             {sliders.map((s, i) => (
               <div key={s.id} className="hero-slide" style={{ display: i === sliderIdx ? 'block' : 'none', cursor: s.url_destino ? 'pointer' : 'default' }}
                 onClick={() => s.url_destino && window.open(s.url_destino, '_blank')}>
-                <img src={s.imagen} alt={s.titulo || ''} className="hero-slide-img" />
+                {/* En celular usa la imagen para celular si la cargaron (si no, muestra la misma entera, sin cortarla) */}
+                <picture>
+                  {s.imagen_mobile && <source media="(max-width: 768px)" srcSet={s.imagen_mobile} />}
+                  <img src={s.imagen} alt={s.titulo || ''} className="hero-slide-img" />
+                </picture>
                 {(s.titulo || s.subtitulo) && (
                   <div className="hero-slide-overlay">
                     {s.etiqueta && <span className="hero-slide-tag">{s.etiqueta}</span>}
@@ -2214,13 +2254,13 @@ function Landing() {
 
       {/* ── HERO ── título/subtítulo (editable desde Diseño) */}
       {(design.hero_titulo || design.hero_subtitulo) && (
-        <div style={{ maxWidth: 1600, margin: '0 auto', padding: '28px 20px 4px', textAlign: 'center' }}>
-          {design.hero_titulo && <h1 style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>{design.hero_titulo}</h1>}
-          {design.hero_subtitulo && <p style={{ fontSize: 15, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 0 }}>{design.hero_subtitulo}</p>}
+        <div className="landing-block landing-titulo">
+          {design.hero_titulo && <h1>{design.hero_titulo}</h1>}
+          {design.hero_subtitulo && <p>{design.hero_subtitulo}</p>}
         </div>
       )}
       {/* Search bar is now in Header */}
-      <div style={{ maxWidth: 1600, margin: '0 auto', padding: '16px 20px 0' }}>
+      <div className="landing-block landing-confianza" style={{ maxWidth: 1600, margin: '0 auto', padding: '16px 20px 0' }}>
         {/* Confianza cards — editable from Diseño, estilo demo */}
         <div className="confianza-row">
           {[1, 2, 3].map(n => {
@@ -2263,7 +2303,7 @@ function Landing() {
         }
         if (ofertas.length === 0) return null;
         return (
-          <div style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
+          <div className="landing-block" style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ background: 'var(--danger)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>OFERTAS</span>
@@ -2278,7 +2318,7 @@ function Landing() {
 
       {/* ── NOVEDADES ── carrusel horizontal */}
       {!globalResults && novedades.length > 0 && (
-        <div style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
+        <div className="landing-block" style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: 'var(--primary)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>NOVEDADES</span>
@@ -2296,7 +2336,7 @@ function Landing() {
         const prods = secProds[s.id] || [];
         if (!prods.length) return null;
         return (
-          <div key={s.id} style={{ maxWidth: 1600, margin: '0 auto', padding: '28px 20px 0' }}>
+          <div key={s.id} className="landing-block" style={{ maxWidth: 1600, margin: '0 auto', padding: '28px 20px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{s.nombre}</h2>
               <button onClick={() => nav('section', s.id)}
@@ -2357,15 +2397,31 @@ function SectionPage() {
   const [categorias, setCategorias] = useState([]);
   const [catFiltro, setCatFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaInput, setBusquedaInput] = useState('');
+  // Espera a que el cliente termine de escribir (antes pedía al servidor en cada letra)
+  useEffect(() => { const t = setTimeout(() => { if (busquedaInput !== busqueda) { setBusqueda(busquedaInput); setPagina(1); } }, 350); return () => clearTimeout(t); }, [busquedaInput]);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const esCel = useMediaQuery('(max-width: 768px)');
   const [stockFiltro, setStockFiltro] = useState('todos'); // todos | con | sin
   const [marcaFiltro, setMarcaFiltro] = useState('');
   const [precioMin, setPrecioMin] = useState('');
   const [precioMax, setPrecioMax] = useState('');
   const [orden, setOrden] = useState('relevancia'); // relevancia | precio_asc | precio_desc | nombre
   const [pagina, setPagina] = useState(() => Number(new URLSearchParams(window.location.search).get('pag')) || 1);
-  const [porPagina, setPorPagina] = useState(50);
+  // En celular se muestran 24 y se van cargando más al bajar (se recuerda al volver atrás)
+  const [porPagina, setPorPagina] = useState(() => {
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+      const g = Number(sessionStorage.getItem(`gm_ver_${window.location.pathname}`)); return g > 0 ? g : 24;
+    }
+    return 50;
+  });
+  const [cargandoMas, setCargandoMas] = useState(false);
+  useEffect(() => { if (esCel && typeof porPagina === 'number') { try { sessionStorage.setItem(`gm_ver_${window.location.pathname}`, String(porPagina)); } catch {} } }, [porPagina, esCel]);
+  const finListaRef = useRef(null);
   // Al cambiar de sección, tomar la página desde la URL (1 si no hay ?pag)
   useEffect(() => { setPagina(Number(new URLSearchParams(window.location.search).get('pag')) || 1); }, [sec?.id]);
+  // En celular no hay páginas: siempre desde la primera (los demás se cargan al bajar)
+  useEffect(() => { if (esCel && pagina !== 1) setPagina(1); }, [esCel]);
   // Mantener el número de página en la URL (?pag=N) para que el botón "atrás" vuelva a la misma página
   useEffect(() => {
     if (!sec || (!sec.slug && !sec.id)) return;
@@ -2397,7 +2453,7 @@ function SectionPage() {
         api.getBadges(sec.id).catch(() => []),
         api.getMetodosPago(sec.id).catch(() => [])
       ]);
-      setProductos(prodData.productos || []); setTotal(prodData.total || 0);
+      setProductos(prodData.productos || []); setTotal(prodData.total || 0); setCargandoMas(false);
       setCategorias(cats || []); setPromos(promoData || []); setSecBadges(bdg || []);
       setMetodosPago(mp || []);
       if (esMayorista) {
@@ -2411,6 +2467,14 @@ function SectionPage() {
     api.trackSectionView(sec.nombre);
     loadData();
   }, [sec?.id, catFiltro, busqueda, pagina, porPagina]);
+  const hayMas = esCel && typeof porPagina === 'number' && total > productos.length;
+  const cargarMas = () => { if (cargandoMas || !hayMas) return; setCargandoMas(true); setPagina(1); setPorPagina(n => (typeof n === 'number' ? n : 24) + 24); };
+  useEffect(() => {
+    if (!hayMas || !finListaRef.current || !('IntersectionObserver' in window)) return;
+    const io = new IntersectionObserver(es => { if (es[0].isIntersecting) cargarMas(); }, { rootMargin: '600px 0px' });
+    io.observe(finListaRef.current);
+    return () => io.disconnect();
+  }, [hayMas, productos.length, cargandoMas]);
 
 
   if (!sec) return <Landing />;
@@ -2469,77 +2533,98 @@ function SectionPage() {
   }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1600, margin: '0 auto' }}>
-      {/* KICKS back + title */}
-      <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>← VOLVER AL INICIO</button>
+    <div className="sec-page">
       <ScrollTriggerInit deps={productos.length} />
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontWeight: 900, fontSize: 28, letterSpacing: '-0.03em' }}>{sec.nombre}</h2>
-          {sec.descripcion && <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 4 }}>{sec.descripcion}</p>}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {esMayorista && dolarBlue && (
-            <div style={{ background: 'var(--bg-card)', color: 'var(--primary)', padding: '8px 16px', borderRadius: 12, fontWeight: 800, fontSize: 14 }}><DollarSign size={15} style={{ verticalAlign: '-2px' }} /> USD Blue: ${fmt(dolarBlue)}</div>
-          )}
-          <button className="btn btn-outline btn-sm" onClick={async () => {
-            const slug = sec.slug || ('s-' + sec.id);
-            const t = new URLSearchParams(window.location.search).get('tienda');
-            const ogUrl = `${window.location.origin}/api/og?seccion=${encodeURIComponent(slug)}${t ? '&tienda=' + encodeURIComponent(t) : ''}`;
-            const cleanUrl = `${window.location.origin}/${slug}${t ? '?tienda=' + encodeURIComponent(t) : ''}`;
-            if (navigator.share) { try { await navigator.share({ title: sec.nombre, text: sec.nombre, url: ogUrl }); } catch (e) {} return; }
-            try { await navigator.clipboard.writeText(cleanUrl); toast('Link copiado'); } catch (e) { toast(cleanUrl); }
-          }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Compartir</button>
+      {/* Título de la tienda */}
+      <div className="sec-head">
+        <button className="link-btn sec-back" onClick={() => nav('landing')}>← Inicio</button>
+        <div className="sec-head-row">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="sec-title">{sec.nombre}</h1>
+            {sec.descripcion && <p className="sec-desc">{sec.descripcion}</p>}
+          </div>
+          <div className="sec-head-actions">
+            {esMayorista && dolarBlue && <div className="sec-dolar"><DollarSign size={14} /> Blue ${fmt(dolarBlue)}</div>}
+            <button className="icon-btn sec-share" title="Compartir esta tienda" aria-label="Compartir esta tienda" onClick={async () => {
+              const slug = sec.slug || ('s-' + sec.id);
+              const t = new URLSearchParams(window.location.search).get('tienda');
+              const ogUrl = `${window.location.origin}/api/og?seccion=${encodeURIComponent(slug)}${t ? '&tienda=' + encodeURIComponent(t) : ''}`;
+              const cleanUrl = `${window.location.origin}/${slug}${t ? '?tienda=' + encodeURIComponent(t) : ''}`;
+              if (navigator.share) { try { await navigator.share({ title: sec.nombre, text: sec.nombre, url: ogUrl }); } catch (e) {} return; }
+              try { await navigator.clipboard.writeText(cleanUrl); toast('Link copiado'); } catch (e) { toast(cleanUrl); }
+            }}><Share2 size={17} /></button>
+          </div>
         </div>
       </div>
 
-      {/* KICKS filters row */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        <input placeholder="¿Qué buscás?" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }} style={{ flex: 1, minWidth: 200, borderRadius: 12, padding: '12px 16px', border: '2px solid #E7E7E3', fontSize: 14, fontWeight: 500 }} />
-        <select value={catFiltro} onChange={e => { setCatFiltro(e.target.value); setPagina(1); }} style={{ borderRadius: 12, padding: '12px 16px', border: '2px solid var(--border)', fontWeight: 600, fontSize: 13, minWidth: 180, background: 'var(--bg-card)' }}>
-          <option value="">Todas las categorías</option>
-          {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+      {/* Buscador + botón de filtros */}
+      <div className="sec-tools">
+        <label className="sec-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input placeholder={`Buscar en ${sec.nombre}`} value={busquedaInput} onChange={e => setBusquedaInput(e.target.value)} aria-label="Buscar en esta tienda" />
+          {busquedaInput && <button className="sec-search-clear" onClick={() => setBusquedaInput('')} aria-label="Borrar búsqueda">✕</button>}
+        </label>
+        <button className={`btn btn-outline sec-filtros-btn${(stockFiltro !== 'todos' || precioMin || precioMax || orden !== 'relevancia' || marcaFiltro) ? ' activo' : ''}`} onClick={() => setFiltrosAbiertos(true)}>
+          <SlidersHorizontal size={16} /> <span>Filtros</span>
+          {(() => { const n = (stockFiltro !== 'todos') + (!!precioMin || !!precioMax) + (orden !== 'relevancia') + (!!marcaFiltro); return n > 0 ? <span className="sec-filtros-n">{n}</span> : null; })()}
+        </button>
       </div>
 
-      {/* Filtros avanzados: stock, precio, orden */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
-        <select value={stockFiltro} onChange={e => setStockFiltro(e.target.value)} style={{ borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border)', fontWeight: 600, fontSize: 12.5, background: 'var(--bg-card)', width: 'auto' }}>
-          <option value="todos">Todo el stock</option>
-          <option value="con">Solo con stock</option>
-          <option value="sin">Solo sin stock</option>
-        </select>
-        {marcasDisponibles.length > 0 && (
-          <select value={marcaFiltro} onChange={e => setMarcaFiltro(e.target.value)} style={{ borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border)', fontWeight: 600, fontSize: 12.5, background: 'var(--bg-card)', width: 'auto' }}>
-            <option value="">Todas las marcas</option>
-            {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+      {/* Categorías como botones deslizables */}
+      {categorias.length > 0 && (
+        <div className="cat-chips" role="tablist" aria-label="Categorías">
+          <button className={`cat-chip${!catFiltro ? ' sel' : ''}`} onClick={() => { setCatFiltro(''); setPagina(1); }}>Todo</button>
+          {categorias.map(c => <button key={c} className={`cat-chip${catFiltro === c ? ' sel' : ''}`} onClick={() => { setCatFiltro(c); setPagina(1); }}>{c}</button>)}
+        </div>
+      )}
+
+      <div className="sec-meta">
+        <span>{esCel ? total : productosFiltrados.length} producto{(esCel ? total : productosFiltrados.length) !== 1 ? 's' : ''}{catFiltro ? ` en ${catFiltro}` : ''}</span>
+        {hayFiltrosActivos && <button className="link-btn" onClick={() => { setStockFiltro('todos'); setPrecioMin(''); setPrecioMax(''); setOrden('relevancia'); setCatFiltro(''); setMarcaFiltro(''); setPagina(1); }}>Limpiar filtros</button>}
+        {!esCel && (
+          <div className="sec-ver">
+            <span>Ver:</span>
+            {[50, 100, 'todos'].map(n => <button key={n} className={porPagina === n ? 'sel' : ''} onClick={() => { setPorPagina(n); setPagina(1); }}>{n === 'todos' ? 'Todos' : n}</button>)}
+          </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1.5px solid var(--border)', borderRadius: 10, padding: '2px 8px', background: 'var(--bg-card)' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>$</span>
-          <input type="number" placeholder="mín" value={precioMin} onChange={e => setPrecioMin(e.target.value)} style={{ width: 70, border: 'none', padding: '7px 2px', fontSize: 12.5, background: 'transparent' }} />
-          <span style={{ color: 'var(--text-muted)' }}>–</span>
-          <input type="number" placeholder="máx" value={precioMax} onChange={e => setPrecioMax(e.target.value)} style={{ width: 70, border: 'none', padding: '7px 2px', fontSize: 12.5, background: 'transparent' }} />
+      </div>
+
+      {/* Panel de filtros (desde abajo en celular, lateral en compu) */}
+      {filtrosAbiertos && (
+        <div className="sheet-overlay" onClick={() => setFiltrosAbiertos(false)}>
+          <div className="sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Filtros">
+            <div className="sheet-handle" />
+            <div className="sheet-head"><h3>Filtros</h3><button className="modal-close" onClick={() => setFiltrosAbiertos(false)} aria-label="Cerrar">✕</button></div>
+            <div className="sheet-body">
+              <label className="sheet-label">Ordenar por</label>
+              <div className="sheet-opts">
+                {[['relevancia', 'Relevancia'], ['precio_asc', 'Menor precio'], ['precio_desc', 'Mayor precio'], ['nombre', 'Nombre A-Z']].map(([v, t]) => <button key={v} className={`cat-chip${orden === v ? ' sel' : ''}`} onClick={() => setOrden(v)}>{t}</button>)}
+              </div>
+              <label className="sheet-label">Stock</label>
+              <div className="sheet-opts">
+                {[['todos', 'Todos'], ['con', 'Con stock'], ['sin', 'Sin stock']].map(([v, t]) => <button key={v} className={`cat-chip${stockFiltro === v ? ' sel' : ''}`} onClick={() => setStockFiltro(v)}>{t}</button>)}
+              </div>
+              <label className="sheet-label">Precio</label>
+              <div className="sheet-precio">
+                <input type="number" inputMode="numeric" placeholder="Mínimo" value={precioMin} onChange={e => setPrecioMin(e.target.value)} />
+                <span>–</span>
+                <input type="number" inputMode="numeric" placeholder="Máximo" value={precioMax} onChange={e => setPrecioMax(e.target.value)} />
+              </div>
+              {marcasDisponibles.length > 0 && <>
+                <label className="sheet-label">Marca</label>
+                <select value={marcaFiltro} onChange={e => setMarcaFiltro(e.target.value)} style={{ width: '100%' }}>
+                  <option value="">Todas las marcas</option>
+                  {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </>}
+            </div>
+            <div className="sheet-foot">
+              <button className="btn btn-outline" onClick={() => { setStockFiltro('todos'); setPrecioMin(''); setPrecioMax(''); setOrden('relevancia'); setMarcaFiltro(''); }}>Limpiar</button>
+              <button className="btn btn-primary" onClick={() => setFiltrosAbiertos(false)}>Ver {productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}</button>
+            </div>
+          </div>
         </div>
-        <select value={orden} onChange={e => setOrden(e.target.value)} style={{ borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border)', fontWeight: 600, fontSize: 12.5, background: 'var(--bg-card)', width: 'auto' }}>
-          <option value="relevancia">Ordenar por</option>
-          <option value="precio_asc">Precio: menor a mayor</option>
-          <option value="precio_desc">Precio: mayor a menor</option>
-          <option value="nombre">Nombre A-Z</option>
-        </select>
-        {hayFiltrosActivos && <button onClick={() => { setStockFiltro('todos'); setPrecioMin(''); setPrecioMax(''); setOrden('relevancia'); setCatFiltro(''); setMarcaFiltro(''); setPagina(1); }} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Limpiar filtros</button>}
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>{productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}</span>
-      </div>
-
-
-      {/* Cantidad por página */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ver:</span>
-        {[50, 100, 'todos'].map(n => (
-          <button key={n} onClick={() => { setPorPagina(n); setPagina(1); }} style={{ padding: '4px 12px', borderRadius: 8, border: '1px solid var(--border)', background: porPagina === n ? 'var(--primary)' : 'transparent', color: porPagina === n ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{n === 'todos' ? 'Todos' : n}</button>
-        ))}
-      </div>
+      )}
 
       {/* Products grid */}
       <div className="product-grid">
@@ -2554,7 +2639,7 @@ function SectionPage() {
                 {p.imagen ? <img src={p.imagen} alt="" className="product-img" /> : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 48 }}><Package size={44} style={{ verticalAlign: '-2px' }} /></div>}
                 {/* Badges */}
                 <div className="product-badges">
-                  {envioGratis && <span className="pbadge pbadge-shipping" style={{ background: '#dc2626', color: '#fff' }}>ENVÍO GRATIS</span>}
+                  {envioGratis && <span className="pbadge pbadge-envio"><Truck size={10} strokeWidth={2.5} /> Gratis</span>}
                   {p.es_preventa ? <span className="pbadge" style={{ background: 'var(--accent)', color: '#fff' }}>PREVENTA</span> : precio.original && <span className="pbadge pbadge-discount">{precio.descuento}% OFF</span>}
                 </div>
                 {sinStock && <div className="sin-stock-overlay">SIN STOCK</div>}
@@ -2601,8 +2686,14 @@ function SectionPage() {
       </div>
       {productos.length === 0 && <div className="empty-state"><h3>No hay productos</h3></div>}
 
-      {/* Pagination */}
-      {porPagina !== 'todos' && total > porPagina && (
+      {/* Celular: se cargan más productos al llegar al final */}
+      {hayMas && (
+        <div ref={finListaRef} className="cargar-mas">
+          <button className="btn btn-outline" onClick={cargarMas} disabled={cargandoMas}>{cargandoMas ? 'Cargando…' : `Ver más productos (${total - productos.length})`}</button>
+        </div>
+      )}
+      {/* Pagination (compu) */}
+      {!esCel && porPagina !== 'todos' && total > porPagina && (
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20 }}>
           {pagina > 1 && <button className="btn btn-outline btn-sm" onClick={() => setPagina(pagina - 1)}>← Anterior</button>}
           <span style={{ padding: '6px 12px' }}>Pág {pagina} / {Math.ceil(total / porPagina)}</span>
@@ -3402,6 +3493,20 @@ function ProductDetailPage() {
   const [showNotify, setShowNotify] = useState(false);
   const [notifyCanal, setNotifyCanal] = useState('whatsapp');
   const [notifyTel, setNotifyTel] = useState('');
+  // Barra fija de compra (celular): aparece cuando el botón "Agregar" quedó fuera de la pantalla
+  const esCelPdp = useMediaQuery('(max-width: 768px)');
+  const [buyEl, setBuyEl] = useState(null);
+  const [verBarra, setVerBarra] = useState(false);
+  useEffect(() => {
+    if (!buyEl || !('IntersectionObserver' in window)) { setVerBarra(false); return; }
+    const io = new IntersectionObserver(([e]) => setVerBarra(!e.isIntersecting && e.boundingClientRect.top < 0), { threshold: 0 });
+    io.observe(buyEl);
+    return () => io.disconnect();
+  }, [buyEl]);
+  const barraActiva = esCelPdp && verBarra && !!buyEl;
+  // Avisa al resto de la página (botón de WhatsApp) que hay barra abajo, para no taparla
+  useEffect(() => { document.body.classList.toggle('con-barra-compra', barraActiva); return () => document.body.classList.remove('con-barra-compra'); }, [barraActiva]);
+  useEffect(() => { document.body.classList.add('pagina-producto'); return () => document.body.classList.remove('pagina-producto'); }, []);
 
   useEffect(() => {
     if (!p) return;
@@ -3438,6 +3543,11 @@ function ProductDetailPage() {
   const hayPromo = usarNav ? (Number(p.precioOriginal) > 0 && Number(p.precioOriginal) > precioFinal) : !!promoInfoProd;
   const precioOriginal = hayPromo ? precioSinPromo : (!tieneVariantes && Number(p.precio_base) > precioSinPromo ? Number(p.precio_base) : null);
   const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
+  const agregarPdp = () => {
+    if (tieneVariantes && !matched) { toast(fullSel ? 'Esa combinación no está disponible' : 'Elegí todas las opciones primero', 'error'); if (barraActiva) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const label = atributos.map(a => selOpts[a.nombre]).join(' / ');
+    addToCart(sec?.id || p.seccion_id, p, qty, precioFinal, matched ? { ...matched, _label: label } : null);
+  };
   const umbralGratis = Number(config['envio_gratis_desde_' + (p.seccion_id || sec?.id)]) || 0;
   const envioGratisProd = !p.excluir_envio_gratis && (!!p.envio_gratis || (umbralGratis > 0 && precioFinal >= umbralGratis));
   const precioViejoStr = precioOriginal ? fmtARS(precioOriginal) : (matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? fmtMon(matched.precio, monedaFinal) : '');
@@ -3616,7 +3726,7 @@ function ProductDetailPage() {
               )}
             </div>
           ) : (
-            <div className="pdp-buy">
+            <div className="pdp-buy" ref={setBuyEl}>
               <div className="pdp-qty">
                 <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
                 <input type="number" min="1" value={qty} onChange={e => {
@@ -3631,8 +3741,8 @@ function ProductDetailPage() {
                   setQty(qty + 1);
                 }}>+</button>
               </div>
-              <button className="btn pdp-add" disabled={tieneVariantes && !matched} style={tieneVariantes && !matched ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={() => { if (tieneVariantes && !matched) { toast(fullSel ? 'Esa combinación no está disponible' : 'Elegí todas las opciones primero', 'error'); return; } const label = atributos.map(a => selOpts[a.nombre]).join(' / '); addToCart(sec?.id || p.seccion_id, p, qty, precioFinal, matched ? { ...matched, _label: label } : null); toast('Agregado al carrito'); }}>
-                {tieneVariantes && !matched ? (fullSel ? 'NO DISPONIBLE' : 'ELEGÍ LAS OPCIONES') : 'AGREGAR AL CARRITO'}
+              <button className="btn pdp-add" disabled={tieneVariantes && !matched} style={tieneVariantes && !matched ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={agregarPdp}>
+                {tieneVariantes && !matched ? (fullSel ? 'NO DISPONIBLE' : 'ELEGÍ LAS OPCIONES') : <>AGREGAR<span className="solo-ancho"> AL CARRITO</span></>}
               </button>
             </div>
           )}
@@ -3670,9 +3780,9 @@ function ProductDetailPage() {
       {relacionados.length > 0 && (
         <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>También te puede interesar</h3>
-          <div className="product-grid">
+          <div className="carousel-track relacionados-track">
             {relacionados.map(rp => (
-              <div key={rp.id} className="card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => { window.__secId = rp.seccion_id; nav('product', rp); }}>
+              <div key={rp.id} className="card carousel-item relacionado-card" style={{ padding: 12, cursor: 'pointer' }} onClick={() => { window.__secId = rp.seccion_id; nav('product', rp); }}>
                 {rp.imagen ? <img src={rp.imagen} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '1/1', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ico n="cart" s={28} /></div>}
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rp.nombre || rp.modelo}</div>
                 <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{rp.usa_variantes ? 'Ver opciones' : rp.es_preventa ? `Reservá a ${fmtARS(Number(rp.preventa_descuento_pct) > 0 ? Math.round(Number(rp.precio_base) * (1 - Number(rp.preventa_descuento_pct) / 100)) : rp.precio_base)}` : (precioFinalCliente(rp, promos, rp.seccion_id) > 0 ? fmtARS(precioFinalCliente(rp, promos, rp.seccion_id)) : 'Consultar precio')}</div>
@@ -3680,6 +3790,16 @@ function ProductDetailPage() {
             ))}
           </div>
         </div>
+      )}
+      {/* Va directo al <body> para que quede fija abajo aunque la página tenga animaciones */}
+      {barraActiva && createPortal(
+        <div className="buy-bar" role="region" aria-label="Comprar">
+          <div className="buy-bar-info">
+            <div className="buy-bar-name">{p.nombre || p.modelo}</div>
+            <div className="buy-bar-price">{tieneVariantes && !matched ? `desde ${fmtMon(precioFinal, monedaFinal)}` : fmtMon(precioFinal * (qty || 1), monedaFinal)}{qty > 1 ? <small> · {qty} u.</small> : null}</div>
+          </div>
+          <button className="btn btn-primary buy-bar-btn" onClick={agregarPdp}>{tieneVariantes && !matched ? 'Elegir opciones' : <><ShoppingCart size={16} /> Agregar</>}</button>
+        </div>, document.body
       )}
     </div>
   );
@@ -9298,10 +9418,15 @@ function AdminSlider() {
           <div className="form-group"><label className="form-label">Etiqueta (arriba, ej: NUEVA COLECCIÓN)</label><input value={form.etiqueta || ''} onChange={e => setForm({ ...form, etiqueta: e.target.value })} placeholder="Opcional — texto chico arriba del título" /></div>
           <div className="form-group"><label className="form-label">Título (opcional)</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} placeholder="Título grande sobre la imagen" /></div>
           <div className="form-group"><label className="form-label">Subtítulo (opcional)</label><input value={form.subtitulo || ''} onChange={e => setForm({ ...form, subtitulo: e.target.value })} placeholder="Texto debajo del título" /></div>
-          <div className="form-group"><label className="form-label">Imagen *</label>
+          <div className="form-group"><label className="form-label">Imagen * <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(compu: horizontal, ej. 1600 × 500)</span></label>
             <input type="file" accept="image/*" onChange={async e => { const file = e.target.files[0]; if (file) { try { const r = await api.uploadImagen(file); setForm({ ...form, imagen: r.url }); } catch { toast('Error al subir', 'error'); } } }} />
             {form.imagen && <img src={form.imagen} alt="" style={{ maxHeight: 100, marginTop: 8, borderRadius: 8 }} />}
             <input value={form.imagen} onChange={e => setForm({ ...form, imagen: e.target.value })} placeholder="O pegá URL" style={{ marginTop: 4, fontSize: 12 }} />
+          </div>
+          <div className="form-group"><label className="form-label">Imagen para celular (opcional)</label>
+            <small className="form-hint" style={{ marginTop: 0, marginBottom: 6 }}>Recomendado: vertical o cuadrada (ej. 1080 × 1080). Si no cargás una, en el celular se muestra la imagen principal entera.</small>
+            <input type="file" accept="image/*" onChange={async e => { const file = e.target.files[0]; if (file) { try { const r = await api.uploadImagen(file); setForm({ ...form, imagen_mobile: r.url }); } catch { toast('Error al subir', 'error'); } } }} />
+            {form.imagen_mobile && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}><img src={form.imagen_mobile} alt="" style={{ maxHeight: 100, borderRadius: 8 }} /><button type="button" className="link-btn" onClick={() => setForm({ ...form, imagen_mobile: '' })}>Quitar</button></div>}
           </div>
           <div className="form-group"><label className="form-label">URL destino (opcional)</label><input value={form.url_destino} onChange={e => setForm({ ...form, url_destino: e.target.value })} placeholder="https://..." /></div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
