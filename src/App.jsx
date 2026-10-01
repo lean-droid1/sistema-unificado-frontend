@@ -619,7 +619,15 @@ export default function App() {
         api.getBarras().then(b => setBarras(Array.isArray(b) ? b : [])).catch(() => {});
         if (api.getToken()) {
           try { const me = await api.getMe(); setUser(me); }
-          catch { api.logout(); }
+          catch (e) {
+            if (e && e.status === 401) api.logout();
+            else {
+              // Falla de conexión u ocupado: la sesión se mantiene y se reintenta sola
+              console.warn('No se pudo verificar la sesión (se reintenta):', e && e.message);
+              const reintentar = (n) => setTimeout(() => { api.getMe().then(setUser).catch(err => { if (err && err.status === 401) api.logout(); else if (n < 3) reintentar(n + 1); }); }, 2500 * n);
+              reintentar(1);
+            }
+          }
         }
         // QR del remito: ?pedido=X abre el pedido SOLO si sos admin/subadmin (seguridad)
         const pedidoParam = new URLSearchParams(window.location.search).get('pedido');
@@ -1007,8 +1015,9 @@ export default function App() {
       <div className={`app${effectiveDark ? ' dark' : ''}`}>
         <Header />
         <main className="main-content"><ErrorBoundary key={page}>{renderPage()}</ErrorBoundary></main>
-        <Footer />
-        <WhatsAppFloat />
+        {/* En el panel no van el pie de la tienda ni el WhatsApp de clientes (tapaban botones) */}
+        {page !== 'admin' && <Footer />}
+        {page !== 'admin' && <WhatsAppFloat />}
         <ToastContainer />
         <NotifyStockModal />
       </div>
@@ -6197,8 +6206,34 @@ function AdminProductos() {
   useEffect(() => { load(); }, [secFiltro, busq, catFiltro, pagina]);
 
   const inlineUpdate = async (id, field, value) => {
-    try { await api.updateProducto(id, { [field]: value }); } catch (e) { toast(e.message, 'error'); }
+    try { await api.updateProducto(id, { [field]: value }); setProductos(prev => prev.map(x => x.id === id ? { ...x, [field]: value } : x)); } catch (e) { toast(e.message, 'error'); }
   };
+  // Campo numérico editable en la lista: guarda solo si cambió y marca en verde un instante
+  const [flashGuardado, setFlashGuardado] = useState({});
+  const campoNum = (p, field, opts = {}) => {
+    const actual = Number(p[field]) || 0;
+    const fk = `${p.id}_${field}`;
+    const bajo = field === 'stock' && p.stock_minimo > 0 && Number(p.stock) <= p.stock_minimo;
+    return (
+      <input key={`${fk}_${actual}`} type="number" inputMode="decimal" className={`prod-num${bajo ? ' bajo' : ''}${flashGuardado[fk] ? ' guardado' : ''}`} defaultValue={field === 'precio_oferta' && !actual ? '' : actual}
+        placeholder={opts.placeholder || ''} title={bajo ? `Stock bajo (mínimo: ${p.stock_minimo})` : ''} aria-label={opts.label || field}
+        onFocus={e => e.target.select()}
+        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        onBlur={e => {
+          const v = Number(e.target.value) || 0;
+          if (v === actual) return;
+          inlineUpdate(p.id, field, v).then(() => { setFlashGuardado(f => ({ ...f, [fk]: true })); setTimeout(() => setFlashGuardado(f => { const n = { ...f }; delete n[fk]; return n; }), 900); });
+        }} />
+    );
+  };
+  const accionesProd = (p) => (
+    <>
+      <button className="btn btn-outline btn-sm prod-acc" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} title="Variantes" aria-label="Variantes"><Ico n="shuffle" s={15} /></button>
+      <button className="btn btn-outline btn-sm prod-acc" onClick={async () => { try { await api.duplicarProducto(p.id); toast('Producto duplicado'); load(); } catch (e) { toast(e.message, 'error'); } }} title="Duplicar" aria-label="Duplicar"><Ico n="copy" s={15} /></button>
+      <button className="btn btn-outline btn-sm prod-acc" onClick={() => setEditProd(p)} title="Editar" aria-label="Editar"><Ico n="edit" s={15} /></button>
+      <button className="btn btn-danger btn-sm prod-acc" onClick={async () => { if (!confirm(`¿Eliminar "${p.nombre || p.modelo}"?`)) return; try { await api.deleteProducto(p.id); toast('Producto eliminado'); load(); } catch (e) { toast(e.message, 'error'); } }} title="Eliminar" aria-label="Eliminar"><Ico n="trash" s={15} /></button>
+    </>
+  );
 
   // Filtro de stock en frontend sobre la página cargada
   const productosVista = productos.filter(p => {
@@ -6340,10 +6375,42 @@ function AdminProductos() {
         </div>;
       })()}
 
-      {/* Product table */}
-      <div style={{ overflowX: 'auto' }}>
+      {/* Celular: productos en tarjetas (la tabla no entraba y se cortaban precio, stock y botones) */}
+      <div className="prod-cards">
+        {productosVista.length > 0 && (
+          <label className="prod-cards-all"><input type="checkbox" checked={seleccion.size === productosVista.length} onChange={toggleAll} /> Seleccionar todos</label>
+        )}
+        {productosVista.map(p => {
+          const secNombre = secciones.find(s => s.id === p.seccion_id)?.nombre || '';
+          return (
+            <div key={p.id} className={`prod-card${seleccion.has(p.id) ? ' sel' : ''}${p.visible === false ? ' oculto' : ''}`}>
+              <div className="prod-card-top">
+                <input type="checkbox" checked={seleccion.has(p.id)} onChange={() => toggleSel(p.id)} aria-label="Seleccionar" />
+                {p.imagen ? <img src={p.imagen} alt="" className="prod-card-img" /> : <div className="prod-card-img ph"><Package size={18} /></div>}
+                <div className="prod-card-info" onClick={() => setEditProd(p)}>
+                  <div className="prod-card-name">{p.nombre || p.modelo}{p.es_preventa && <span className="prod-tag">Preventa</span>}</div>
+                  <div className="prod-card-meta">{[p.categoria, secFiltro === 'all' ? secNombre : '', p.sku && !String(p.sku).startsWith('RXZ-') ? p.sku : ''].filter(Boolean).join(' · ')}</div>
+                </div>
+              </div>
+              <div className="prod-card-fields">
+                <label><span>Precio</span>{campoNum(p, 'precio_base', { label: 'Precio' })}</label>
+                <label><span>Oferta</span>{campoNum(p, 'precio_oferta', { label: 'Oferta', placeholder: '—' })}</label>
+                <label><span>Stock</span>{campoNum(p, 'stock', { label: 'Stock' })}</label>
+              </div>
+              <div className="prod-card-foot">
+                <label className="prod-card-vis"><input type="checkbox" defaultChecked={p.visible !== false} onChange={e => inlineUpdate(p.id, 'visible', e.target.checked)} /> Visible</label>
+                <div className="prod-card-acc">{accionesProd(p)}</div>
+              </div>
+              {expandVars === p.id && <div className="prod-card-vars"><VariantesQuickEdit productoId={p.id} onOpenFull={() => { setExpandVars(null); setEditProd(p); }} /></div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Product table (compu) */}
+      <div className="prod-table-wrap" style={{ overflowX: 'auto' }}>
         <table className="admin-table">
-          <thead><tr><th style={{width:34}}><input type="checkbox" checked={productosVista.length > 0 && seleccion.size === productosVista.length} onChange={toggleAll} /></th><th style={{width:50}}>Img</th><th>Producto</th><th>Categoría</th>{secFiltro === 'all' && <th>Sección</th>}<th style={{width:90}}>Precio</th><th style={{width:90}}>Oferta</th><th style={{width:70}}>Stock</th><th style={{width:50}}><Eye size={14} /></th><th style={{width:110}}>Acc.</th></tr></thead>
+          <thead><tr><th style={{width:34}}><input type="checkbox" checked={productosVista.length > 0 && seleccion.size === productosVista.length} onChange={toggleAll} /></th><th style={{width:50}}>Img</th><th>Producto</th><th>Categoría</th>{secFiltro === 'all' && <th>Sección</th>}<th style={{width:112}}>Precio</th><th style={{width:112}}>Oferta</th><th style={{width:80}}>Stock</th><th style={{width:50}}><Eye size={14} /></th><th style={{width:150}}>Acc.</th></tr></thead>
           <tbody>
             {productosVista.map(p => {
               const secNombre = secciones.find(s => s.id === p.seccion_id)?.nombre || '';
@@ -6356,16 +6423,11 @@ function AdminProductos() {
                 <td><strong style={{ cursor: 'pointer' }} onClick={() => setEditProd(p)}>{p.nombre || p.modelo}</strong>{p.es_preventa && <span style={{ fontSize: 9, background: 'var(--accent)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 800, marginLeft: 6, verticalAlign: 'middle' }}>PREVENTA</span>}<br/><small style={{ color: 'var(--text-muted)' }}>{p.sku || ''}</small></td>
                 <td>{p.categoria}</td>
                 {secFiltro === 'all' && <td><span style={{ fontSize: 11, background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>{secNombre}</span></td>}
-                <td><input type="number" defaultValue={p.precio_base} onBlur={e => inlineUpdate(p.id, 'precio_base', Number(e.target.value))} style={{ width: 80 }} /></td>
-                <td><input type="number" defaultValue={p.precio_oferta || ''} onBlur={e => inlineUpdate(p.id, 'precio_oferta', Number(e.target.value))} style={{ width: 80 }} /></td>
-                <td><input type="number" defaultValue={p.stock} onBlur={e => inlineUpdate(p.id, 'stock', Number(e.target.value))} style={{ width: 60, ...(p.stock_minimo > 0 && p.stock <= p.stock_minimo ? { borderColor: 'var(--danger)', color: 'var(--danger)', fontWeight: 700 } : {}) }} title={p.stock_minimo > 0 && p.stock <= p.stock_minimo ? `Stock bajo (mínimo: ${p.stock_minimo})` : ''} /></td>
+                <td>{campoNum(p, 'precio_base', { label: 'Precio' })}</td>
+                <td>{campoNum(p, 'precio_oferta', { label: 'Oferta', placeholder: '—' })}</td>
+                <td>{campoNum(p, 'stock', { label: 'Stock' })}</td>
                 <td><input type="checkbox" defaultChecked={p.visible !== false} onChange={e => inlineUpdate(p.id, 'visible', e.target.checked)} /></td>
-                <td>
-                  <button className="btn btn-outline btn-sm" onClick={() => setExpandVars(expandVars === p.id ? null : p.id)} style={{ padding: '2px 6px' }} title="Variantes"><Ico n="shuffle" s={15} /></button>
-                  <button className="btn btn-outline btn-sm" onClick={async () => { try { await api.duplicarProducto(p.id); toast('Producto duplicado'); load(); } catch (e) { toast(e.message, 'error'); } }} style={{ padding: '2px 6px', marginLeft: 4 }} title="Duplicar"><Ico n="copy" s={15} /></button>
-                  <button className="btn btn-outline btn-sm" onClick={() => setEditProd(p)} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="edit" s={15} /></button>
-                  <button className="btn btn-danger btn-sm" onClick={async () => { if (!confirm('¿Eliminar?')) return; try { await api.deleteProducto(p.id); toast('Producto eliminado'); load(); } catch (e) { toast(e.message, 'error'); } }} style={{ padding: '2px 6px', marginLeft: 4 }}><Ico n="trash" s={15} /></button>
-                </td>
+                <td><div className="prod-acc-row">{accionesProd(p)}</div></td>
               </tr>
               {expandVars === p.id && (
                 <tr><td colSpan={colCount} style={{ background: 'var(--bg)', padding: '0 12px' }}>

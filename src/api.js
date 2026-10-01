@@ -57,14 +57,16 @@ async function f(url, opts = {}) {
       if(newToken){
         headers['Authorization'] = `Bearer ${newToken}`;
         const r2 = await fetchConLimite(`${BASE}${url}`, { ...opts, headers });
-        if(!r2.ok){ const err=await r2.json().catch(()=>({error:r2.statusText})); throw new Error(err.error||r2.statusText); }
+        if(!r2.ok){ const err=await r2.json().catch(()=>({error:r2.statusText})); const e2=new Error(err.error||r2.statusText); e2.status=r2.status; throw e2; }
         return r2.json();
       }
     } catch{}
   }
   if (!r.ok) {
     const err = await r.json().catch(() => ({ error: r.statusText }));
-    throw new Error(err.error || r.statusText);
+    const e = new Error(r.status === 429 ? 'Demasiados pedidos seguidos. Esperá unos segundos y probá de nuevo.' : (err.error || r.statusText));
+    e.status = r.status; // para distinguir "sesión vencida" (401) de un error de conexión
+    throw e;
   }
   return r.json();
 }
