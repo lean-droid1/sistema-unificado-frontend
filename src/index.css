@@ -45,6 +45,10 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* iPhone: Safari ensancha toda la página si algo se pasa del ancho de la pantalla (y queda "bailando" de costado).
+   overflow-x: clip recorta sin crear contenedor de scroll, así el header sticky sigue funcionando. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: hidden; }
+@supports (overflow: clip) { html, body { overflow-x: clip; } }
 body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
 input, select, textarea { font-family: var(--font); font-size: 14px; padding: 10px 16px; border: 1.5px solid var(--border); border-radius: var(--radius-pill); background: var(--bg); color: var(--text); width: 100%; transition: border-color 0.2s, box-shadow 0.2s; }
 /* Los checkboxes y radios no deben ocupar todo el ancho ni tener el padding/borde de un input de texto */
