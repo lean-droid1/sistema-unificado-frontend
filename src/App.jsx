@@ -3200,7 +3200,7 @@ function EnvioCalculadorProducto({ producto, varianteId, qty }) {
             <div key={o.id} className="envio-opt static">
               <span className="envio-opt-ico"><RenderIcon value={o.icono || 'truck'} size={18} /></span>
               <span className="envio-opt-info"><b>{o.nombre}</b>{(o.tiempo_estimado || o.descripcion) && <small>{[o.tiempo_estimado, o.descripcion].filter(Boolean).join(' · ')}</small>}</span>
-              <span className="envio-opt-precio">{o.costo > 0 ? fmtARS(o.costo) : <span className="envio-gratis-tag">Gratis{o.costo_original > 0 && <s>{fmtARS(o.costo_original)}</s>}</span>}</span>
+              <span className="envio-opt-precio">{o.a_cotizar ? <span className="envio-cotizar-tag">A cotizar</span> : o.costo > 0 ? fmtARS(o.costo) : <span className="envio-gratis-tag">Gratis{o.costo_original > 0 && <s>{fmtARS(o.costo_original)}</s>}</span>}</span>
             </div>
           ))}
           {!env.gratis_seccion && env.falta_para_gratis > 0 && <div className="envio-calc-muted">Sumando {fmtARS(env.falta_para_gratis)} más en esta tienda, el envío es gratis.</div>}
@@ -3303,7 +3303,7 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
                   <div className="form-group"><label className="form-label">DNI de quien recibe *</label><input value={entrega.dni} onChange={e => setEntrega({ ...entrega, dni: e.target.value })} placeholder="Sin puntos" inputMode="numeric" style={{ maxWidth: 200 }} /><small className="form-hint">El correo lo pide para entregar el paquete.</small></div>
                   <div className="checkout-envios">
                     {cot.secciones.filter(s => s.requiere_envio).map(s => (
-                      <div key={s.seccion_id} className="checkout-envio-row"><span>{s.nombre}: {s.envio.elegido ? s.envio.elegido.nombre : 'a coordinar'}</span><b>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? 'Gratis' : '—')}</b></div>
+                      <div key={s.seccion_id} className="checkout-envio-row"><span>{s.nombre}: {s.envio.elegido ? s.envio.elegido.nombre : 'a coordinar'}</span><b>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? (s.envio.a_cotizar ? 'A cotizar' : 'Gratis') : '—')}</b></div>
                     ))}
                   </div>
                 </div>
@@ -3377,11 +3377,12 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
                         <span>{fmtMon(i.precio_unitario * i.cantidad, i.moneda)}</span>
                       </div>
                     ))}
-                    {esEnvio && s.requiere_envio && <div className="resumen-linea muted"><span>Envío{s.envio.elegido ? ` · ${s.envio.elegido.nombre}` : ' · a coordinar'}</span><span>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? 'Gratis' : '—')}</span></div>}
+                    {esEnvio && s.requiere_envio && <div className="resumen-linea muted"><span>Envío{s.envio.elegido ? ` · ${s.envio.elegido.nombre}` : ' · a coordinar'}</span><span>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? (s.envio.a_cotizar ? 'A cotizar' : 'Gratis') : '—')}</span></div>}
                     {s.descuento > 0 && <div className="resumen-linea ok"><span>Cupón {s.cupon}</span><span>-{fmtARS(s.descuento)}</span></div>}
                   </div>
                 ))}
                 <div className="resumen-total"><span>Total</span><span>{fmtARS(totales.total)}</span></div>
+                {esEnvio && totales.envio_a_cotizar && <div className="resumen-nota"><Info size={14} /> El envío no está incluido: te lo cotizamos por WhatsApp según el peso y el destino.</div>}
                 {totales.total_usdt > 0 && <div className="resumen-total usdt"><span>Total USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
               </div>
               {totales.total_usdt > 0 && (
@@ -3734,7 +3735,7 @@ function CartPage() {
                       <input type="radio" name={`envio-${sec.id}`} checked={envioSel[sec.id] === o.id} onChange={() => setEnvioSel(prev => ({ ...prev, [sec.id]: o.id }))} />
                       <span className="envio-opt-ico"><RenderIcon value={o.icono || 'truck'} size={18} /></span>
                       <span className="envio-opt-info"><b>{o.nombre}</b>{(o.tiempo_estimado || o.descripcion) && <small>{[o.tiempo_estimado, o.descripcion].filter(Boolean).join(' · ')}</small>}</span>
-                      <span className="envio-opt-precio">{o.costo > 0 ? fmtARS(o.costo) : <span className="envio-gratis-tag">Gratis{o.costo_original > 0 && <s>{fmtARS(o.costo_original)}</s>}</span>}</span>
+                      <span className="envio-opt-precio">{o.a_cotizar ? <span className="envio-cotizar-tag">A cotizar</span> : o.costo > 0 ? fmtARS(o.costo) : <span className="envio-gratis-tag">Gratis{o.costo_original > 0 && <s>{fmtARS(o.costo_original)}</s>}</span>}</span>
                     </label>
                   ))}
               </div>
@@ -3742,7 +3743,7 @@ function CartPage() {
             {s && entregaTipo === 'retiro' && s.requiere_envio && <div className="envio-calc-muted"><Store size={14} /> Retirás en el local. Te avisamos cuando esté listo.</div>}
 
             <div className="cart-sec-sub">
-              <span>Total {sec.nombre}{s && s.envio.costo > 0 ? ' (con envío)' : ''}</span>
+              <span>Total {sec.nombre}{s && s.envio.costo > 0 ? ' (con envío)' : s && entregaTipo === 'envio' && s.envio.a_cotizar ? ' (+ envío a cotizar)' : ''}</span>
               <span>{s ? fmtARS(s.total) : '…'}</span>
             </div>
             {(() => { const cv = (cot && cot.usd && cot.usd.valor) || (cotUsdHook && cotUsdHook.valor) || 0; return s && cv > 0 && mostrarUsdSec(config, sec) ? <div className="cart-sec-sub cart-usd"><span>En dólares <small>(dólar a ${fmt(cv)})</small></span><span>{fmtUSD(s.total / cv)}</span></div> : null; })()}
@@ -6189,6 +6190,9 @@ function useCotizacionUsd(activo = true) {
   useEffect(() => { if (!activo) return; let vivo = true; api.getDolarBlue().then(d => { if (vivo && d && Number(d.venta) > 0) setCot({ valor: Number(d.venta), fuente: d.fuente }); }).catch(() => {}); return () => { vivo = false; }; }, [activo]);
   return cot;
 }
+// Cómo se cobra un método de envío propio. Un 'fijo' sin precio se trata como "a cotizar" (nunca "gratis" por error).
+const cobroEnvio = (m) => m?.tipo === 'gratis' ? 'gratis' : (m?.tipo === 'a_cotizar' || !(Number(m?.precio) > 0)) ? 'a_cotizar' : 'fijo';
+
 function AdminReglasCompra() {
   const { secciones, toast, config, setConfig } = useContext(Ctx);
   const [minimos, setMinimos] = useState({});
@@ -8483,6 +8487,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [pagos, setPagos] = useState(initOrder.pagos || []);
   const [historial, setHistorial] = useState([]);
   const [tracking, setTracking] = useState(initOrder.codigo_seguimiento || '');
+  const [costoEnvioEd, setCostoEnvioEd] = useState(Number(initOrder.costo_envio) > 0 ? String(Number(initOrder.costo_envio)) : '');
   const cargarHistorial = async () => { try { const h = await api.getHistorialPedido(o.id); setHistorial(h || []); } catch {} };
   useEffect(() => { cargarHistorial(); }, [o.id]);
   const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
@@ -8549,7 +8554,8 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   }, [addSearch]);
 
   const editSubtotal = items.reduce((s, i) => s + (Number(i.precio_unitario) || 0) * (i.qty || 0), 0);
-  const editTotal = Math.max(0, editSubtotal + (Number(ajuste) || 0));
+  const envioPed = Number(o.costo_envio) || 0;
+  const editTotal = Math.max(0, editSubtotal + (Number(ajuste) || 0)) + envioPed;
   const itemName = i => i.nombre_producto || (i.categoria && i.modelo ? `${i.categoria} - ${i.modelo}` : i.modelo || 'Producto');
 
   const saveEdit = async () => {
@@ -8582,6 +8588,14 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [notif, setNotif] = useState(null); // {mensaje, telefono} → cartelito para avisar al cliente
   const telPedido = () => { const t = o.usuario_telefono || (datosEnvio && datosEnvio.contacto && datosEnvio.contacto.telefono) || ''; const d = String(t).replace(/\D/g, ''); return d ? (d.startsWith('54') ? d : '54' + d) : ''; };
   const pedirAviso = (mensaje) => { const d = telPedido(); if (mensaje && d) setNotif({ mensaje, telefono: d }); };
+  // Envío "a cotizar": cuando ya sabés cuánto sale, se carga acá y el total del pedido se actualiza
+  const envioACotizar = /a cotizar/i.test(o.metodo_envio || '');
+  const guardarCostoEnvio = async () => {
+    const nuevo = Math.max(0, Number(costoEnvioEd) || 0); const viejo = Number(o.costo_envio) || 0;
+    const total = totalItems > 0 ? totalItems - Number(o.descuento || 0) + nuevo : Number(o.total || 0) - viejo + nuevo;
+    const metodo = String(o.metodo_envio || '').replace(/\s*\(envío a cotizar\)/i, '');
+    try { await api.updatePedido(o.id, { costo_envio: nuevo, total, metodo_envio: metodo }); setO({ ...o, costo_envio: nuevo, total, metodo_envio: metodo }); toast(nuevo > 0 ? `Envío de ${fmtARS(nuevo)} sumado al pedido` : 'Envío sin cargo'); } catch (e) { toast(e.message, 'error'); }
+  };
   const guardarTracking = async () => { try { await api.updatePedido(o.id, { codigo_seguimiento: tracking.trim() }); setO({ ...o, codigo_seguimiento: tracking.trim() }); toast('Seguimiento guardado'); } catch (e) { toast(e.message, 'error'); } };
   const enviarTrackingWA = async () => { const cod = tracking.trim(); if (!cod) return; if (cod !== (o.codigo_seguimiento || '')) await guardarTracking(); if (!telPedido()) { toast('Este pedido no tiene teléfono del cliente', 'error'); return; } pedirAviso(`¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue despachado 🚚. Código de seguimiento: ${cod}`); };
 
@@ -8735,6 +8749,14 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <button className="btn btn-outline btn-sm" onClick={guardarTracking} disabled={tracking.trim() === (o.codigo_seguimiento || '')}>Guardar</button>
               <button className="btn btn-success btn-sm" onClick={enviarTrackingWA} disabled={!tracking.trim()}>Enviar por WhatsApp</button>
             </div>
+            {(o.metodo_envio || Number(o.costo_envio) > 0) && (
+              <div className={`ped-envio-costo${envioACotizar ? ' pendiente' : ''}`}>
+                <label>Envío{o.metodo_envio ? ` · ${o.metodo_envio}` : ''}:</label>
+                <input type="number" inputMode="numeric" value={costoEnvioEd} onChange={e => setCostoEnvioEd(e.target.value)} placeholder={envioACotizar ? 'Cargá lo que cotizaste' : 'Costo del envío'} />
+                <button className="btn btn-outline btn-sm" onClick={guardarCostoEnvio} disabled={(Number(costoEnvioEd) || 0) === (Number(o.costo_envio) || 0) && !envioACotizar}>Guardar</button>
+                {envioACotizar && <small>Falta cotizar: el total todavía no incluye el envío</small>}
+              </div>
+            )}
             {/* Assign client */}
             <select value={o.usuario_id || ''} onChange={async e => { try { await api.updatePedido(o.id, { usuario_id: Number(e.target.value) }); toast('Cliente asignado'); const full = await api.getPedido(o.id); setO(full); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 180 }}>
               <option value="">Asignar cliente...</option>
@@ -8806,7 +8828,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 
           <div style={{ textAlign: 'right', marginBottom: 12 }}>
             {editing && ajuste !== 0 && <div style={{ fontSize: 12, color: ajuste < 0 ? 'var(--success)' : 'var(--accent)' }}>{ajuste < 0 ? `Descuento: -${fmtARS(Math.abs(ajuste))}` : `Recargo: +${fmtARS(ajuste)}`}</div>}
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtARS(editTotal)}</div>
+            {!editing && Number(o.descuento) > 0 && <div style={{ fontSize: 12, color: 'var(--success)' }}>Descuento: -{fmtARS(Number(o.descuento))}</div>}
+            {envioPed > 0 ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Envío: +{fmtARS(envioPed)}</div> : envioACotizar ? <div style={{ fontSize: 12, color: 'var(--warning, #f59e0b)', fontWeight: 700 }}>Envío: a cotizar</div> : null}
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtARS(editing ? editTotal : totalPedido)}</div>
           </div>
 
           {/* PAGOS MIXTOS */}
@@ -10758,14 +10782,19 @@ function FavoritosPage() {
 function AdminEnviosCustom() {
   const { secciones, toast, config, setConfig } = useContext(Ctx);
   const [items, setItems] = useState([]); const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 });
+  const [form, setForm] = useState({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'a_cotizar', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 });
   const [edit, setEdit] = useState(null);
   const [sub, setSub] = useState('metodos');
   const [aclaracion, setAclaracion] = useState('');
   const load = () => api.getEnvioCustomAll().then(setItems).catch(() => {});
   useEffect(() => { load(); }, []);
   useEffect(() => { setAclaracion(config.aclaracion_envios || ''); }, [config]);
-  const save = async () => { if (!form.nombre?.trim()) { toast('Nombre obligatorio', 'error'); return; } try { if (edit) await api.updateEnvioCustom(edit.id, form); else await api.createEnvioCustom(form); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); } };
+  const save = async () => {
+    if (!form.nombre?.trim()) { toast('Nombre obligatorio', 'error'); return; }
+    if (form.tipo === 'fijo' && !(Number(form.precio) > 0)) { toast('Poné el costo del envío, o elegí "A cotizar" o "Gratis"', 'error'); return; }
+    const datos = { ...form, precio: form.tipo === 'fijo' ? Number(form.precio) || 0 : 0 };
+    try { if (edit) await api.updateEnvioCustom(edit.id, datos); else await api.createEnvioCustom(datos); load(); setShow(false); toast('Guardado'); } catch (e) { toast(e.message, 'error'); }
+  };
   const saveAclaracion = async () => { try { await api.updateConfig({ aclaracion_envios: aclaracion }); setConfig({ ...config, aclaracion_envios: aclaracion }); toast('Aclaración guardada'); } catch (e) { toast(e.message, 'error'); } };
 
   return (
@@ -10789,16 +10818,16 @@ function AdminEnviosCustom() {
       )}
 
       {sub === 'metodos' && <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h4>Métodos de envío custom</h4><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'fijo', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h4>Métodos de envío custom</h4><button className="btn btn-primary btn-sm" onClick={() => { setEdit(null); setForm({ seccion_id: null, nombre: '', descripcion: '', precio: 0, tipo: 'a_cotizar', activo: true, gratis_desde: 0, tiempo_estimado: '', icono: 'truck', orden: 0 }); setShow(true); }}>+ Nuevo</button></div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Aparecen junto a Andreani en el checkout. Ej: Uber Moto CABA, Retiro Local, Didi.</p>
       {items.map(m => (
         <div key={m.id} className="card" style={{ padding: 12, marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
           <RenderIcon value={m.icono} size={20} />
           <div style={{ flex: 1 }}><strong>{m.nombre}</strong> {m.descripcion && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>— {m.descripcion}</span>}
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{secciones.find(s => s.id === m.seccion_id)?.nombre || 'Todas'} · {m.precio > 0 ? fmtARS(m.precio) : 'Gratis'} {m.tiempo_estimado && `· ${m.tiempo_estimado}`}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{secciones.find(s => s.id === m.seccion_id)?.nombre || 'Todas'} · {cobroEnvio(m) === 'gratis' ? 'Gratis' : cobroEnvio(m) === 'a_cotizar' ? 'A cotizar' : fmtARS(m.precio)} {m.tiempo_estimado && `· ${m.tiempo_estimado}`}</div>
           </div>
           <span style={{ fontSize: 11, color: m.activo ? 'var(--success)' : 'var(--danger)' }}>{m.activo ? '✓' : '✗'}</span>
-          <button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm(m); setShow(true); }}><Ico n="edit" s={15} /></button>
+          <button className="btn btn-outline btn-sm" onClick={() => { setEdit(m); setForm({ ...m, tipo: cobroEnvio(m) }); setShow(true); }}><Ico n="edit" s={15} /></button>
           <button className="btn btn-danger btn-sm" onClick={async () => { await api.deleteEnvioCustom(m.id); load(); }}><Ico n="trash" s={15} /></button>
         </div>
       ))}
@@ -10809,9 +10838,15 @@ function AdminEnviosCustom() {
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Este es un <b>método de envío</b> (ej: Andreani, Moto, Retiro). No es la compra mínima — eso se configura en "Diseño y Config → Config por sección".</p>
           <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Uber Moto CABA" /></div>
           <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="A coordinar por WhatsApp" /></div>
+          <div className="form-group"><label className="form-label">¿Cómo se cobra?</label>
+            <div className="env-cobro">
+              {[['fijo', 'Precio fijo'], ['a_cotizar', 'A cotizar'], ['gratis', 'Gratis']].map(([k, t]) => <button key={k} type="button" className={form.tipo === k ? 'sel' : ''} onClick={() => setForm({ ...form, tipo: k })}>{t}</button>)}
+            </div>
+            <span className="form-hint">{form.tipo === 'a_cotizar' ? 'El cliente ve "A cotizar" y el costo se lo pasás después por WhatsApp (no se suma al total).' : form.tipo === 'gratis' ? 'Siempre sin cargo para el cliente.' : 'El cliente paga este monto, que se suma al total del pedido.'}</span>
+          </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Costo del envío $</label><input type="number" value={form.precio} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} placeholder="0 = gratis" /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lo que paga el cliente por este envío</span></div>
-            <div className="form-group"><label className="form-label">Envío gratis desde $</label><input type="number" value={form.gratis_desde} onChange={e => setForm({ ...form, gratis_desde: Number(e.target.value) })} placeholder="0 = nunca" /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Si el pedido supera este monto, el envío es gratis</span></div>
+            {form.tipo === 'fijo' && <div className="form-group"><label className="form-label">Costo del envío $</label><input type="number" value={form.precio || ''} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} placeholder="Ej: 6500" /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lo que paga el cliente por este envío</span></div>}
+            {form.tipo !== 'gratis' && <div className="form-group"><label className="form-label">Envío gratis desde $</label><input type="number" value={form.gratis_desde} onChange={e => setForm({ ...form, gratis_desde: Number(e.target.value) })} placeholder="0 = nunca" /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Si el pedido supera este monto, el envío es gratis</span></div>}
           </div>
           <div className="form-group"><label className="form-label">Tiempo estimado</label><input value={form.tiempo_estimado} onChange={e => setForm({ ...form, tiempo_estimado: e.target.value })} placeholder="2-3 horas" /></div>
           <div className="form-group"><label className="form-label">Sección</label><select value={form.seccion_id || ''} onChange={e => setForm({ ...form, seccion_id: e.target.value ? Number(e.target.value) : null })}><option value="">Todas</option>{secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></div>
