@@ -8979,7 +8979,8 @@ function AdminUsuarios() {
     suspendidos: users.filter(u => estadoDe(u) === 'suspendido').length,
     equipo: users.filter(esEquipo).length,
   };
-  const filtros = [['todos', 'Todos'], ['compradores', 'Compraron'], ['sin_compras', 'Sin compras'], ['con_lista', 'Con lista de precio'], ['mayoristas', 'Mayoristas'], ['piden_mayorista', 'Piden mayorista'], ['pendientes', 'Pendientes'], ['suspendidos', 'Suspendidos'], ['equipo', 'Equipo']];
+  const filtros = [['todos', 'Todos'], ['piden_mayorista', 'Piden mayorista'], ['mayoristas', 'Mayoristas'], ['compradores', 'Compraron'], ['sin_compras', 'Sin compras'], ['con_lista', 'Con lista de precio'], ['pendientes', 'Pendientes'], ['suspendidos', 'Suspendidos'], ['equipo', 'Equipo']];
+  const siempreVisibles = ['todos', 'piden_mayorista', 'mayoristas'];
   const lista = users.filter(u => {
     if (filtroCli === 'compradores') return !esEquipo(u) && u.compras > 0;
     if (filtroCli === 'sin_compras') return !esEquipo(u) && !(u.compras > 0);
@@ -9024,6 +9025,11 @@ function AdminUsuarios() {
           <button className="btn btn-primary btn-sm" onClick={() => setEditUser({ _isNew: true })}>+ Nuevo</button>
         </div>
       </div>
+      {conteo.piden_mayorista > 0 && filtroCli !== 'piden_mayorista' && (
+        <button type="button" className="cli-aviso-may" onClick={() => setFiltroCli('piden_mayorista')}>
+          <Lock size={16} /> <span><b>{conteo.piden_mayorista} {conteo.piden_mayorista === 1 ? 'cliente pide' : 'clientes piden'} acceso mayorista</b> · tocá para ver y autorizar</span>
+        </button>
+      )}
       <div className="card" style={{ padding: 12, marginBottom: 12, borderLeft: '3px solid var(--primary)' }}>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
           <input type="checkbox" checked={aprobReq} onChange={toggleAprob} style={{ marginTop: 3 }} />
@@ -9041,8 +9047,9 @@ function AdminUsuarios() {
         </select>
       </div>
       <div className="cat-chips" style={{ marginBottom: 8 }}>
-        {filtros.filter(([k]) => k === 'todos' || conteo[k] > 0).map(([k, t]) => <button key={k} className={`cat-chip${filtroCli === k ? ' sel' : ''}`} onClick={() => setFiltroCli(k)}>{t} <span className="chip-n">{conteo[k]}</span></button>)}
+        {filtros.filter(([k]) => siempreVisibles.includes(k) || conteo[k] > 0).map(([k, t]) => <button key={k} className={`cat-chip${filtroCli === k ? ' sel' : ''}${k === 'piden_mayorista' && conteo[k] > 0 ? ' alerta' : ''}`} onClick={() => setFiltroCli(k)}>{t} <span className="chip-n">{conteo[k]}</span></button>)}
       </div>
+      {filtroCli === 'piden_mayorista' && conteo.piden_mayorista === 0 && <p className="cli-ayuda">Todavía nadie pidió acceso. Cuando un cliente entra a Mayorista y toca "Solicitar acceso mayorista", aparece acá y lo aprobás con "Autorizar". También podés abrir cualquier cliente y marcar "Cliente mayorista".</p>}
       {lista.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay clientes con este filtro</p>}
       {lista.map(u => {
         const est = estadoDe(u);
