@@ -2264,7 +2264,7 @@ function TarjetaProducto({ p, secId, usd }) {
             {restante && <span className="tp-reloj"><Clock size={11} /> {textoRestante(restante)}</span>}
             {ultimas && <span className="tp-ultimas">{stock === 1 ? 'Última unidad' : `Últimas ${stock} unidades`}</span>}
             {p.es_preventa && p.preventa_mostrar_fecha && p.preventa_fecha && <span className="tp-reloj">Llega {new Date(p.preventa_fecha).toLocaleDateString('es-AR')}</span>}
-            {usd && pr.final > 0 && <span className="tp-usd">USD {fmt(Math.round(pr.final / usd * 100) / 100)}</span>}
+            {usd && pr.final > 0 && <span className="tp-usd">{fmtUSD(pr.final / usd)}</span>}
           </div>
         )}
         <div className="tp-accion">
@@ -2780,7 +2780,7 @@ function SectionPage() {
       setProductos(prodData.productos || []); setTotal(prodData.total || 0); setCargandoMas(false);
       setCategorias(cats || []); setPromos(promoData || []); setSecBadges(bdg || []);
       setMetodosPago(mp || []);
-      if (esMayorista) {
+      if (esMayorista || mostrarUsdSec(config, sec)) {
         api.getDolarBlue().then(d => { if (d.venta) setDolarBlue(d.venta); }).catch(() => {});
       }
     } catch (e) { console.error(e); }
@@ -2935,7 +2935,7 @@ function SectionPage() {
 
       {/* Products grid */}
       <div className="product-grid">
-        {productosFiltrados.map(p => <TarjetaProducto key={p.id} p={p} secId={sec.id} usd={esMayorista && dolarBlue ? dolarBlue : null} />)}
+        {productosFiltrados.map(p => <TarjetaProducto key={p.id} p={p} secId={sec.id} usd={(esMayorista || mostrarUsdSec(config, sec)) && dolarBlue ? dolarBlue : null} />)}
       </div>
       {productos.length === 0 && <div className="empty-state"><h3>No hay productos</h3></div>}
 
@@ -3024,6 +3024,11 @@ function ListaMayorista({ sec, onVista }) {
   }, []);
   const clave = String(sec.id);
   const lineas = (cart && (cart[clave] || cart[sec.id])) || [];
+  const verUsd = mostrarUsdSec(config, sec);
+  const minUsdCfg = config?.[`compra_minima_moneda_${sec.id}`] === 'USD';
+  const cotz = useCotizacionUsd(verUsd || minUsdCfg);
+  const cv = cotz ? cotz.valor : 0;
+  const secSinLimite = !!(sec.permitir_sin_stock || sec.ignorar_stock);
   const qtyDe = (id) => { const l = lineas.find(i => i.id === id && !i.variante_id); return l ? l.qty : 0; };
   const ordenCats = useMemo(() => { const o = {}; let n = 0; for (const p of (prods || [])) { const c = p.categoria || 'Sin categoría'; if (o[c] === undefined) o[c] = n++; } return o; }, [prods]);
   const colorDe = (c) => COLORES_CAT[(ordenCats[c] || 0) % COLORES_CAT.length];
@@ -3037,20 +3042,23 @@ function ListaMayorista({ sec, onVista }) {
       if (idx[c] === undefined) { idx[c] = out.length; out.push({ cat: c, items: [] }); }
       out[idx[c]].items.push(p);
     }
+    // "Sin categoría" siempre al final
+    out.sort((a, b) => (a.cat === 'Sin categoría') - (b.cat === 'Sin categoría'));
     return out;
   }, [prods, q, soloPedido, lineas]);
   const precioDe = (p) => precioTarjeta(p, ctx, sec.id);
   const nombreFila = (p) => { const n = String(p.nombre || ''); const c = String(p.categoria || ''); return (c && n.toLowerCase().startsWith(c.toLowerCase()) && p.modelo) ? p.modelo : (n || p.modelo); };
-  const puedeComprar = (p) => (Number(p.stock) > 0) || p.permitir_sin_stock || p.es_digital;
+  const puedeComprar = (p) => (Number(p.stock) > 0) || p.permitir_sin_stock || p.es_digital || secSinLimite;
   const fijar = (p, valor) => {
     const n = Math.max(0, Math.floor(Number(valor) || 0)); const actual = qtyDe(p.id);
     if (n === actual) return;
-    if (!actual) { if (n > 0) addToCart(clave, p, n, precioDe(p).final, null, { silencioso: true }); }
+    if (!actual) { if (n > 0) addToCart(clave, (secSinLimite && !p.permitir_sin_stock) ? { ...p, permitir_sin_stock: true } : p, n, precioDe(p).final, null, { silencioso: true }); }
     else updateCartQty(String(p.seccion_id || clave), p.id, n);
   };
   const unidades = lineas.reduce((a, i) => a + (i.qty || 0), 0);
   const subtotal = lineas.reduce((a, i) => a + (i.qty || 0) * (Number(i.precio_unitario) || 0), 0);
-  const minimo = Number(config?.[`compra_minima_${sec.id}`]) || 0;
+  const mn = minimoSec(config, sec.id, cv);
+  const minimo = mn.ars;
   const falta = Math.max(0, minimo - subtotal);
   const irA = (k) => { const el = document.getElementById(`lm-cat-${k}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   const descargar = async () => {
@@ -3106,7 +3114,7 @@ function ListaMayorista({ sec, onVista }) {
                       {p.imagen ? <button type="button" className="lm-foto" onClick={() => ctx.setVistaRapida({ ...p, seccion_id: p.seccion_id || sec.id })} aria-label="Ver foto"><img src={imgOpt(p.imagen, 80)} alt="" loading="lazy" /></button> : null}
                       <span>{nombreFila(p)}</span>
                     </div>
-                    <div className="lm-precio">{pr.original ? <s>{fmtARS(pr.original)}</s> : null}{pr.final > 0 ? fmtARS(pr.final) : 'Consultar'}</div>
+                    <div className="lm-precio">{pr.original ? <s>{fmtARS(pr.original)}</s> : null}{pr.final > 0 ? fmtARS(pr.final) : 'Consultar'}{verUsd && cv > 0 && pr.final > 0 ? <small className="lm-usd">{fmtUSD(pr.final / cv)}</small> : null}</div>
                     {ok ? (
                       <div className="lm-qty">
                         <button type="button" onClick={() => fijar(p, n - 1)} disabled={!n} aria-label="Uno menos"><Minus size={14} /></button>
@@ -3125,11 +3133,13 @@ function ListaMayorista({ sec, onVista }) {
       </div>
       <div className={`lm-barra${unidades ? ' con' : ''}`}>
         <div className="lm-barra-info">
-          {unidades ? <><b>{fmtARS(subtotal)}</b><span>{lineas.length} producto{lineas.length !== 1 ? 's' : ''} · {unidades} u.</span></> : <span>Escribí la cantidad en cada producto que quieras pedir</span>}
-          {minimo > 0 && (
+          {unidades ? <><b>{fmtARS(subtotal)}</b>{verUsd && cv > 0 ? <span className="lm-usd-total">{fmtUSD(subtotal / cv)}</span> : null}<span>{lineas.length} producto{lineas.length !== 1 ? 's' : ''} · {unidades} u.</span></> : <span>Escribí la cantidad en cada producto que quieras pedir</span>}
+          {mn.base > 0 && (
             <div className="lm-min">
-              <div className="lm-min-barra"><span style={{ width: `${Math.min(100, Math.round(subtotal / minimo * 100))}%` }} /></div>
-              <small>{falta > 0 ? `Te faltan ${fmtARS(falta)} para la compra mínima de ${fmtARS(minimo)}` : 'Llegaste a la compra mínima'}</small>
+              {minimo > 0 && <div className="lm-min-barra"><span style={{ width: `${Math.min(100, Math.round(subtotal / minimo * 100))}%` }} /></div>}
+              <small>{minimo <= 0 ? `Compra mínima ${fmtUSD(mn.base)}`
+                : falta > 0 ? (mn.usd ? `Te faltan ${fmtARS(falta)} para la compra mínima de ${fmtUSD(mn.base)} (hoy ${fmtARS(minimo)})` : `Te faltan ${fmtARS(falta)} para la compra mínima de ${fmtARS(minimo)}`)
+                : 'Llegaste a la compra mínima'}{mn.soloEnvio && falta > 0 ? ' · para envío' : ''}</small>
             </div>
           )}
         </div>
@@ -3460,6 +3470,7 @@ function CartPage() {
     _validSecIds.has(String(secId)) && Array.isArray(items) ? items.map(i => ({ ...i, seccion_id: Number(secId) })) : []
   ).filter(i => i.qty > 0);
   const seccionesConItems = secciones.filter(s => allItems.some(i => i.seccion_id === s.id));
+  const cotUsdHook = useCotizacionUsd(seccionesConItems.some(x => mostrarUsdSec(config, x)));
   const itemsKey = JSON.stringify(allItems.map(i => [i.seccion_id, i.id, i.variante_id || 0, i.qty]));
   const envioKey = JSON.stringify(envioSel);
 
@@ -3681,7 +3692,7 @@ function CartPage() {
                   {gratis > 0 && <div className={`meta-hito gratis${llegoGratis ? ' ok' : ''}`} style={{ left: `${Math.min(100, (gratis / tope) * 100)}%` }}><span>Gratis</span></div>}
                 </div>
                 <div className={`meta-msg${!llegoMin ? ' warn' : llegoGratis ? ' ok' : ''}`}>
-                  {!llegoMin ? <>Te faltan <b>{fmtARS(minEnvio - secSubtotal)}</b> para {entregaTipo === 'envio' ? 'habilitar el envío' : 'llegar al mínimo'}</>
+                  {!llegoMin ? <>Te faltan <b>{fmtARS(minEnvio - secSubtotal)}</b> para {entregaTipo === 'envio' && !aplicaRetiro ? 'habilitar el envío' : 'la compra mínima'}{s && s.compra_minima_usd ? ` de ${fmtUSD(s.compra_minima_usd)}` : ''}</>
                     : llegoGratis ? <><CheckCircle size={14} /> ¡Tenés <b>envío gratis</b> en esta tienda!</>
                     : gratis > 0 ? <>Te faltan <b>{fmtARS(gratis - secSubtotal)}</b> para tener <b>envío gratis</b></>
                     : <><Check size={14} /> Mínimo alcanzado</>}
@@ -3734,6 +3745,7 @@ function CartPage() {
               <span>Total {sec.nombre}{s && s.envio.costo > 0 ? ' (con envío)' : ''}</span>
               <span>{s ? fmtARS(s.total) : '…'}</span>
             </div>
+            {(() => { const cv = (cot && cot.usd && cot.usd.valor) || (cotUsdHook && cotUsdHook.valor) || 0; return s && cv > 0 && mostrarUsdSec(config, sec) ? <div className="cart-sec-sub cart-usd"><span>En dólares <small>(dólar a ${fmt(cv)})</small></span><span>{fmtUSD(s.total / cv)}</span></div> : null; })()}
             {s && s.subtotal_usdt > 0 && <div className="cart-sec-sub"><span>Subtotal USDT {sec.nombre}</span><span>{fmtMon(s.subtotal_usdt, 'USDT')}</span></div>}
           </section>
         );
@@ -6164,18 +6176,38 @@ function OrdenCompraModal({ secciones, onClose, onSaved, toast }) {
     </div>
   );
 }
+// Precio en dólares y compra mínima en USD: helpers compartidos
+const fmtUSD = (v) => 'USD ' + Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const mostrarUsdSec = (config, sec) => { const v = config?.[`mostrar_usd_${sec?.id}`]; return v === undefined || v === null || v === '' ? !!sec?.requiere_aprobacion : v === 'true'; };
+const minimoSec = (config, secId, cot) => {
+  const base = Number(config?.[`compra_minima_${secId}`]) || 0;
+  const usd = config?.[`compra_minima_moneda_${secId}`] === 'USD';
+  return { base, usd, ars: usd ? (cot > 0 ? Math.round(base * cot) : 0) : base, soloEnvio: config?.[`min_aplica_retiro_${secId}`] !== 'true' };
+};
+function useCotizacionUsd(activo = true) {
+  const [cot, setCot] = useState(null);
+  useEffect(() => { if (!activo) return; let vivo = true; api.getDolarBlue().then(d => { if (vivo && d && Number(d.venta) > 0) setCot({ valor: Number(d.venta), fuente: d.fuente }); }).catch(() => {}); return () => { vivo = false; }; }, [activo]);
+  return cot;
+}
 function AdminReglasCompra() {
   const { secciones, toast, config, setConfig } = useContext(Ctx);
   const [minimos, setMinimos] = useState({});
+  const [monedas, setMonedas] = useState({});
   const [aplicaRetiro, setAplicaRetiro] = useState({});
+  const [verUsd, setVerUsd] = useState({});
+  const [fuente, setFuente] = useState(config.usd_fuente || 'blue');
+  const [manual, setManual] = useState(config.usd_manual || '');
   const [saving, setSaving] = useState(null);
+  const cot = useCotizacionUsd(true);
   useEffect(() => {
-    const d = {}, ar = {};
+    const d = {}, mo = {}, ar = {}, vu = {};
     secciones.forEach(s => {
       d[s.id] = config[`compra_minima_${s.id}`] || '';
+      mo[s.id] = config[`compra_minima_moneda_${s.id}`] === 'USD' ? 'USD' : 'ARS';
       ar[s.id] = config[`min_aplica_retiro_${s.id}`] === 'true';
+      vu[s.id] = mostrarUsdSec(config, s);
     });
-    setMinimos(d); setAplicaRetiro(ar);
+    setMinimos(d); setMonedas(mo); setAplicaRetiro(ar); setVerUsd(vu);
   }, [secciones, config]);
 
   const save = async (sec) => {
@@ -6183,7 +6215,9 @@ function AdminReglasCompra() {
     try {
       const upd = {
         [`compra_minima_${sec.id}`]: String(minimos[sec.id] || 0),
+        [`compra_minima_moneda_${sec.id}`]: monedas[sec.id] === 'USD' ? 'USD' : 'ARS',
         [`min_aplica_retiro_${sec.id}`]: aplicaRetiro[sec.id] ? 'true' : 'false',
+        [`mostrar_usd_${sec.id}`]: verUsd[sec.id] ? 'true' : 'false',
       };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
@@ -6191,34 +6225,62 @@ function AdminReglasCompra() {
     } catch (e) { toast(e.message, 'error'); }
     setSaving(null);
   };
+  const guardarDolar = async () => {
+    setSaving('usd');
+    try { const upd = { usd_fuente: fuente, usd_manual: String(Number(manual) || '') }; await api.updateConfig(upd); setConfig({ ...config, ...upd }); toast('Cotización del dólar guardada'); }
+    catch (e) { toast(e.message, 'error'); }
+    setSaving(null);
+  };
 
   return (
     <div>
       <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Reglas de compra</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Definí un monto mínimo de compra por sección. Por defecto el mínimo aplica solo al envío (si retiran en el local, no hay mínimo). Marcá la casilla si querés que el mínimo también valga para el retiro. Dejá 0 para no exigir mínimo.</p>
-      {secciones.map(s => (
-        <div key={s.id} className="card" style={{ padding: 16, marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
-              {Number(minimos[s.id]) > 0
-                ? <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 2 }}>Mínimo activo: {fmtARS(Number(minimos[s.id]))}</div>
-                : <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Sin mínimo (se puede comprar cualquier monto)</div>}
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Monto mínimo de compra por sección, en pesos o en dólares. Si es en dólares se pasa a pesos con la cotización del momento en que el cliente cierra el carrito. Por defecto el mínimo aplica solo al envío; marcá la casilla si también vale para el retiro. Dejá 0 para no exigir mínimo.</p>
+
+      <div className="card rc-dolar">
+        <div>
+          <strong>Cotización del dólar</strong>
+          <div className="rc-cot">{cot ? <>Hoy: <b>${fmt(cot.valor)}</b> <span>({cot.fuente === 'manual' ? 'manual' : cot.fuente === 'oficial' ? 'oficial' : cot.fuente === 'blue' ? 'blue' : 'último valor guardado'})</span></> : 'Consultando…'}</div>
+        </div>
+        <div className="rc-dolar-ctrl">
+          <select value={fuente} onChange={e => setFuente(e.target.value)} aria-label="Fuente de la cotización">
+            <option value="blue">Dólar blue (automático)</option>
+            <option value="oficial">Dólar oficial (automático)</option>
+            <option value="manual">Valor fijo que pongo yo</option>
+          </select>
+          {fuente === 'manual' && <input type="number" inputMode="decimal" value={manual} onChange={e => setManual(e.target.value)} placeholder="Ej: 1250" style={{ width: 110 }} aria-label="Valor del dólar" />}
+          <button className="btn btn-primary btn-sm" onClick={guardarDolar} disabled={saving === 'usd'}>{saving === 'usd' ? '...' : 'Guardar'}</button>
+        </div>
+      </div>
+
+      {secciones.map(s => {
+        const n = Number(minimos[s.id]) || 0; const enUsd = monedas[s.id] === 'USD';
+        return (
+          <div key={s.id} className="card" style={{ padding: 16, marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
+                {n > 0
+                  ? <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 2 }}>Mínimo activo: {enUsd ? `${fmtUSD(n)}${cot ? ` (hoy ${fmtARS(Math.round(n * cot.valor))})` : ''}` : fmtARS(n)}</div>
+                  : <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Sin mínimo (se puede comprar cualquier monto)</div>}
+              </div>
+              <div className="rc-min-ctrl">
+                <select value={monedas[s.id] || 'ARS'} onChange={e => setMonedas({ ...monedas, [s.id]: e.target.value })} aria-label="Moneda del mínimo" style={{ width: 118 }}>
+                  <option value="ARS">Pesos $</option><option value="USD">Dólares</option>
+                </select>
+                <input type="number" value={minimos[s.id] ?? ''} onChange={e => setMinimos({ ...minimos, [s.id]: e.target.value })} placeholder="0" />
+                <button className="btn btn-primary btn-sm" onClick={() => save(s)} disabled={saving === s.id}>{saving === s.id ? '...' : 'Guardar'}</button>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>$</span>
-              <input type="number" value={minimos[s.id] ?? ''} onChange={e => setMinimos({ ...minimos, [s.id]: e.target.value })} placeholder="0" style={{ width: 130 }} />
-              <button className="btn btn-primary btn-sm" onClick={() => save(s)} disabled={saving === s.id}>{saving === s.id ? '...' : 'Guardar'}</button>
+            <div className="rc-opciones">
+              {n > 0 && (
+                <label><input type="checkbox" checked={!!aplicaRetiro[s.id]} onChange={e => setAplicaRetiro({ ...aplicaRetiro, [s.id]: e.target.checked })} /> <span>El mínimo también aplica al <strong>retiro en el local</strong></span></label>
+              )}
+              <label><input type="checkbox" checked={!!verUsd[s.id]} onChange={e => setVerUsd({ ...verUsd, [s.id]: e.target.checked })} /> <span>Mostrar los precios también en <strong>dólares</strong> (el cliente elige cómo pagar)</span></label>
             </div>
           </div>
-          {Number(minimos[s.id]) > 0 && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={!!aplicaRetiro[s.id]} onChange={e => setAplicaRetiro({ ...aplicaRetiro, [s.id]: e.target.checked })} style={{ width: 17, height: 17 }} />
-              <span>El mínimo también aplica al <strong>retiro en el local</strong> (no solo al envío)</span>
-            </label>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -7759,6 +7821,8 @@ function ImportModal({ onClose }) {
   const doUpload = async () => {
     if (!data?.productos?.length || uploading) return;
     if (modo === 'reemplazar' && !confirm(`Se van a BORRAR todos los productos de "${secciones.find(s => s.id === importSecId)?.nombre}" y cargar estos ${data.total}. Los pedidos viejos no se tocan. ¿Seguimos?`)) return;
+    const borraFaltantes = faltantes === 'borrar' && modo !== 'reemplazar' && modo !== 'solo_categorias';
+    if (borraFaltantes && !confirm(`Los productos de "${secciones.find(s => s.id === importSecId)?.nombre}" que NO están en este Excel se van a BORRAR. Los pedidos viejos no se tocan. ¿Seguimos?`)) return;
     try { localStorage.setItem(clavePct, String(pct)); localStorage.setItem('gm_import_redondeo', String(paso)); } catch {}
     setUploading(true); setResult(null);
     const LOTE = 250; const lista = data.productos.map(preparar);
@@ -7772,7 +7836,7 @@ function ImportModal({ onClose }) {
         if (!tot.primer_error && r.primer_error) tot.primer_error = r.primer_error;
       }
       if (faltantes !== 'no_tocar' && modo !== 'reemplazar' && modo !== 'solo_categorias') {
-        const r = await api.bulkProductos([], { modo: 'marcar_faltantes', seccion_id: importSecId, accion: faltantes === 'ocultar' ? 'ocultar' : 'sin_stock', presentes: lista.map(p => ({ sku: p.sku, nombre: p.nombre })) });
+        const r = await api.bulkProductos([], { modo: 'marcar_faltantes', seccion_id: importSecId, accion: faltantes, presentes: lista.map(p => ({ sku: p.sku, nombre: p.nombre })) });
         tot.marcados = r.marcados || 0;
       }
       setResult({ ok: true, ...tot });
@@ -7808,6 +7872,7 @@ function ImportModal({ onClose }) {
               <option value="no_tocar">No tocar (dejarlos como están)</option>
               <option value="sin_stock">Poner sin stock (el proveedor los sacó de la lista)</option>
               <option value="ocultar">Ocultarlos de la tienda</option>
+              <option value="borrar">Borrarlos (los pedidos viejos no se tocan)</option>
             </select>
             <small className="form-hint">Los existentes se buscan solo dentro de esta sección, nunca en las otras.</small>
           </div>
@@ -7854,7 +7919,7 @@ function ImportModal({ onClose }) {
           {result && (
             <div className={`imp-res ${result.ok ? 'ok' : 'mal'}`}>
               {result.ok ? <b>Importación terminada</b> : <b>Se cortó la importación: {result.error}</b>}
-              <span>{result.insertados} nuevos · {result.actualizados} actualizados{result.saltados ? ` · ${result.saltados} sin cambios` : ''}{result.marcados ? ` · ${result.marcados} ${faltantes === 'ocultar' ? 'ocultados' : 'puestos sin stock'}` : ''}{result.errores ? ` · ${result.errores} con error` : ''}</span>
+              <span>{result.insertados} nuevos · {result.actualizados} actualizados{result.saltados ? ` · ${result.saltados} sin cambios` : ''}{result.marcados ? ` · ${result.marcados} ${faltantes === 'ocultar' ? 'ocultados' : faltantes === 'borrar' ? 'borrados' : 'puestos sin stock'}` : ''}{result.errores ? ` · ${result.errores} con error` : ''}</span>
               {result.primer_error && <small>Primer error: {result.primer_error}</small>}
             </div>
           )}
