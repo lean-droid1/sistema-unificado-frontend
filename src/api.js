@@ -118,11 +118,14 @@ export async function uploadImagen(file) {
 export async function uploadBase64(data, filename) { return f('/api/upload-base64', { method: 'POST', body: JSON.stringify({ data, filename }) }); }
 
 // productos
-export async function getProductos({ q, categoria, page = 1, limit = 50, seccion_id, marca, incluir_ocultos } = {}) {
+export async function getProductos({ q, categoria, page = 1, limit = 50, seccion_id, marca, incluir_ocultos, orden } = {}) {
   const p = new URLSearchParams(); if (q) p.set('q', q); if (categoria) p.set('categoria', categoria);
   p.set('page', page); p.set('limit', limit); if (seccion_id) p.set('seccion_id', seccion_id); if (marca) p.set('marca', marca);
   if (incluir_ocultos) p.set('incluir_ocultos', '1');
+  if (orden) p.set('orden', orden);
   return f(`/api/productos?${p}`);
+}
+export async function solicitarMayorista() { return f('/api/me/solicitar-mayorista', { method: 'POST' });
 }
 export async function getCategorias(seccion_id) { return f(`/api/categorias${seccion_id ? `?seccion_id=${seccion_id}` : ''}`); }
 export async function getCategoriasAdmin(seccion_id) { return f(`/api/categorias/admin${seccion_id && seccion_id !== 'all' ? `?seccion_id=${seccion_id}` : ''}`); }

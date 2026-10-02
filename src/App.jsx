@@ -876,7 +876,7 @@ export default function App() {
     const items = Array.isArray(cart[sec.id]) ? cart[sec.id] : [];
     return s + items.reduce((sum, i) => sum + (i.qty > 0 ? i.qty : 0), 0);
   }, 0);
-  const addToCart = (secId, product, qty = 1, precio, variante) => {
+  const addToCart = (secId, product, qty = 1, precio, variante, opts = {}) => {
     // Producto con variantes: no se puede agregar sin elegir la combinación (evita items en $0)
     if (product?.usa_variantes && !variante) { toast('Elegí las opciones del producto primero', 'error'); nav('product', product); return; }
     // Priorizar la sección REAL del producto para que mínimos/envío/badges apliquen bien
@@ -902,7 +902,7 @@ export default function App() {
       }
       return { ...prev, [realSec]: items };
     });
-    setAvisoCarrito({ n: Date.now(), secId: realSec, nombre: (product.nombre || product.modelo || '') + (varLabel ? ` · ${varLabel}` : ''), imagen: (variante && variante.imagen) || product.imagen || '' });
+    if (!opts.silencioso) setAvisoCarrito({ n: Date.now(), secId: realSec, nombre: (product.nombre || product.modelo || '') + (varLabel ? ` · ${varLabel}` : ''), imagen: (variante && variante.imagen) || product.imagen || '' });
     trackEvent('add_to_cart', 'AddToCart', { value: (precio || product.precio_base) * qty, currency: 'ARS', content_name: product.nombre || product.modelo });
   };
   const removeFromCart = (secId, productId, varId = null) => {
@@ -1290,7 +1290,7 @@ function Header() {
           <button className={`secnav-item${page === 'landing' ? ' active' : ''}`} onClick={() => nav('landing')}>Inicio</button>
           {secciones.map(s => (
             <button key={s.id} className={`secnav-item${(page === 'section' || page === 'product') && seccionActual?.id === s.id ? ' active' : ''}`} onClick={() => nav('section', s.id)} style={{ '--sec-color': s.color || 'var(--primary)' }}>
-              {s.nombre}{s.requiere_aprobacion ? <Lock size={12} style={{ marginLeft: 4, verticalAlign: '-1px' }} /> : null}
+              {s.nombre}{s.requiere_aprobacion && !(user && (user.mayorista || isAdmin)) ? <Lock size={12} style={{ marginLeft: 4, verticalAlign: '-1px' }} /> : null}
             </button>
           ))}
         </nav>
@@ -2654,7 +2654,7 @@ function Landing() {
       )}
 
       {/* ── PRODUCTS PER SECTION ── carruseles horizontales */}
-      {!globalResults && secciones.map(s => {
+      {!globalResults && secciones.filter(s => !s.requiere_aprobacion).map(s => {
         const prods = secProds[s.id] || [];
         if (!prods.length) return null;
         return (
@@ -2761,6 +2761,8 @@ function SectionPage() {
   const [secBadges, setSecBadges] = useState([]);
   const [metodosPago, setMetodosPago] = useState([]);
   const [dolarBlue, setDolarBlue] = useState(null);
+  const [vistaMay, setVistaMay] = useState(() => { try { return localStorage.getItem('gm_may_vista') || 'lista'; } catch { return 'lista'; } });
+  const cambiarVistaMay = (v) => { setVistaMay(v); try { localStorage.setItem('gm_may_vista', v); } catch {} };
 
   const esMayorista = sec?.slug === 'mayorista';
   const esDropshipping = sec?.slug === 'dropshipping';
@@ -2830,29 +2832,11 @@ function SectionPage() {
   const marcasDisponibles = [...new Set(productos.map(p => p.marca).filter(Boolean))].sort();
   const hayFiltrosActivos = stockFiltro !== 'todos' || precioMin || precioMax || orden !== 'relevancia' || catFiltro || marcaFiltro;
 
-  // Vitrina mode for mayorista
-  if (esMayorista && sec.requiere_aprobacion && !user) {
-    return (
-      <div style={{ padding: 20 }}>
-        <button className="btn btn-outline btn-sm" onClick={() => nav('landing')} style={{ marginBottom: 16 }}>← Volver</button>
-        <h2>{sec.nombre}</h2>
-        <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>Esta sección requiere aprobación para ver precios y comprar.</p>
-        <div className="product-grid">
-          {productos.map(p => (
-            <div key={p.id} className="product-card vitrina">
-              {p.imagen && <img src={imgOpt(p.imagen, 400)} srcSet={imgSet(p.imagen, 400)} alt="" className="product-img" loading="lazy" decoding="async" />}
-              <div className="product-info">
-                <div className="product-name">{p.nombre || p.modelo}</div>
-                <div className="product-cat">{p.categoria}</div>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Iniciá sesión para ver precios</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button className="btn btn-primary" onClick={() => nav('login')} style={{ marginTop: 20 }}>Iniciar sesión</button>
-      </div>
-    );
-  }
+  // Tiendas con aprobación (mayorista): solo clientes autorizados. Por defecto se ven como lista por categorías.
+  const restringida = !!sec.requiere_aprobacion;
+  const accesoMay = !!user && (user.rol === 'admin' || user.rol === 'subadmin' || !!user.mayorista);
+  if (restringida && !accesoMay) return <MayoristaBloqueado sec={sec} />;
+  if (restringida && vistaMay === 'lista') return <ListaMayorista sec={sec} onVista={cambiarVistaMay} />;
 
   return (
     <div className="sec-page">
@@ -2866,6 +2850,7 @@ function SectionPage() {
             {sec.descripcion && <p className="sec-desc">{sec.descripcion}</p>}
           </div>
           <div className="sec-head-actions">
+            {restringida && <VistaMayToggle vista={vistaMay} onVista={cambiarVistaMay} />}
             {esMayorista && dolarBlue && <div className="sec-dolar"><DollarSign size={14} /> Blue ${fmt(dolarBlue)}</div>}
             <button className="icon-btn sec-share" title="Compartir esta tienda" aria-label="Compartir esta tienda" onClick={async () => {
               const slug = sec.slug || ('s-' + sec.id);
@@ -2968,6 +2953,188 @@ function SectionPage() {
           {pagina < Math.ceil(total / porPagina) && <button className="btn btn-outline btn-sm" onClick={() => setPagina(pagina + 1)}>Siguiente →</button>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── MAYORISTA ───
+// Colores para separar categorías en la lista (se repiten en orden, nunca dos seguidas iguales)
+const COLORES_CAT = ['#4A69E2', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#84CC16', '#F97316', '#14B8A6', '#A855F7', '#EAB308'];
+const normTxt = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function VistaMayToggle({ vista, onVista }) {
+  return (
+    <div className="vista-toggle" role="group" aria-label="Vista">
+      <button type="button" className={vista === 'lista' ? 'on' : ''} onClick={() => onVista('lista')} title="Lista por categorías"><LayoutList size={16} /><span>Lista</span></button>
+      <button type="button" className={vista === 'fotos' ? 'on' : ''} onClick={() => onVista('fotos')} title="Con fotos"><ImagePlus size={16} /><span>Fotos</span></button>
+    </div>
+  );
+}
+function MayoristaBloqueado({ sec }) {
+  const { user, setUser, nav, toast, config, design } = useContext(Ctx);
+  const [enviado, setEnviado] = useState(!!(user && user.mayorista_solicitado_at));
+  const [enviando, setEnviando] = useState(false);
+  const wa = String(config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const pedir = async () => {
+    setEnviando(true);
+    try { await api.solicitarMayorista(); setEnviado(true); setUser({ ...user, mayorista_solicitado_at: new Date().toISOString() }); toast('Pedido enviado. Te avisamos cuando esté aprobado.'); }
+    catch (e) { toast(e.message, 'error'); }
+    setEnviando(false);
+  };
+  return (
+    <div className="may-lock">
+      <div className="may-lock-card">
+        <span className="may-lock-ico"><Lock size={26} /></span>
+        <h1>{sec.nombre}</h1>
+        <p>{sec.descripcion ? `${sec.descripcion}. ` : ''}Esta lista de precios es solo para clientes mayoristas autorizados.</p>
+        {!user ? (
+          <>
+            <div className="may-lock-acciones">
+              <button className="btn btn-primary" onClick={() => nav('login')}>Ingresar</button>
+              <button className="btn btn-outline" onClick={() => nav('register')}>Crear cuenta</button>
+            </div>
+            <small>Después de ingresar, pedí el acceso desde esta misma página.</small>
+          </>
+        ) : enviado ? (
+          <div className="may-lock-ok"><CheckCircle size={18} /> Ya pediste el acceso. Te avisamos cuando esté aprobado.</div>
+        ) : (
+          <button className="btn btn-primary" onClick={pedir} disabled={enviando}>{enviando ? 'Enviando…' : 'Solicitar acceso mayorista'}</button>
+        )}
+        {wa && <a className="btn btn-outline may-lock-wa" href={waLink(wa, `Hola, quiero acceso a la lista ${sec.nombre}${user ? ` (mi usuario es ${user.usuario})` : ''}.`)} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} /> Consultar por WhatsApp</a>}
+        <button className="link-btn" onClick={() => nav('landing')}>← Volver al inicio</button>
+      </div>
+    </div>
+  );
+}
+// Lista de pedido mayorista: como el Excel, agrupada por categoría (cada una con su color), con cantidad por fila
+function ListaMayorista({ sec, onVista }) {
+  const ctx = useContext(Ctx);
+  const { cart, addToCart, updateCartQty, config, nav, toast } = ctx;
+  const [prods, setProds] = useState(null);
+  const [q, setQ] = useState('');
+  const [soloPedido, setSoloPedido] = useState(false);
+  useEffect(() => {
+    let vivo = true; setProds(null);
+    api.getProductos({ seccion_id: sec.id, limit: 5000, orden: 'lista' }).then(d => { if (vivo) setProds(d.productos || []); }).catch(() => { if (vivo) setProds([]); });
+    return () => { vivo = false; };
+  }, [sec.id]);
+  // Altura del encabezado del sitio: los títulos de cada categoría quedan fijos justo debajo al bajar
+  useEffect(() => {
+    const medir = () => { const h = document.querySelector('.header'); document.documentElement.style.setProperty('--header-h', `${h ? h.getBoundingClientRect().height : 0}px`); };
+    medir(); window.addEventListener('resize', medir); return () => window.removeEventListener('resize', medir);
+  }, []);
+  const clave = String(sec.id);
+  const lineas = (cart && (cart[clave] || cart[sec.id])) || [];
+  const qtyDe = (id) => { const l = lineas.find(i => i.id === id && !i.variante_id); return l ? l.qty : 0; };
+  const ordenCats = useMemo(() => { const o = {}; let n = 0; for (const p of (prods || [])) { const c = p.categoria || 'Sin categoría'; if (o[c] === undefined) o[c] = n++; } return o; }, [prods]);
+  const colorDe = (c) => COLORES_CAT[(ordenCats[c] || 0) % COLORES_CAT.length];
+  const toks = normTxt(q).split(/\s+/).filter(Boolean);
+  const grupos = useMemo(() => {
+    const out = []; const idx = {};
+    for (const p of (prods || [])) {
+      if (soloPedido && !qtyDe(p.id)) continue;
+      if (toks.length) { const t = normTxt(`${p.nombre} ${p.modelo} ${p.categoria} ${p.compatibilidad}`); if (!toks.every(x => t.includes(x))) continue; }
+      const c = p.categoria || 'Sin categoría';
+      if (idx[c] === undefined) { idx[c] = out.length; out.push({ cat: c, items: [] }); }
+      out[idx[c]].items.push(p);
+    }
+    return out;
+  }, [prods, q, soloPedido, lineas]);
+  const precioDe = (p) => precioTarjeta(p, ctx, sec.id);
+  const nombreFila = (p) => { const n = String(p.nombre || ''); const c = String(p.categoria || ''); return (c && n.toLowerCase().startsWith(c.toLowerCase()) && p.modelo) ? p.modelo : (n || p.modelo); };
+  const puedeComprar = (p) => (Number(p.stock) > 0) || p.permitir_sin_stock || p.es_digital;
+  const fijar = (p, valor) => {
+    const n = Math.max(0, Math.floor(Number(valor) || 0)); const actual = qtyDe(p.id);
+    if (n === actual) return;
+    if (!actual) { if (n > 0) addToCart(clave, p, n, precioDe(p).final, null, { silencioso: true }); }
+    else updateCartQty(String(p.seccion_id || clave), p.id, n);
+  };
+  const unidades = lineas.reduce((a, i) => a + (i.qty || 0), 0);
+  const subtotal = lineas.reduce((a, i) => a + (i.qty || 0) * (Number(i.precio_unitario) || 0), 0);
+  const minimo = Number(config?.[`compra_minima_${sec.id}`]) || 0;
+  const falta = Math.max(0, minimo - subtotal);
+  const irA = (k) => { const el = document.getElementById(`lm-cat-${k}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  const descargar = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const filas = (prods || []).map(p => ({ Categoría: p.categoria || '', Producto: nombreFila(p), Precio: precioDe(p).final, Pedido: qtyDe(p.id) || '', Total: qtyDe(p.id) ? qtyDe(p.id) * precioDe(p).final : '' }));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas), 'Lista');
+      XLSX.writeFile(wb, `${sec.nombre || 'lista'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e) { toast('No se pudo descargar: ' + e.message, 'error'); }
+  };
+  const totalProds = grupos.reduce((a, g) => a + g.items.length, 0);
+  return (
+    <div className="sec-page lm">
+      <div className="sec-head">
+        <button className="link-btn sec-back" onClick={() => nav('landing')}>← Inicio</button>
+        <div className="sec-head-row">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="sec-title">{sec.nombre}</h1>
+            <p className="sec-desc">{sec.descripcion || 'Lista mayorista'} · escribí la cantidad al lado de cada producto</p>
+          </div>
+          <div className="sec-head-actions">
+            <VistaMayToggle vista="lista" onVista={onVista} />
+            <button className="icon-btn" onClick={descargar} title="Descargar la lista en Excel" aria-label="Descargar la lista en Excel"><FileText size={17} /></button>
+          </div>
+        </div>
+      </div>
+      <div className="lm-tools">
+        <label className="sec-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+          <input placeholder="Buscar modelo o repuesto (ej: g84, a32, pin)" value={q} onChange={e => setQ(e.target.value)} aria-label="Buscar en la lista" />
+          {q && <button className="sec-search-clear" onClick={() => setQ('')} aria-label="Borrar búsqueda">✕</button>}
+        </label>
+        <button type="button" className={`cat-chip${soloPedido ? ' sel' : ''}`} onClick={() => setSoloPedido(v => !v)} disabled={!unidades && !soloPedido}>Mi pedido{unidades ? ` (${lineas.length})` : ''}</button>
+      </div>
+      {prods && prods.length > 0 && !q && !soloPedido && (
+        <div className="lm-indice" role="navigation" aria-label="Categorías">
+          {grupos.map((g, k) => <button key={g.cat} type="button" style={{ '--c': colorDe(g.cat) }} onClick={() => irA(k)}><i />{g.cat}<small>{g.items.length}</small></button>)}
+        </div>
+      )}
+      {!prods && <div className="lm-vacio">Cargando lista…</div>}
+      {prods && !totalProds && <div className="lm-vacio">{q ? `No hay nada con "${q}".` : soloPedido ? 'Todavía no agregaste productos.' : 'La lista está vacía.'}</div>}
+      <div className="lm-grupos">
+        {grupos.map((g, k) => {
+          const enPedido = g.items.reduce((a, p) => a + (qtyDe(p.id) ? 1 : 0), 0);
+          return (
+            <section key={g.cat} id={`lm-cat-${k}`} className="lm-grupo" style={{ '--c': colorDe(g.cat) }}>
+              <header className="lm-cat"><span className="lm-cat-nombre">{g.cat}</span><span className="lm-cat-n">{g.items.length}{enPedido ? ` · ${enPedido} en tu pedido` : ''}</span></header>
+              {g.items.map(p => {
+                const pr = precioDe(p); const n = qtyDe(p.id); const ok = puedeComprar(p);
+                return (
+                  <div key={p.id} className={`lm-fila${n ? ' con' : ''}${ok ? '' : ' agotado'}`}>
+                    <div className="lm-nombre">
+                      {p.imagen ? <button type="button" className="lm-foto" onClick={() => ctx.setVistaRapida({ ...p, seccion_id: p.seccion_id || sec.id })} aria-label="Ver foto"><img src={imgOpt(p.imagen, 80)} alt="" loading="lazy" /></button> : null}
+                      <span>{nombreFila(p)}</span>
+                    </div>
+                    <div className="lm-precio">{pr.original ? <s>{fmtARS(pr.original)}</s> : null}{pr.final > 0 ? fmtARS(pr.final) : 'Consultar'}</div>
+                    {ok ? (
+                      <div className="lm-qty">
+                        <button type="button" onClick={() => fijar(p, n - 1)} disabled={!n} aria-label="Uno menos"><Minus size={14} /></button>
+                        <input key={n} type="number" inputMode="numeric" min="0" defaultValue={n || ''} placeholder="0" aria-label={`Cantidad de ${nombreFila(p)}`}
+                          onFocus={e => e.target.select()} onBlur={e => fijar(p, e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+                        <button type="button" onClick={() => fijar(p, n + 1)} aria-label="Uno más"><Plus size={14} /></button>
+                      </div>
+                    ) : <div className="lm-sin">Sin stock</div>}
+                    <div className="lm-sub">{n ? fmtARS(n * pr.final) : ''}</div>
+                  </div>
+                );
+              })}
+            </section>
+          );
+        })}
+      </div>
+      <div className={`lm-barra${unidades ? ' con' : ''}`}>
+        <div className="lm-barra-info">
+          {unidades ? <><b>{fmtARS(subtotal)}</b><span>{lineas.length} producto{lineas.length !== 1 ? 's' : ''} · {unidades} u.</span></> : <span>Escribí la cantidad en cada producto que quieras pedir</span>}
+          {minimo > 0 && (
+            <div className="lm-min">
+              <div className="lm-min-barra"><span style={{ width: `${Math.min(100, Math.round(subtotal / minimo * 100))}%` }} /></div>
+              <small>{falta > 0 ? `Te faltan ${fmtARS(falta)} para la compra mínima de ${fmtARS(minimo)}` : 'Llegaste a la compra mínima'}</small>
+            </div>
+          )}
+        </div>
+        <button type="button" className="btn btn-primary" disabled={!unidades} onClick={() => nav('cart')}>Ver pedido</button>
+      </div>
     </div>
   );
 }
@@ -7503,106 +7670,194 @@ function ProductModal({ product, onClose }) {
 }
 
 // ─── IMPORT MODAL ───
+// Formatos: exportación de Empretienda / Tienda Negocio, o la lista cruda del proveedor (PRODUCTO / MODELO / PRECIO).
+// En la lista del proveedor el precio del Excel queda como costo y se le suma el % de ganancia elegido.
+const hashCorto = (txt) => { let h = 5381; const t = String(txt); for (let k = 0; k < t.length; k++) h = ((h << 5) + h + t.charCodeAt(k)) >>> 0; return h.toString(36).toUpperCase(); };
+const txtCelda = (v) => (v === undefined || v === null) ? '' : String(v).replace(/\s+/g, ' ').trim();
+const numCelda = (v) => { if (typeof v === 'number') return v; const t = String(v ?? '').replace(/[^\d.,-]/g, ''); if (!t) return 0; const norm = t.includes(',') && t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, ''); return Number(norm) || 0; };
+const redondearA = (v, paso) => paso > 0 ? Math.round(v / paso) * paso : Math.round(v);
 function ImportModal({ onClose }) {
   const { secciones, adminSeccion, toast } = useContext(Ctx);
   const [data, setData] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState('');
+  const [progreso, setProgreso] = useState(null);
+  const [result, setResult] = useState(null);
   const [modo, setModo] = useState('crear_actualizar');
   const [faltantes, setFaltantes] = useState('no_tocar');
   const [importSecId, setImportSecId] = useState(adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id);
+  const clavePct = `gm_import_pct_${importSecId}`;
+  const [pct, setPct] = useState('');
+  const [paso, setPaso] = useState(() => { try { return Number(localStorage.getItem('gm_import_redondeo')) || 0; } catch { return 0; } });
+  useEffect(() => { try { setPct(localStorage.getItem(clavePct) || ''); } catch {} }, [clavePct]);
 
   const parseFile = async (f) => {
+    setResult(null);
     const XLSX = await import('xlsx');
     const reader = new FileReader();
     reader.onload = (e) => {
-      const wb = XLSX.read(e.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws);
-      if (!json.length) { toast('Archivo vacío', 'warning'); return; }
-      const keys = Object.keys(json[0]);
-      const pick = (r, re) => { const k = keys.find(k => re.test(k)); return k !== undefined ? r[k] : undefined; };
-      // Detecta ambos formatos (Empretienda "Exportación" y Tienda Negocio "Listado")
-      // Categoría: toma la SUBCATEGORÍA (última parte después de > o /), Opción B
-      const parseCat = (raw) => {
-        const s = (raw ?? '').toString().trim();
-        if (!s || s.toLowerCase() === 'none' || s === '-') return 'Sin categoría';
-        // Separa por > (jerarquía Empretienda/Tienda Negocio). Usa la última parte no vacía.
-        const partes = s.split('>').map(x => x.trim()).filter(Boolean);
-        return partes.length ? partes[partes.length - 1] : 'Sin categoría';
-      };
-      const prods = json.map(r => {
-        const nombre = pick(r, /^nombre del producto$|^nombre$|modelo|model/i) || '';
-        const precio = Number(String(pick(r, /^precio$|price/i) ?? '').toString().replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-        const oferta = Number(String(pick(r, /oferta|precio oferta/i) ?? '').toString().replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-        const stock = Number(pick(r, /^stock$/i)) || 0;
-        return {
-          seccion_id: importSecId,
-          categoria: parseCat(pick(r, /categor|subcategor/i)),
-          modelo: nombre, nombre,
-          precio_base: precio, precio_oferta: oferta < precio ? oferta : 0,
-          stock,
-          sku: (pick(r, /^sku$|codigo|c\u00f3digo/i) || '').toString().trim(),
-          descripcion: pick(r, /descrip/i) || '',
-          peso: Number(String(pick(r, /peso|weight|kg/i) ?? '').toString().replace(',', '.')) || 0,
-          alto: Number(String(pick(r, /alto|height/i) ?? '').toString().replace(',', '.')) || 0,
-          ancho: Number(String(pick(r, /ancho|width/i) ?? '').toString().replace(',', '.')) || 0,
-          largo: Number(String(pick(r, /profund|largo|length/i) ?? '').toString().replace(',', '.')) || 0,
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!json.length) { toast('Archivo vacío', 'warning'); return; }
+        const keys = Object.keys(json[0]);
+        const key = (re) => keys.find(k => re.test(String(k).trim()));
+        const pick = (r, re) => { const k = key(re); return k !== undefined ? r[k] : undefined; };
+        const kProd = key(/^producto$/i), kModelo = key(/^modelo$/i), kPrecio = key(/^precio$/i);
+        const esProveedor = !!(kProd && kModelo && kPrecio) && !key(/^nombre/i);
+        const kStock = key(/^stock$/i);
+        const parseCat = (raw) => {
+          const t = txtCelda(raw);
+          if (!t || t.toLowerCase() === 'none' || t === '-') return 'Sin categoría';
+          const partes = t.split('>').map(x => x.trim()).filter(Boolean);
+          return partes.length ? partes[partes.length - 1] : 'Sin categoría';
         };
-      }).filter(p => p.nombre);
-      const conSku = prods.filter(p => p.sku).length;
-      setData({ productos: prods, total: prods.length, conSku });
+        const vistos = new Set();
+        const prods = [];
+        json.forEach((r, idx) => {
+          if (esProveedor) {
+            const cat = txtCelda(r[kProd]); const mod = txtCelda(r[kModelo]); const costo = numCelda(r[kPrecio]);
+            if (!cat && !mod) return;
+            const nombre = [cat, mod].filter(Boolean).join(' ');
+            const sku = 'L-' + hashCorto((cat + '|' + mod).toLowerCase());
+            if (vistos.has(sku)) return; // fila repetida en el Excel (mismo producto y modelo)
+            vistos.add(sku);
+            prods.push({ categoria: cat || 'Sin categoría', modelo: mod, nombre, compatibilidad: mod, costo, sku, stock: kStock ? Math.trunc(numCelda(r[kStock])) : null, permitir_sin_stock: kStock ? undefined : true, posicion: idx + 1 });
+          } else {
+            const nombre = txtCelda(pick(r, /^nombre del producto$|^nombre$|modelo|model/i));
+            if (!nombre) return;
+            const precio = numCelda(pick(r, /^precio$|price/i));
+            const oferta = numCelda(pick(r, /oferta|precio oferta/i));
+            prods.push({
+              categoria: parseCat(pick(r, /categor|subcategor/i)), modelo: nombre, nombre,
+              costo: precio, oferta: oferta < precio ? oferta : 0,
+              stock: kStock ? Math.trunc(numCelda(pick(r, /^stock$/i))) : null,
+              sku: txtCelda(pick(r, /^sku$|codigo|código/i)),
+              descripcion: txtCelda(pick(r, /descrip/i)),
+              peso: numCelda(pick(r, /peso|weight|kg/i)), alto: numCelda(pick(r, /alto|height/i)), ancho: numCelda(pick(r, /ancho|width/i)), largo: numCelda(pick(r, /profund|largo|length/i)),
+              posicion: idx + 1,
+            });
+          }
+        });
+        const cats = [...new Set(prods.map(p => p.categoria))];
+        setData({ productos: prods, total: prods.length, conSku: prods.filter(p => p.sku).length, esProveedor, categorias: cats.length, nombreArchivo: f.name });
+      } catch (err) { toast('No pude leer el archivo: ' + err.message, 'error'); }
     };
     reader.readAsArrayBuffer(f);
   };
 
-  const doUpload = async () => {
-    if (!data?.productos?.length) return;
-    setUploading(true); setResult('');
-    try {
-      const r = await api.bulkProductos(data.productos, { modo, faltantes, seccion_id: importSecId });
-      setResult(`${r.insertados || 0} nuevos · ${r.actualizados || 0} actualizados${r.saltados ? ` · ${r.saltados} saltados` : ''}${r.marcadosSinStock ? ` · ${r.marcadosSinStock} marcados sin stock` : ''}`);
-      setData(null);
-    } catch (e) { setResult(`Error: ${e.message}`); }
-    setUploading(false);
+  const pctN = Math.max(0, Number(pct) || 0);
+  // Precio final que se carga: costo + % (redondeado). En la lista del proveedor el costo queda guardado para ver la ganancia.
+  const preparar = (p) => {
+    const venta = redondearA(p.costo * (1 + pctN / 100), paso);
+    const conCosto = data && (data.esProveedor || pctN > 0);
+    const out = { ...p, seccion_id: importSecId, precio_base: venta, precio_oferta: p.oferta ? redondearA(p.oferta * (1 + pctN / 100), paso) : 0, precio_original: conCosto ? p.costo : 0 };
+    delete out.costo; delete out.oferta;
+    return out;
   };
 
+  const doUpload = async () => {
+    if (!data?.productos?.length || uploading) return;
+    if (modo === 'reemplazar' && !confirm(`Se van a BORRAR todos los productos de "${secciones.find(s => s.id === importSecId)?.nombre}" y cargar estos ${data.total}. Los pedidos viejos no se tocan. ¿Seguimos?`)) return;
+    try { localStorage.setItem(clavePct, String(pct)); localStorage.setItem('gm_import_redondeo', String(paso)); } catch {}
+    setUploading(true); setResult(null);
+    const LOTE = 250; const lista = data.productos.map(preparar);
+    const tot = { insertados: 0, actualizados: 0, saltados: 0, errores: 0, primer_error: '', marcados: 0 };
+    try {
+      for (let k = 0; k < lista.length; k += LOTE) {
+        setProgreso({ hecho: k, total: lista.length });
+        const modoLote = modo === 'reemplazar' ? (k === 0 ? 'reemplazar' : 'insertar') : modo;
+        const r = await api.bulkProductos(lista.slice(k, k + LOTE), { modo: modoLote, seccion_id: importSecId });
+        tot.insertados += r.insertados || 0; tot.actualizados += r.actualizados || 0; tot.saltados += r.saltados || 0; tot.errores += r.errores || 0;
+        if (!tot.primer_error && r.primer_error) tot.primer_error = r.primer_error;
+      }
+      if (faltantes !== 'no_tocar' && modo !== 'reemplazar' && modo !== 'solo_categorias') {
+        const r = await api.bulkProductos([], { modo: 'marcar_faltantes', seccion_id: importSecId, accion: faltantes === 'ocultar' ? 'ocultar' : 'sin_stock', presentes: lista.map(p => ({ sku: p.sku, nombre: p.nombre })) });
+        tot.marcados = r.marcados || 0;
+      }
+      setResult({ ok: true, ...tot });
+      setData(null);
+    } catch (e) { setResult({ ok: false, error: e.message, ...tot }); }
+    setProgreso(null); setUploading(false);
+  };
+
+  const muestra = data ? data.productos.slice(0, 6) : [];
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">Importar productos (Excel/CSV)</span><button className="modal-close" onClick={onClose}>✕</button></div>
+    <div className="modal-overlay" onClick={() => { if (!uploading) onClose(); }}>
+      <div className="modal modal-lg imp-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span className="modal-title">Importar productos (Excel/CSV)</span><button className="modal-close" onClick={onClose} disabled={uploading}>✕</button></div>
         <div className="modal-body">
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Detecta automáticamente el formato (Empretienda o Tienda Negocio). Importa nombre, precio, oferta, stock, peso, medidas, categoría y SKU.</p>
-          <div className="form-group"><label className="form-label">Sección destino</label>
-            <select value={importSecId} onChange={e => setImportSecId(Number(e.target.value))}>
-              {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-            </select>
+          <p className="form-hint" style={{ marginBottom: 12 }}>Acepta la exportación de Empretienda o Tienda Negocio, y la lista del proveedor con columnas <b>PRODUCTO, MODELO y PRECIO</b> (la categoría sale de PRODUCTO).</p>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Sección destino</label>
+              <select value={importSecId} onChange={e => setImportSecId(Number(e.target.value))} disabled={uploading}>
+                {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}{s.requiere_aprobacion ? ' (con aprobación)' : ''}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">¿Qué hacer con los productos?</label>
+              <select value={modo} onChange={e => setModo(e.target.value)} disabled={uploading}>
+                <option value="crear_actualizar">Crear nuevos y actualizar existentes</option>
+                <option value="solo_nuevos">Solo agregar los que faltan</option>
+                <option value="solo_categorias">Solo corregir categorías</option>
+                <option value="reemplazar">Borrar todo de la sección y cargar de cero</option>
+              </select>
+            </div>
           </div>
-          <div className="form-group"><label className="form-label">¿Qué hacer con los productos?</label>
-            <select value={modo} onChange={e => setModo(e.target.value)}>
-              <option value="crear_actualizar">Crear nuevos y actualizar existentes (por SKU o nombre)</option>
-              <option value="solo_nuevos">Solo agregar los que faltan (no toca existentes)</option>
-              <option value="solo_categorias">Solo corregir categorías (por nombre, no toca nada más)</option>
-              <option value="reemplazar">Borrar todo de la sección y cargar de cero</option>
-            </select>
-            {modo === 'solo_categorias' && <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Busca cada producto por SKU o nombre y le corrige solo la categoría. Ideal para arreglar categorías mal importadas sin duplicar nada.</small>}
-          </div>
-          <div className="form-group"><label className="form-label">Productos de esta sección que NO están en el Excel</label>
-            <select value={faltantes} onChange={e => setFaltantes(e.target.value)} disabled={modo === 'reemplazar'}>
+          <div className="form-group"><label className="form-label">Productos de la sección que NO están en el Excel</label>
+            <select value={faltantes} onChange={e => setFaltantes(e.target.value)} disabled={modo === 'reemplazar' || modo === 'solo_categorias' || uploading}>
               <option value="no_tocar">No tocar (dejarlos como están)</option>
-              <option value="sin_stock">Poner en sin stock (el proveedor los sacó de la lista)</option>
+              <option value="sin_stock">Poner sin stock (el proveedor los sacó de la lista)</option>
+              <option value="ocultar">Ocultarlos de la tienda</option>
             </select>
-            <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Útil para el mayorista: si un producto ya no está en su Excel, lo marcás sin stock.</small>
+            <small className="form-hint">Los existentes se buscan solo dentro de esta sección, nunca en las otras.</small>
           </div>
-          <input type="file" accept=".xlsx,.xls,.csv" onChange={e => { if (e.target.files[0]) parseFile(e.target.files[0]); }} />
+          <label className="imp-archivo">
+            <Archive size={18} /> <span>{data ? data.nombreArchivo : 'Elegir archivo .xlsx, .xls o .csv'}</span>
+            <input type="file" accept=".xlsx,.xls,.csv" disabled={uploading} onChange={e => { if (e.target.files[0]) parseFile(e.target.files[0]); e.target.value = ''; }} />
+          </label>
           {data && (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ fontWeight: 700 }}>{data.total} productos detectados <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>({data.conSku} con SKU)</span></p>
-              {data.conSku < data.total && <p style={{ fontSize: 12, color: 'var(--warning)' }}><AlertTriangle size={15} style={{ verticalAlign: '-2px' }} /> {data.total - data.conSku} sin SKU: se crearán siempre como nuevos (no se pueden actualizar ni marcar sin stock).</p>}
-              <button className="btn btn-primary" onClick={doUpload} disabled={uploading} style={{ marginTop: 12 }}>{uploading ? 'Importando...' : `Importar ${data.total} productos`}</button>
+            <div className="imp-datos">
+              <div className="imp-resumen">
+                <span><b>{data.total}</b> productos</span>
+                <span><b>{data.categorias}</b> categorías</span>
+                <span>{data.esProveedor ? 'Lista de proveedor' : 'Exportación de tienda'}</span>
+              </div>
+              {modo !== 'solo_categorias' && (
+                <div className="imp-precio">
+                  <div className="form-group"><label className="form-label">{data.esProveedor ? 'Ganancia sobre el precio del Excel (%)' : 'Sumar % al precio del Excel (opcional)'}</label>
+                    <input type="number" inputMode="decimal" min="0" value={pct} onChange={e => setPct(e.target.value)} placeholder={data.esProveedor ? 'Ej: 30' : '0'} disabled={uploading} />
+                  </div>
+                  <div className="form-group"><label className="form-label">Redondear el precio</label>
+                    <select value={paso} onChange={e => setPaso(Number(e.target.value))} disabled={uploading}>
+                      <option value={0}>Sin redondear</option><option value={10}>A $10</option><option value={50}>A $50</option><option value={100}>A $100</option><option value={500}>A $500</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+              {(data.esProveedor || pctN > 0) && modo !== 'solo_categorias' && <small className="form-hint">El precio del Excel queda guardado como costo: en el dashboard vas a ver la ganancia real.</small>}
+              <div className="imp-tabla">
+                <div className="imp-fila imp-cab"><span>Categoría</span><span>Producto</span><span>Excel</span><span>Se carga a</span></div>
+                {muestra.map((p, k) => { const x = preparar(p); return (
+                  <div className="imp-fila" key={k}><span>{p.categoria}</span><span>{p.nombre}</span><span>{fmtARS(p.costo)}</span><b>{fmtARS(x.precio_base)}</b></div>
+                ); })}
+                {data.total > muestra.length && <div className="imp-mas">y {data.total - muestra.length} más…</div>}
+              </div>
+              {data.esProveedor && <small className="form-hint">Como el Excel no trae stock, se pueden comprar siempre. Cada fila queda con un código propio para que la próxima lista actualice los mismos productos.</small>}
+              {!data.esProveedor && data.conSku < data.total && <p className="form-hint" style={{ color: 'var(--warning)' }}><AlertTriangle size={14} style={{ verticalAlign: '-2px' }} /> {data.total - data.conSku} sin SKU: se buscan por nombre dentro de la sección.</p>}
+              {data.esProveedor && pct === '' && modo !== 'solo_categorias' && <p className="form-hint" style={{ color: 'var(--warning)' }}>Poné el % de ganancia antes de importar (si querés el precio tal cual, poné 0).</p>}
+              <button className="btn btn-primary" onClick={doUpload} disabled={uploading || (data.esProveedor && pct === '' && modo !== 'solo_categorias')} style={{ marginTop: 12, width: '100%' }}>
+                {uploading ? `Importando… ${progreso ? `${Math.min(progreso.hecho + 250, progreso.total)} de ${progreso.total}` : ''}` : `Importar ${data.total} productos`}
+              </button>
+              {uploading && progreso && <div className="imp-barra"><span style={{ width: `${Math.round(progreso.hecho / progreso.total * 100)}%` }} /></div>}
             </div>
           )}
-          {result && <p style={{ marginTop: 12, fontWeight: 700 }}>{result}</p>}
+          {result && (
+            <div className={`imp-res ${result.ok ? 'ok' : 'mal'}`}>
+              {result.ok ? <b>Importación terminada</b> : <b>Se cortó la importación: {result.error}</b>}
+              <span>{result.insertados} nuevos · {result.actualizados} actualizados{result.saltados ? ` · ${result.saltados} sin cambios` : ''}{result.marcados ? ` · ${result.marcados} ${faltantes === 'ocultar' ? 'ocultados' : 'puestos sin stock'}` : ''}{result.errores ? ` · ${result.errores} con error` : ''}</span>
+              {result.primer_error && <small>Primer error: {result.primer_error}</small>}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -8654,15 +8909,19 @@ function AdminUsuarios() {
     sin_compras: users.filter(u => !esEquipo(u) && !(u.compras > 0)).length,
     con_lista: users.filter(u => !esEquipo(u) && u.lista_precio_id).length,
     pendientes: users.filter(u => estadoDe(u) === 'pendiente').length,
+    mayoristas: users.filter(u => !esEquipo(u) && u.mayorista).length,
+    piden_mayorista: users.filter(u => !esEquipo(u) && !u.mayorista && u.mayorista_solicitado_at).length,
     suspendidos: users.filter(u => estadoDe(u) === 'suspendido').length,
     equipo: users.filter(esEquipo).length,
   };
-  const filtros = [['todos', 'Todos'], ['compradores', 'Compraron'], ['sin_compras', 'Sin compras'], ['con_lista', 'Con lista de precio'], ['pendientes', 'Pendientes'], ['suspendidos', 'Suspendidos'], ['equipo', 'Equipo']];
+  const filtros = [['todos', 'Todos'], ['compradores', 'Compraron'], ['sin_compras', 'Sin compras'], ['con_lista', 'Con lista de precio'], ['mayoristas', 'Mayoristas'], ['piden_mayorista', 'Piden mayorista'], ['pendientes', 'Pendientes'], ['suspendidos', 'Suspendidos'], ['equipo', 'Equipo']];
   const lista = users.filter(u => {
     if (filtroCli === 'compradores') return !esEquipo(u) && u.compras > 0;
     if (filtroCli === 'sin_compras') return !esEquipo(u) && !(u.compras > 0);
     if (filtroCli === 'con_lista') return !esEquipo(u) && !!u.lista_precio_id;
     if (filtroCli === 'pendientes') return estadoDe(u) === 'pendiente';
+    if (filtroCli === 'mayoristas') return !esEquipo(u) && !!u.mayorista;
+    if (filtroCli === 'piden_mayorista') return !esEquipo(u) && !u.mayorista && !!u.mayorista_solicitado_at;
     if (filtroCli === 'suspendidos') return estadoDe(u) === 'suspendido';
     if (filtroCli === 'equipo') return esEquipo(u);
     return true;
@@ -8734,6 +8993,8 @@ function AdminUsuarios() {
                   {esEquipo(u) && <span className="cli-tag equipo">{u.rol === 'admin' ? 'Admin' : 'Empleado'}</span>}
                   {u.lista_precio_id && nombreLista(u.lista_precio_id) && <span className="cli-tag lista" style={{ '--c': listas.find(l => l.id === u.lista_precio_id)?.color || 'var(--primary)' }}>{nombreLista(u.lista_precio_id)}</span>}
                   {u.es_revendedor && <span className="cli-tag lista">Revendedor {Number(u.descuento_revendedor) > 0 ? `-${Number(u.descuento_revendedor)}%` : ''}</span>}
+                  {u.mayorista && <span className="cli-tag may">Mayorista</span>}
+                  {!u.mayorista && u.mayorista_solicitado_at && !esEquipo(u) && <button type="button" className="cli-tag pide" onClick={async e => { e.stopPropagation(); try { await api.updateUsuario(u.id, { mayorista: true }); toast(`${u.nombre || u.usuario} ya puede ver la lista mayorista`); refresh(); } catch (er) { toast(er.message, 'error'); } }} title="Autorizar">Pide mayorista · Autorizar</button>}
                 </div>
               </div>
             </div>
@@ -8759,8 +9020,8 @@ function UserModal({ u, onClose }) {
   const isNew = u._isNew;
   const isPending = !isNew && u.aprobado === false;
   const [f, setF] = useState(isNew
-    ? { nombre: '', usuario: '', password: '', telefono: '', email: '', direccion: '', rol: 'cliente', lista_precio_id: listas[0]?.id || '', nombre_fantasia: '', notas_admin: '', permisos: '', activo: true, es_revendedor: false, descuento_revendedor: 0 }
-    : { nombre: u.nombre || '', usuario: u.usuario || '', password: '', telefono: u.telefono || '', email: u.email || '', direccion: u.direccion || '', rol: u.rol || 'cliente', lista_precio_id: u.lista_precio_id || '', nombre_fantasia: u.nombre_fantasia || '', notas_admin: u.notas_admin || '', permisos: u.permisos || '', activo: u.activo ?? true, es_revendedor: u.es_revendedor || false, descuento_revendedor: u.descuento_revendedor || 0 }
+    ? { nombre: '', usuario: '', password: '', telefono: '', email: '', direccion: '', rol: 'cliente', lista_precio_id: listas[0]?.id || '', nombre_fantasia: '', notas_admin: '', permisos: '', activo: true, es_revendedor: false, descuento_revendedor: 0, mayorista: false }
+    : { nombre: u.nombre || '', usuario: u.usuario || '', password: '', telefono: u.telefono || '', email: u.email || '', direccion: u.direccion || '', rol: u.rol || 'cliente', lista_precio_id: u.lista_precio_id || '', nombre_fantasia: u.nombre_fantasia || '', notas_admin: u.notas_admin || '', permisos: u.permisos || '', activo: u.activo ?? true, es_revendedor: u.es_revendedor || false, descuento_revendedor: u.descuento_revendedor || 0, mayorista: !!u.mayorista }
   );
   const [sv, setSv] = useState(false);
   const [hist, setHist] = useState(null);
@@ -8850,6 +9111,9 @@ function UserModal({ u, onClose }) {
           )}
           {/* Revendedor */}
           <div className="form-row" style={{ marginTop: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={!!f.mayorista} onChange={e => setF({ ...f, mayorista: e.target.checked })} /> Cliente mayorista (ve y compra la lista mayorista){!f.mayorista && u.mayorista_solicitado_at ? <span className="cli-tag pide" style={{ marginLeft: 6 }}>Lo pidió</span> : null}</label>
+          </div>
+          <div className="form-row" style={{ marginTop: 8 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={f.es_revendedor} onChange={e => setF({ ...f, es_revendedor: e.target.checked })} /> Es revendedor</label>
             {f.es_revendedor && <div className="form-group"><label className="form-label">Descuento %</label><input type="number" value={f.descuento_revendedor} onChange={e => setF({ ...f, descuento_revendedor: Number(e.target.value) })} style={{ width: 80 }} /></div>}
           </div>
