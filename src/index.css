@@ -1660,3 +1660,28 @@ body:has(.lm-barra) .aviso-carrito { bottom: calc(100px + env(safe-area-inset-bo
 .ondas { min-width: 0; overflow: hidden; }
 .vis-grid > *, .vis-grid3 > *, .vis .dash-card { min-width: 0; }
 @media (max-width: 900px) { .vis-grid, .vis-grid3 { grid-template-columns: minmax(0, 1fr); } }
+
+/* Cuenta del pedido (señas / pagos a cuenta) */
+.cta-ped{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;background:var(--bg-card);transition:border-color .2s,box-shadow .2s}
+.cta-ped.pide{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+.cta-ped-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cta-ped-nums small{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+.cta-ped-nums strong{display:block;font-size:20px;font-weight:900;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cta-ped-nums strong.ok{color:var(--success)}
+.cta-ped-nums strong.debe{color:var(--danger)}
+.cta-ped-barra{height:6px;border-radius:99px;background:var(--border);overflow:hidden;margin:10px 0 8px}
+.cta-ped-barra span{display:block;height:100%;background:var(--success);border-radius:99px;transition:width .3s}
+.cta-ped-lista{list-style:none;margin:0 0 8px;padding:0;font-size:13px}
+.cta-ped-lista li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;padding:4px 0;border-bottom:1px dashed var(--border);align-items:baseline}
+.cta-ped-lista li span:first-child{font-weight:700}
+.cta-ped-lista li span:nth-child(2){color:var(--text-muted);text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cta-ped-lista li strong{font-variant-numeric:tabular-nums}
+.cta-ped-aviso{display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:700;color:var(--warning,#d97706);margin-bottom:8px}
+.cta-ped-nota{font-size:12px;color:var(--text-muted);margin-bottom:8px}
+.cta-ped-carga{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.cta-ped-carga input{flex:1 1 130px;min-width:0}
+.cta-ped-carga select{flex:0 1 140px;width:auto;min-width:0}
+.cta-ped-acciones{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+@media (max-width:480px){.cta-ped{padding:10px 12px}.cta-ped-nums strong{font-size:16px}}
+.ped-resta{font-size:11px;font-weight:800;color:var(--danger);white-space:nowrap}
+.ped-resta.sin{color:var(--warning,#d97706)}

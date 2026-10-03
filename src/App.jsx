@@ -8501,6 +8501,9 @@ function AdminPedidos({ filtroTipo }) {
               {p.tipo !== 'presupuesto' && (() => { let ep = (p.estado_pago && String(p.estado_pago).trim() && p.estado_pago !== 'pendiente') ? p.estado_pago : 'impago'; return <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: ep === 'pagado' ? 'var(--success)' : ep === 'senado' ? 'var(--accent)' : ep === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{ep}</span>; })()}
               <span style={{ background: colores[p.estado], color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{p.estado}</span>
               <strong>{fmtARS(p.total)}</strong>
+              {p.tipo !== 'presupuesto' && p.estado_pago === 'senado' && (Number(p.sena) > 0
+                ? <span className="ped-resta">resta {fmtARS(Math.max(0, Number(p.total) - Number(p.sena)))}</span>
+                : <span className="ped-resta sin">falta monto de seña</span>)}
             </div>
           </div>
           {/* Acciones rápidas (no abren el pedido) */}
@@ -8736,12 +8739,66 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     setNuevoPago({ ...nuevoPago, metodo, ajuste_pct: def !== undefined ? def : 0 });
   };
 
+  // ── Cuenta del pedido: señas y pagos a cuenta (resumen rápido arriba de todo) ──
+  const [rapido, setRapido] = useState({ monto: '', metodo: 'efectivo' });
+  const [guardandoRapido, setGuardandoRapido] = useState(false);
+  const [pidiendoSena, setPidiendoSena] = useState(false);
+  const rapidoRef = useRef(null);
+  const senaSinDetalle = !loadingItems && pagos.length === 0 ? (Number(o.sena) || 0) : 0; // pedidos viejos: seña guardada sin pagos cargados
+  const marcadoPagado = pagos.length === 0 && o.estado_pago === 'pagado';
+  const pagadoCta = marcadoPagado ? totalPedido : totalSaldado + senaSinDetalle;
+  const restaCta = Math.max(0, totalPedido - pagadoCta);
+  const pctCta = totalPedido > 0 ? Math.min(100, Math.round((pagadoCta / totalPedido) * 100)) : 0;
+  const cantPagos = pagos.length + (senaSinDetalle > 0 ? 1 : 0);
+  const fechaCorta = (d) => { try { return d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : ''; } catch { return ''; } };
+  const textoResumen = (lista = pagos) => {
+    const pag = marcadoPagado ? totalPedido : lista.reduce((s, p) => s + Number(p.cuenta_como || 0), 0) + (lista.length ? 0 : senaSinDetalle);
+    const resta = Math.max(0, totalPedido - pag);
+    const lineas = lista.map(p => `• ${fechaCorta(p.created_at)}: ${fmtARS(p.cuenta_como)}${p.metodo ? ` (${p.metodo})` : ''}`);
+    return [
+      `Hola ${o.usuario_nombre || ''}! Te paso el resumen de tu pedido ${numOrden(o)}:`, '',
+      `Total: ${fmtARS(totalPedido)}`,
+      ...(lineas.length ? ['Pagos:', ...lineas] : []),
+      `Pagado: ${fmtARS(pag)}`,
+      resta > 0.01 ? `Resta abonar: ${fmtARS(resta)}` : 'Pedido pagado completo. ¡Gracias!',
+    ].join('\n');
+  };
+  const enviarResumen = async () => {
+    const t = textoResumen(); const d = telPedido();
+    if (d) { window.open(waLink(d, t), '_blank'); return; }
+    try { await navigator.clipboard.writeText(t); toast('Resumen copiado: el cliente no tiene teléfono cargado'); } catch { toast('El cliente no tiene teléfono cargado', 'error'); }
+  };
+  const cargarRapido = async () => {
+    const monto = Number(rapido.monto);
+    if (!(monto > 0)) { toast('Poné el monto que te dejó', 'error'); rapidoRef.current?.focus(); return; }
+    setGuardandoRapido(true);
+    try {
+      // Si el pedido tenía una seña vieja sin detalle, primero la pasamos a la lista de pagos para no perderla
+      if (pagos.length === 0 && senaSinDetalle > 0) await api.addPago(o.id, { metodo: 'seña anterior', recibido: senaSinDetalle, cuenta_como: senaSinDetalle, ajuste_pct: 0, nota: 'Seña cargada antes' });
+      const r = await api.addPago(o.id, { metodo: rapido.metodo, recibido: monto, cuenta_como: monto, ajuste_pct: 0, nota: '' });
+      const lista = await api.getPagos(o.id).catch(() => null);
+      if (lista) setPagos(lista); else await cargarPagos();
+      setO({ ...o, estado_pago: r.estado, sena: r.estado === 'senado' ? r.saldado : 0 });
+      setRapido({ ...rapido, monto: '' }); setPidiendoSena(false);
+      cargarHistorial();
+      toast(r.estado === 'pagado' ? 'Pago registrado: pedido pagado completo' : 'Pago registrado');
+      pedirAviso(textoResumen(lista || pagos));
+    } catch (e) { toast(e.message, 'error'); }
+    setGuardandoRapido(false);
+  };
+  const pedirSena = () => {
+    setPidiendoSena(true);
+    toast('Poné cuánto dejó de seña y tocá "Cargar seña"');
+    setTimeout(() => { try { rapidoRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); rapidoRef.current?.focus(); } catch {} }, 60);
+  };
+
   useEffect(() => {
     (async () => {
       setLoadingItems(true);
       const full = await api.getPedido(o.id);
       setItems((full.items || []).map(i => ({ ...i, qty: i.cantidad || 1 })));
       setO(full);
+      if (Array.isArray(full.pagos)) setPagos(full.pagos); // los pagos ya cargados (antes no se mostraban al abrir)
       if (full.descuento) setAjuste(-Math.abs(Number(full.descuento)));
       const users = await api.getUsuarios('').catch(() => []);
       setAllUsers(users);
@@ -8935,6 +8992,39 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             </div>
           </div>
 
+          {/* CUENTA DEL PEDIDO: total, lo señado/pagado y lo que resta (para decírselo rápido al cliente) */}
+          {!loadingItems && o.tipo !== 'presupuesto' && totalPedido > 0 && (
+            <div className={`cta-ped${pidiendoSena ? ' pide' : ''}`}>
+              <div className="cta-ped-nums">
+                <div><small>Total</small><strong>{fmtARS(totalPedido)}</strong></div>
+                <div><small>{restaCta > 0.01 && cantPagos <= 1 ? 'Señado' : 'Pagado'}</small><strong className="ok">{fmtARS(pagadoCta)}</strong></div>
+                <div><small>Resta</small><strong className={restaCta > 0.01 ? 'debe' : 'ok'}>{restaCta > 0.01 ? fmtARS(restaCta) : 'Nada'}</strong></div>
+              </div>
+              <div className="cta-ped-barra" title={`${pctCta}% pagado`}><span style={{ width: `${pctCta}%` }} /></div>
+              {cantPagos > 0 && (
+                <ol className="cta-ped-lista">
+                  {senaSinDetalle > 0 && <li><span>Seña</span><span>sin fecha</span><strong>{fmtARS(senaSinDetalle)}</strong></li>}
+                  {pagos.map((p, i) => { const n = i + (senaSinDetalle > 0 ? 1 : 0); return <li key={p.id}><span>{n === 0 ? 'Seña' : `Pago ${n + 1}`}</span><span>{fechaCorta(p.created_at)}{p.metodo ? ` · ${p.metodo}` : ''}</span><strong>{fmtARS(p.cuenta_como)}</strong></li>; })}
+                </ol>
+              )}
+              {marcadoPagado && <div className="cta-ped-nota">Marcado como pagado a mano (sin pagos cargados).</div>}
+              {o.estado_pago === 'senado' && cantPagos === 0 && <div className="cta-ped-aviso"><AlertTriangle size={14} /> Está marcado como señado pero falta cargar el monto de la seña.</div>}
+              {restaCta > 0.01 && (
+                <div className="cta-ped-carga">
+                  <input ref={rapidoRef} type="number" inputMode="numeric" min="0" placeholder={cantPagos ? 'Monto que paga hoy' : 'Monto de la seña'} value={rapido.monto} onChange={e => setRapido({ ...rapido, monto: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') cargarRapido(); }} />
+                  <select value={rapido.metodo} onChange={e => setRapido({ ...rapido, metodo: e.target.value })} aria-label="Método de pago">
+                    <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="débito">Débito</option><option value="crédito">Crédito</option><option value="mercadopago">MercadoPago</option><option value="otro">Otro</option>
+                  </select>
+                  <button className="btn btn-primary btn-sm" onClick={cargarRapido} disabled={guardandoRapido}><Plus size={14} style={{ verticalAlign: '-2px' }} /> {guardandoRapido ? 'Guardando...' : (cantPagos ? 'Sumar pago' : 'Cargar seña')}</button>
+                </div>
+              )}
+              <div className="cta-ped-acciones">
+                <button className="btn btn-outline btn-sm" onClick={enviarResumen}><MessageCircle size={14} style={{ verticalAlign: '-2px' }} /> Enviar resumen al cliente</button>
+                {restaCta > 0.01 && <button className="btn btn-outline btn-sm" onClick={() => { setRapido({ ...rapido, monto: String(Math.round(restaCta)) }); rapidoRef.current?.focus(); }}>Paga todo lo que resta</button>}
+              </div>
+            </div>
+          )}
+
           {/* Estado de ENTREGA */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <label style={{ fontSize: 13, fontWeight: 600 }}>Entrega:</label>
@@ -8974,7 +9064,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               </>
             ) : (
               <>
-                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { const nuevo = e.target.value; await api.updatePedido(o.id, { estado_pago: nuevo }); const full = await api.getPedido(o.id); setO(full); await cargarPagos(); await cargarHistorial(); toast('Estado de pago actualizado'); const mp = { pagado: `¡Hola ${o.usuario_nombre || ''}! Confirmamos el pago de tu pedido #${o.id}. ¡Gracias! 🙌`, senado: `¡Hola ${o.usuario_nombre || ''}! Registramos tu seña del pedido #${o.id}.`, parcial: `¡Hola ${o.usuario_nombre || ''}! Registramos un pago a cuenta de tu pedido #${o.id}.` }; pedirAviso(mp[nuevo]); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
+                <select value={(o.estado_pago && o.estado_pago !== 'pendiente') ? o.estado_pago : 'impago'} onChange={async e => { try { const nuevo = e.target.value; if (nuevo === 'senado') { pedirSena(); return; } await api.updatePedido(o.id, { estado_pago: nuevo }); const full = await api.getPedido(o.id); setO(full); await cargarPagos(); await cargarHistorial(); toast('Estado de pago actualizado'); const mp = { pagado: `¡Hola ${o.usuario_nombre || ''}! Confirmamos el pago de tu pedido #${o.id}. ¡Gracias! 🙌`, senado: `¡Hola ${o.usuario_nombre || ''}! Registramos tu seña del pedido #${o.id}.`, parcial: `¡Hola ${o.usuario_nombre || ''}! Registramos un pago a cuenta de tu pedido #${o.id}.` }; pedirAviso(mp[nuevo]); } catch (err) { toast(err.message, 'error'); } }} style={{ width: 130 }}>
                   <option value="impago">Impago</option>
                   <option value="senado">Señado</option>
                   <option value="pagado">Pagado</option>
