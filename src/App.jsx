@@ -104,6 +104,14 @@ function setJsonLd(obj) {
   el.textContent = JSON.stringify(obj);
 }
 const stripHtml = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+// Resumen para Google (meta description): sin viñetas ni rótulos tipo "Detalles del producto", cortado en una palabra
+const resumenDesc = (s, max = 160) => {
+  let t = stripHtml(s).replace(/[•*>]+/g, ' ').replace(/\s+/g, ' ').trim();
+  t = t.replace(/^((detalles( del producto)?|descripci[oó]n( del producto)?|especificaciones|caracter[ií]sticas)\s*:?\s*)+/i, '');
+  if (t.length <= max) return t;
+  const c = t.slice(0, max - 1); const k = c.lastIndexOf(' ');
+  return (k > 80 ? c.slice(0, k) : c).replace(/[\s,;:.-]+$/, '') + '…';
+};
 
 // ─── ROUTING: URLs reales (SEO + compartir + back-button) ───
 const RUTAS_RESERVADAS = new Set(['producto', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
@@ -857,7 +865,7 @@ export default function App() {
       const p = selectedProduct;
       const nom = p.nombre || p.modelo || 'Producto';
       title = `${nom} | ${tienda}`;
-      desc = stripHtml(p.descripcion) ? stripHtml(p.descripcion).slice(0, 160) : `${nom} — comprá en ${tienda}.`;
+      desc = resumenDesc(p.descripcion) || `${nom} — comprá en ${tienda}.`;
       image = p.imagen || image;
       type = 'product';
       const precio = Number(p.precio_oferta > 0 ? p.precio_oferta : p.precio_base) || 0;
@@ -4178,7 +4186,7 @@ function ProductDetailPage() {
             </div>
           )}
 
-          {p.descripcion && <p className="pdp-desc">{p.descripcion}</p>}
+          {p.descripcion && <p className="pdp-desc">{String(p.descripcion).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()}</p>}
           {p.compatibilidad && <p className="pdp-compat">Compatible: {p.compatibilidad}</p>}
 
           {p.es_preventa ? (() => {

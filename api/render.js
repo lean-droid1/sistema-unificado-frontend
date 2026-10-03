@@ -7,6 +7,14 @@
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const stripHtml = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+// Igual que en App.jsx — resumen para Google (meta description): sin viñetas ni rótulos tipo "Detalles del producto", cortado en una palabra
+const resumenDesc = (s, max = 160) => {
+  let t = stripHtml(s).replace(/[•*>]+/g, ' ').replace(/\s+/g, ' ').trim();
+  t = t.replace(/^((detalles( del producto)?|descripci[oó]n( del producto)?|especificaciones|caracter[ií]sticas)\s*:?\s*)+/i, '');
+  if (t.length <= max) return t;
+  const c = t.slice(0, max - 1); const k = c.lastIndexOf(' ');
+  return (k > 80 ? c.slice(0, k) : c).replace(/[\s,;:.-]+$/, '') + '…';
+};
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
@@ -154,8 +162,8 @@ export default async function handler(req, res) {
       if (p && p.id) {
         const nom = p.nombre || p.modelo || 'Producto';
         m.title = `${nom} | ${tienda}`;
-        const dLarga = stripHtml(p.descripcion);
-        m.desc = dLarga ? dLarga.slice(0, 160) : `${nom} — comprá en ${tienda}.`;
+        const dLarga = resumenDesc(p.descripcion, 600);
+        m.desc = resumenDesc(p.descripcion) || `${nom} — comprá en ${tienda}.`;
         m.image = p.imagen || m.image;
         m.type = 'product';
         m.url = origin + productPath(p) + keep;
@@ -167,7 +175,7 @@ export default async function handler(req, res) {
         if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
         if (precio > 0) ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url: m.url };
         m.ld = ld;
-        m.cuerpo = `<h1>${esc(nom)}</h1>${dLarga ? `<p>${esc(dLarga.slice(0, 600))}</p>` : ''}${precio > 0 ? `<p>$ ${esc(precio.toLocaleString('es-AR'))}</p>` : ''}`;
+        m.cuerpo = `<h1>${esc(nom)}</h1>${dLarga ? `<p>${esc(dLarga)}</p>` : ''}${precio > 0 ? `<p>$ ${esc(precio.toLocaleString('es-AR'))}</p>` : ''}`;
       } else if (pRes && pRes.status === 404) {
         status = 404; m.noindex = true; m.title = `Producto no disponible | ${tienda}`;
       }

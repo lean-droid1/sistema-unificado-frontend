@@ -521,7 +521,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .pdp-payment-desc { color: var(--success); font-size: 12px; font-weight: 600; }
 .pdp-variant { padding: 8px 16px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; cursor: pointer; border: 2px solid var(--border); background: var(--bg-card); color: var(--text); transition: all 0.15s; }
 .pdp-variant.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
-.pdp-desc { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; line-height: 1.7; }
+.pdp-desc { color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; line-height: 1.7; white-space: pre-line; }
 .pdp-compat { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 .pdp-nostock { padding: 14px 20px; background: var(--danger-light); border-radius: var(--radius-sm); color: var(--danger); font-weight: 700; margin-bottom: 12px; font-size: 13px; text-align: center; }
 .pdp-buy { display: flex; gap: 12px; align-items: stretch; margin-bottom: 14px; }
