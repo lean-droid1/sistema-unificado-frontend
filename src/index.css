@@ -1705,3 +1705,16 @@ body:has(.lm-barra) .aviso-carrito { bottom: calc(100px + env(safe-area-inset-bo
 @media (max-width:480px){.cta-ped{padding:10px 12px}.cta-ped-nums strong{font-size:16px}}
 .ped-resta{font-size:11px;font-weight:800;color:var(--danger);white-space:nowrap}
 .ped-resta.sin{color:var(--warning,#d97706)}
+
+/* Costo proveedor */
+.cprov-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px}
+.cprov-titulo{font-weight:800;font-size:14px;margin-bottom:4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cprov-titulo small{font-weight:500;font-size:12px;color:var(--text-muted)}
+.cprov-fila{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.cprov-fila:last-of-type{border-bottom:none}
+.cprov-fila>div:first-child{min-width:0;display:flex;flex-direction:column;gap:2px}
+.cprov-fila>div:first-child small{font-size:12px;color:var(--text-muted)}
+.cprov-fila>div:first-child input{max-width:220px}
+.cprov-pct{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.cprov-pct input{width:76px;text-align:right}
+.cprov-pct span{font-weight:700;color:var(--text-muted)}

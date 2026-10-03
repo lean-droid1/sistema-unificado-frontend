@@ -4670,7 +4670,7 @@ function AdminPanel() {
     venta_manual: 'pedidos', ordenes_compra: 'pedidos', caja: 'stats',
     cupones: 'config', promociones: 'config', carritos: 'stats', reportes: 'stats',
     leads: 'stats', analytics: 'config',
-    productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos',
+    productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos', costo_proveedor: 'config',
     usuarios: 'usuarios',
     envios: 'config', metodos_pago: 'config',
     diseno: 'config',
@@ -4696,6 +4696,7 @@ function AdminPanel() {
       { id: 'categorias', label: 'Categorías' },
       { id: 'listas', label: 'Listas de precio' },
       { id: 'notif_stock', label: 'Avisos de stock' },
+      { id: 'costo_proveedor', label: 'Costo proveedor' },
     ]},
     { id: 'clientes', label: 'Clientes', icon: 'users', single: 'usuarios' },
     { id: 'marketing_grp', label: 'Marketing', icon: 'megaphone', items: [
@@ -4714,6 +4715,7 @@ function AdminPanel() {
 
   // Mapa tab → feature del plan (si la feature está off, se oculta la sección). El dueño (es_owner) ve todo.
   const tabFeature = {
+    costo_proveedor: 'proveedor_dropshipping', // solo el dueño (tiendas con proveedor conectado por el bot)
     presupuestos: 'presupuestos',
     venta_manual: 'pdv',        // pdv 'no' oculta; 'buscador'/'lector' muestra
     caja: 'caja',
@@ -4846,6 +4848,7 @@ function AdminPanel() {
         {adminTab === 'general' && <AdminGeneralHub />}
         {adminTab === 'owner_tenants' && user?.es_owner && <AdminOwner />}
         {adminTab === 'analytics' && <AdminAnalytics />}
+        {adminTab === 'costo_proveedor' && <AdminCostoProveedor />}
         {adminTab === 'leads' && <AdminLeads />}
       </div>
     </div>
@@ -4887,6 +4890,82 @@ function AdminDisenoHub() {
 }
 
 // ── Hub General: config del negocio + mantenimiento ──
+// ─── COSTO PROVEEDOR: tu descuento sobre el precio del proveedor → costo real y ganancia real ───
+function AdminCostoProveedor() {
+  const { toast } = useContext(Ctx);
+  const [data, setData] = useState(null);
+  const [defecto, setDefecto] = useState('');
+  const [cats, setCats] = useState({});
+  const [marcas, setMarcas] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const cargar = () => api.getCostosProveedor().then(d => {
+    setData(d); setDefecto(String(d.defecto ?? ''));
+    const c = {}; (d.categorias || []).forEach(x => { c[x.categoria] = String(x.pct); }); setCats(c);
+    setMarcas(Object.entries(d.marcas || {}).map(([m, p]) => ({ m, p: String(p) })));
+  }).catch(e => toast(e.message, 'error'));
+  useEffect(() => { cargar(); }, []);
+  const guardar = async () => {
+    setSaving(true);
+    try {
+      const m = {}; marcas.forEach(x => { if (x.m.trim()) m[x.m.trim()] = Number(x.p) || 0; });
+      const c = {}; Object.entries(cats).forEach(([k, v]) => { c[k] = Number(v) || 0; });
+      const r = await api.saveCostosProveedor({ defecto: Number(defecto) || 0, marcas: m, categorias: c });
+      toast(r.actualizados ? `Guardado: se actualizó el costo de ${r.actualizados} producto${r.actualizados === 1 ? '' : 's'}` : 'Guardado');
+      cargar();
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+  const ej = 100000; const pctEj = Number(defecto) || 0;
+  if (!data) return <p style={{ color: 'var(--text-muted)' }}>Cargando...</p>;
+  return (
+    <div className="cprov" style={{ maxWidth: 680 }}>
+      <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>Costo del proveedor</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+        Tu costo real es el precio del proveedor menos tu descuento. Con eso se calcula la ganancia en Inicio y en Reportes. Cada venta guarda el costo de ese día, así la ganancia de ventas viejas no cambia cuando el proveedor aumenta.
+        {' '}Ejemplo con {pctEj}%: precio proveedor {fmtARS(ej)} → tu costo {fmtARS(ej * (1 - pctEj / 100))}.
+      </p>
+      {data.total === 0 ? (
+        <div className="empty-state"><h3>Todavía no hay productos del proveedor</h3><p>Aparecen cuando el bot sincroniza el catálogo.</p></div>
+      ) : (
+        <>
+          <div className="cprov-card">
+            <div className="cprov-fila">
+              <div><strong>Descuento general</strong><small>Se usa en las categorías que no tengan uno propio</small></div>
+              <div className="cprov-pct"><input type="number" inputMode="decimal" min="0" max="90" value={defecto} onChange={e => setDefecto(e.target.value)} /><span>%</span></div>
+            </div>
+          </div>
+
+          <div className="cprov-card">
+            <div className="cprov-titulo">Por marca <small>tiene prioridad sobre la categoría</small></div>
+            {marcas.map((x, i) => (
+              <div key={i} className="cprov-fila">
+                <div><input value={x.m} onChange={e => setMarcas(marcas.map((y, j) => j === i ? { ...y, m: e.target.value } : y))} placeholder="Marca (ej. JCID)" />{data.productos_marca?.[x.m] ? <small>{data.productos_marca[x.m]} productos</small> : null}</div>
+                <div className="cprov-pct">
+                  <input type="number" inputMode="decimal" min="0" max="90" value={x.p} onChange={e => setMarcas(marcas.map((y, j) => j === i ? { ...y, p: e.target.value } : y))} /><span>%</span>
+                  <button className="pago-quitar" onClick={() => setMarcas(marcas.filter((_, j) => j !== i))} aria-label="Quitar marca" title="Quitar"><X size={15} /></button>
+                </div>
+              </div>
+            ))}
+            <button className="btn btn-outline btn-sm" onClick={() => setMarcas([...marcas, { m: '', p: String(defecto || 0) }])} style={{ marginTop: 8 }}><Plus size={14} style={{ verticalAlign: '-2px' }} /> Agregar marca</button>
+          </div>
+
+          <div className="cprov-card">
+            <div className="cprov-titulo">Por categoría <small>{data.total} productos del proveedor</small></div>
+            {(data.categorias || []).map(c => (
+              <div key={c.categoria} className="cprov-fila">
+                <div><span>{c.categoria}</span><small>{c.productos} {c.productos === 1 ? 'producto' : 'productos'}</small></div>
+                <div className="cprov-pct"><input type="number" inputMode="decimal" min="0" max="90" value={cats[c.categoria] ?? ''} onChange={e => setCats({ ...cats, [c.categoria]: e.target.value })} /><span>%</span></div>
+              </div>
+            ))}
+          </div>
+
+          <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar y recalcular costos'}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminAnalytics() {
   const { config, setConfig, toast } = useContext(Ctx);
   const [gaId, setGaId] = useState(config.ga_id || '');
