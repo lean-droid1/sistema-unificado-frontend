@@ -6436,7 +6436,13 @@ function DashVisitas({ desde, hasta }) {
           <div className="dash-card"><h4 className="vis-t">Evolución diaria</h4><p className="vis-s">Visitas y páginas vistas por día.</p>
             <GraficoOndas etiquetas={etiquetas} series={[{ nombre: 'Páginas vistas', color: '#0ea5e9', valores: dias.map(f => porDia[f]?.paginas || 0) }, { nombre: 'Visitas', color: '#10b981', valores: dias.map(f => porDia[f]?.visitas || 0) }]} />
           </div>
-          <div className="dash-card"><h4 className="vis-t">Dispositivos</h4><p className="vis-s">Desde qué equipo entran.</p><Anillo datos={disp} /></div>
+          <div className="dash-card"><h4 className="vis-t">Dispositivos</h4><p className="vis-s">Desde qué equipo entran.</p><Anillo datos={disp} />
+            {(d.bots || []).length > 0 && <>
+              <h4 className="vis-t" style={{ marginTop: 16 }}>Bots que entraron</h4>
+              <p className="vis-s">Programas automáticos (Google, Vercel…). No se cuentan como visitas.</p>
+              <ol className="vis-lista">{d.bots.map(b => <li key={b.k}><span>{b.k}</span><b>{b.n}</b></li>)}</ol>
+            </>}
+          </div>
         </div>
         <div className="vis-grid3">
           <div className="dash-card"><h4 className="vis-t">Lo más buscado</h4><p className="vis-s">Lo que más escriben en el buscador.</p>
