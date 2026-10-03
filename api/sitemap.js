@@ -2,7 +2,7 @@
 // Ubicación: /api/sitemap.js  (raíz del repo, "api" en minúscula, NO dentro de src/)
 // Se sirve en /sitemap.xml vía el rewrite de vercel.json.
 
-const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
+const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-+$/, '');
 const xmlEsc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export default async function handler(req, res) {
