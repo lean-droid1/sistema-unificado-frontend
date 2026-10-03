@@ -22,7 +22,7 @@ const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); ret
 const RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const PRIVADAS = new Set(['buscar', 'carrito', 'favoritos', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview']);
 
-let plantilla = null; // index.html de este deploy (cada deploy tiene sus propias instancias)
+let plantilla = null, plantillaHora = 0; // index.html de este deploy (se revalida cada 2 minutos)
 
 function resolveTenant(host, tienda) {
   if (tienda) return tienda;
@@ -47,16 +47,30 @@ async function pedir(url, opts = {}, ms = 2500) {
 }
 
 async function cargarPlantilla(origin) {
-  if (plantilla) return plantilla;
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 4000);
-  try {
-    const r = await fetch(`${origin}/index.html`, { signal: ac.signal });
-    const html = r.ok ? await r.text() : '';
-    if (!html.includes('id="root"')) throw new Error('plantilla inválida');
-    plantilla = html;
-    return html;
-  } finally { clearTimeout(t); }
+  if (plantilla && Date.now() - plantillaHora < 120000) return plantilla;
+  // Justo después de un deploy, el dominio puede seguir mostrando unos segundos el index.html del deploy
+  // anterior (con archivos /assets/ que ya no existen → página en blanco). Por eso se verifica que el
+  // JavaScript principal exista antes de usar la plantilla; si no, se reintenta.
+  for (let intento = 0; intento < 3; intento++) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 4000);
+    try {
+      const r = await fetch(`${origin}/index.html?v=${Date.now()}`, { signal: ac.signal, cache: 'no-store' });
+      const html = r.ok ? await r.text() : '';
+      if (!html.includes('id="root"')) throw new Error('plantilla inválida');
+      const js = (html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/) || html.match(/src="(\/assets\/[^"]+\.js)"/) || [])[1];
+      if (js) {
+        const h = await fetch(origin + js, { method: 'HEAD', signal: ac.signal, cache: 'no-store' });
+        if (!h.ok) throw new Error('assets viejos');
+      }
+      plantilla = html; plantillaHora = Date.now();
+      return html;
+    } catch (e) {
+      if (intento === 2) throw e;
+      await new Promise(ok => setTimeout(ok, 1200));
+    } finally { clearTimeout(t); }
+  }
+  throw new Error('sin plantilla');
 }
 
 function inyectar(html, m) {
@@ -118,7 +132,7 @@ export default async function handler(req, res) {
   const enviar = (status, cuerpoHtml, cacheSeg) => {
     res.statusCode = status;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', `public, max-age=0, s-maxage=${cacheSeg}, stale-while-revalidate=86400`);
+    res.setHeader('Cache-Control', `public, max-age=0, s-maxage=${cacheSeg}, stale-while-revalidate=300`);
     res.end(cuerpoHtml);
   };
 

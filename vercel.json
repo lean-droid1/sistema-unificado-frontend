@@ -17,6 +17,14 @@
       "destination": "/api/seo?tipo=google&f=:archivo"
     },
     {
+      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar)/:resto*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/:ruta((?!api/|assets/|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/api/render?ruta=:ruta"
     }
