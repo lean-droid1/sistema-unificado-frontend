@@ -6,17 +6,23 @@ let refreshPromise = null;
 // cliente.comerciapp.com.ar → 'cliente'. Dominios propios o localhost/vercel → sin slug (el server usa default o el tenant del usuario).
 function getTenantSlug() {
   try {
-    // Override manual para probar sin dominio: ?tienda=slug (queda guardado en la sesión)
-    const params = new URLSearchParams(window.location.search);
-    const override = params.get('tienda');
-    if (override !== null) {
-      if (override === '') sessionStorage.removeItem('tenant_override');
-      else sessionStorage.setItem('tenant_override', override);
-    }
-    const saved = sessionStorage.getItem('tenant_override');
-    if (saved) return saved;
-
     const host = window.location.hostname;
+    // Override manual para probar sin dominio: ?tienda=slug (queda guardado en la sesión).
+    // Solo en pruebas (localhost, previews de Vercel) y en el dominio principal de ComerciApp:
+    // en la web de una tienda (dominio propio o subdominio) se ignora, así nadie puede mostrar otra tienda con tu dominio.
+    const permiteOverride = host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.endsWith('.vercel.app') || host === 'comerciapp.com.ar' || host === 'www.comerciapp.com.ar';
+    if (!permiteOverride) { sessionStorage.removeItem('tenant_override'); }
+    else {
+      const params = new URLSearchParams(window.location.search);
+      const override = params.get('tienda');
+      if (override !== null) {
+        if (override === '') sessionStorage.removeItem('tenant_override');
+        else sessionStorage.setItem('tenant_override', override.toLowerCase().replace(/[^a-z0-9.-]/g, '').slice(0, 80));
+      }
+      const saved = sessionStorage.getItem('tenant_override');
+      if (saved) return saved;
+    }
+
     // localhost / IP / vercel preview → sin slug
     if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.endsWith('.vercel.app')) return '';
     const parts = host.split('.');

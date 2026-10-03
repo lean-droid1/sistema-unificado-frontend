@@ -27,7 +27,13 @@ const fmtARS = n => `$${fmt(n)}`;
 // Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Solo deja pasar links http(s), rutas propias, mailto/tel/wa: nunca "javascript:" ni "data:"
-const urlSegura = (u) => { const v = String(u || '').trim(); if (!v) return ''; if (/^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(v)) return v; if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return ''; return 'https://' + v.replace(/^\/+/, ''); };
+const urlSegura = (u) => {
+  const v = String(u || '').trim(); if (!v) return '';
+  if (/^(https?:\/\/|\/(?!\/)|#|\?|mailto:|tel:)/i.test(v)) return v;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v.replace(/[\u0000-\u0020\u007F]+/g, ''))) return ''; // javascript:, data:, etc.
+  if (/^\/\//.test(v)) return 'https:' + v;
+  return /^[^/]+\.[a-z]{2,}(\/|$)/i.test(v) ? 'https://' + v : v; // "instagram.com/x" -> https; "categoria" queda relativo
+};
 // Imprime una ventana armada con document.write sin scripts adentro (la política de seguridad los bloquea):
 // espera las imágenes desde la página que la abrió y muestra el texto de respaldo si una imagen falla
 function imprimirCuandoCargue(w, { espera = 300, maximo = 3000 } = {}) {
@@ -1335,7 +1341,7 @@ function Header() {
           {!design.modo_tema && !THEME_PRESETS.find(t => t.id === design.plantilla) && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? <Ico n="sun" s={18} /> : <Ico n="moon" s={18} />} {dark ? 'Modo claro' : 'Modo oscuro'}</button>}
           {user && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setMobMenu(false); nav('favoritos'); }}><span style={{ color: 'var(--danger)', display: 'inline-flex' }}><Ico n="heart" s={18} fill /></span> Favoritos</button>}
           <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          {menuItems.map(m => <a key={m.id} href={m.url || '#'} style={{ color: 'var(--text)', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
+          {menuItems.map(m => <a key={m.id} href={urlSegura(m.url) || '#'} style={{ color: 'var(--text)', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
           <a href="#" style={{ color: 'var(--text)', fontWeight: 600, fontSize: 14 }} onClick={e => { e.preventDefault(); setMobMenu(false); nav('contacto'); }}>Contacto</a>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
           {user ? (
@@ -1444,7 +1450,7 @@ function Footer() {
         {/* Redes */}
         {activas.length > 0 && (
           <div className="footer-social" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '10px 18px', marginBottom: 20, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-            {activas.map(r => <a key={r.id || r.tipo} href={r.url} target="_blank" rel="noopener" style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><RedIcon tipo={redIconTipo(r.tipo)} s={16} /> <span>{RED_LABELS[r.tipo] || r.tipo.replace(/_/g, ' ')}</span></a>)}
+            {activas.map(r => <a key={r.id || r.tipo} href={urlSegura(r.url) || undefined} target="_blank" rel="noopener" style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><RedIcon tipo={redIconTipo(r.tipo)} s={16} /> <span>{RED_LABELS[r.tipo] || r.tipo.replace(/_/g, ' ')}</span></a>)}
           </div>
         )}
         <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>{design.footer_texto || `© ${new Date().getFullYear()} ${design.nombre_tienda || ''} — Todos los derechos reservados`}</p>
@@ -1751,7 +1757,7 @@ function ContactoPage() {
           <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14, textAlign: 'center' }}>Seguime en redes</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             {activas.map(r => (
-              <a key={r.id} href={r.url} target="_blank" rel="noopener" className="btn btn-outline" style={{ justifyContent: 'center', gap: 8 }}>
+              <a key={r.id} href={urlSegura(r.url) || undefined} target="_blank" rel="noopener" className="btn btn-outline" style={{ justifyContent: 'center', gap: 8 }}>
                 <RedIcon tipo={redIconTipo(r.tipo)} s={16} /> {redLabels[r.tipo] || r.tipo.replace('_', ' ')}
               </a>
             ))}
@@ -2569,7 +2575,7 @@ function Landing() {
           <div className="hero-slider">
             {sliders.map((s, i) => (
               <div key={s.id} className="hero-slide" style={{ display: i === sliderIdx ? 'block' : 'none', cursor: s.url_destino ? 'pointer' : 'default' }}
-                onClick={() => s.url_destino && window.open(s.url_destino, '_blank')}>
+                onClick={() => { const u = urlSegura(s.url_destino); if (u) window.open(u, '_blank', 'noopener'); }}>
                 {/* En celular usa la imagen para celular si la cargaron (si no, muestra la misma entera, sin cortarla) */}
                 <picture>
                   {s.imagen_mobile && <source media="(max-width: 768px)" srcSet={imgOpt(s.imagen_mobile, 900)} />}
@@ -9904,7 +9910,7 @@ function PopupPromo({ popup, onClose }) {
   useEffect(() => { if (imgs.length < 2 || pausa) return; const t = setInterval(() => setI(x => (x + 1) % imgs.length), 4000); return () => clearInterval(t); }, [imgs.length, pausa]);
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   const ir = (d) => { setPausa(true); setI(x => (x + d + imgs.length) % imgs.length); };
-  const destino = popup.url_destino;
+  const destino = urlSegura(popup.url_destino);
   const abrirDestino = () => { if (!destino) return; if (/^https?:\/\//i.test(destino) && !destino.includes(window.location.host)) window.open(destino, '_blank', 'noopener'); else window.location.href = destino; };
   return (
     <div className="modal-overlay popup-overlay" onClick={onClose}>
