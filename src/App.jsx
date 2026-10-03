@@ -114,7 +114,7 @@ const resumenDesc = (s, max = 160) => {
 };
 
 // ─── ROUTING: URLs reales (SEO + compartir + back-button) ───
-const RUTAS_RESERVADAS = new Set(['producto', 'info', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const RUTAS_RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-+$/, '');
 const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id); // páginas informativas: /info/<slug>
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
@@ -122,7 +122,7 @@ const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); ret
 // Preserva ?tienda / ?preview (necesarios para probar tenants sin dominio propio)
 const keptQuery = () => { const cur = new URLSearchParams(window.location.search); const kept = new URLSearchParams(); for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) kept.set(k, v); } return kept; };
 function buildPath(page, o = {}) {
-  const { sec, prod, search, pag, info } = o;
+  const { sec, prod, search, pag, info, cat } = o;
   let base = '/';
   if (page === 'product' && prod?.id) base = productPath(prod);
   else if (page === 'section' && (sec?.slug || sec?.id)) base = `/${sec.slug || ('s-' + sec.id)}`;
@@ -131,6 +131,7 @@ function buildPath(page, o = {}) {
   else if (page === 'favoritos') base = '/favoritos';
   else if (page === 'contacto') base = '/contacto';
   else if (page === 'info') base = '/info' + (info ? '/' + info : '');
+  else if (page === 'categoria' && cat) base = '/categoria/' + cat;
   else if (page === 'account') base = '/mi-cuenta';
   else if (page === 'admin') base = '/panel';
   else if (page === 'login') base = '/ingresar';
@@ -152,6 +153,7 @@ function parsePath(pathname, search, secciones = []) {
   if (a === 'favoritos') return { page: 'favoritos' };
   if (a === 'contacto') return { page: 'contacto' };
   if (a === 'info') return { page: 'info', info: parts[1] || '' };
+  if (a === 'categoria' && parts[1]) return { page: 'categoria', cat: parts[1] };
   if (a === 'mi-cuenta') return { page: 'account' };
   if (a === 'panel') return { page: 'admin' };
   if (a === 'ingresar') return { page: 'login' };
@@ -523,11 +525,11 @@ export default function App() {
       if (params.get('producto') || params.get('buscar')) return 'landing';
       // Ruta real (path): resolver páginas estáticas al toque; producto/búsqueda/sección se cargan en el init async
       const r = parsePath(window.location.pathname, window.location.search, []);
-      if (['cart', 'favoritos', 'contacto', 'info', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
+      if (['cart', 'favoritos', 'contacto', 'info', 'categoria', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
       if (r.page === 'product' || r.page === 'search') return 'landing';
     }
     // Búsqueda/producto/sección dependen de la URL: sin ella se abría una búsqueda vacía al entrar al inicio
-    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance','search','product','section','info'].includes(sv)) return 'landing'; return sv;
+    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance','search','product','section','info','categoria'].includes(sv)) return 'landing'; return sv;
   });
   const [loading, setLoading] = useState(true);
   const [enMantenimiento, setEnMantenimiento] = useState(false); // true = bloquear la tienda a visitantes (no admin)
@@ -585,6 +587,7 @@ export default function App() {
     }
   }, [config.ga_id, config.fb_pixel_id, config.clarity_id]);
   const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
+  const [catSlug, setCatSlug] = useState(() => { try { const r = parsePath(window.location.pathname, '', []); return r.page === 'categoria' ? r.cat : ''; } catch { return ''; } });
   const [infoSlug, setInfoSlug] = useState(() => { try { const r = parsePath(window.location.pathname, '', []); return r.page === 'info' ? r.info : ''; } catch { return ''; } });
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
@@ -807,17 +810,19 @@ export default function App() {
       setSeccionActual(sec); setPage('section');
     } else if (p === 'info') {
       setInfoSlug(secId || ''); setPage('info');
+    } else if (p === 'categoria') {
+      setCatSlug(secId || ''); setPage('categoria');
     } else {
       setPage(p);
     }
     try {
-      const url = buildPath(p, { sec: (p === 'section' ? sec : seccionActual), prod: (p === 'product' ? prod : selectedProduct), search: globalSearch, info: (p === 'info' ? (secId || '') : infoSlug) });
+      const url = buildPath(p, { sec: (p === 'section' ? sec : seccionActual), prod: (p === 'product' ? prod : selectedProduct), search: globalSearch, info: (p === 'info' ? (secId || '') : infoSlug), cat: (p === 'categoria' ? (secId || '') : catSlug) });
       if ((window.location.pathname + window.location.search) !== url) window.history.pushState({ scrollY: 0 }, '', url);
     } catch (e) {}
     setMobileMenu(false); window.scrollTo(0, 0);
     // Después de pintar la página nueva, volver a subir (si no, a veces arrancaba un poco bajada, debajo de la cabecera)
     requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, 0)));
-  }, [secciones, seccionActual, page, selectedProduct, globalSearch, infoSlug]);
+  }, [secciones, seccionActual, page, selectedProduct, globalSearch, infoSlug, catSlug]);
   // Refs para leer estado actual dentro del listener de popstate (que se registra una sola vez)
   const seccionesRef = useRef([]); seccionesRef.current = secciones;
   const selectedProductRef = useRef(null); selectedProductRef.current = selectedProduct;
@@ -837,6 +842,7 @@ export default function App() {
         setSelectedProduct(null); setGlobalResults(null); setGlobalSearch(r.search); setPage('search');
       } else {
         if (r.page === 'info') setInfoSlug(r.info || '');
+        if (r.page === 'categoria') setCatSlug(r.cat || '');
         setSelectedProduct(null); setPage(r.page || 'landing');
       }
       const y = (e.state && e.state.scrollY) || 0;
@@ -853,16 +859,19 @@ export default function App() {
     if (loading) return;
     if (page === 'section') return; // SectionPage escribe su URL con paginación
     try {
-      const url = buildPath(page, { sec: seccionActual, prod: selectedProduct, search: globalSearch, info: infoSlug });
+      const url = buildPath(page, { sec: seccionActual, prod: selectedProduct, search: globalSearch, info: infoSlug, cat: catSlug });
       if ((window.location.pathname + window.location.search) !== url) window.history.replaceState({ ...(window.history.state || {}) }, '', url);
     } catch (e) {}
-  }, [page, selectedProduct?.id, globalSearch, loading, infoSlug]);
+  }, [page, selectedProduct?.id, globalSearch, loading, infoSlug, catSlug]);
 
   // SEO: título, descripción, OG/Twitter, canonical y datos estructurados por página
   useEffect(() => {
     if (loading || typeof document === 'undefined') return;
+    if (page === 'categoria' || page === 'info') return; // esas páginas ponen su propio título al cargar
     const tienda = design.nombre_tienda || 'Tienda';
-    const url = window.location.origin + window.location.pathname + window.location.search;
+    const origin = window.location.origin;
+    // canonical sin utm/fbclid: solo tienda (tiendas sin dominio) y página de la sección
+    const url = origin + window.location.pathname + (() => { const k = keptQuery(); k.delete('preview'); const pg = new URLSearchParams(window.location.search).get('pag'); if (page === 'section' && pg && pg !== '1') k.set('pag', pg); const q = k.toString(); return q ? '?' + q : ''; })();
     let title = tienda;
     let desc = stripHtml(design.descripcion_tienda || config.meta_description) || `${tienda} — comprá online, envíos a todo el país.`;
     let image = design.og_image || design.logo_url || '';
@@ -876,11 +885,26 @@ export default function App() {
       image = p.imagen || image;
       type = 'product';
       const precio = Number(p.precio_oferta > 0 ? p.precio_oferta : p.precio_base) || 0;
-      ld = { '@context': 'https://schema.org', '@type': 'Product', name: nom, description: desc };
-      if (image) ld.image = [image];
-      if (p.sku) ld.sku = p.sku;
-      if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
-      if (precio > 0) ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url };
+      const prod = { '@type': 'Product', name: nom, description: desc };
+      if (image) prod.image = [image];
+      if (p.sku) prod.sku = p.sku;
+      if (p.marca) prod.brand = { '@type': 'Brand', name: p.marca };
+      if (precio > 0) prod.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url };
+      // Ruta Inicio > Categoría > Producto (Google la muestra en el resultado)
+      const secP = secciones.find(s => String(s.id) === String(p.seccion_id));
+      const migas = [{ '@type': 'ListItem', position: 1, name: tienda, item: origin + '/' }];
+      if (p.categoria && slugify(p.categoria) && !secP?.requiere_aprobacion) migas.push({ '@type': 'ListItem', position: 2, name: p.categoria, item: `${origin}/categoria/${slugify(p.categoria)}` });
+      migas.push({ '@type': 'ListItem', position: migas.length + 1, name: nom, item: url });
+      ld = { '@context': 'https://schema.org', '@graph': [prod, { '@type': 'BreadcrumbList', itemListElement: migas }] };
+    } else if (page === 'landing') {
+      // Datos del negocio para Google (nombre, logo, contacto, dirección y redes)
+      const negocio = { '@type': 'Store', '@id': origin + '/#negocio', name: tienda, url: origin + '/' };
+      if (design.logo_url) { negocio.logo = design.logo_url; negocio.image = design.logo_url; }
+      const tel = String(design.whatsapp_numero || '').replace(/\D/g, ''); if (tel) negocio.telephone = '+' + tel;
+      if (design.email_contacto) negocio.email = design.email_contacto;
+      if (design.direccion) negocio.address = { '@type': 'PostalAddress', streetAddress: design.direccion, addressCountry: 'AR' };
+      const redes = (redesSociales || []).filter(r => r.activo && /^https?:\/\//.test(r.url || '')).map(r => r.url); if (redes.length) negocio.sameAs = redes;
+      ld = { '@context': 'https://schema.org', '@graph': [negocio, { '@type': 'WebSite', '@id': origin + '/#web', url: origin + '/', name: tienda, publisher: { '@id': origin + '/#negocio' } }] };
     } else if (page === 'section' && seccionActual) {
       title = `${seccionActual.nombre} | ${tienda}`;
       desc = `${seccionActual.nombre} — ${tienda}. Envíos a todo el país.`;
@@ -902,7 +926,7 @@ export default function App() {
     if (image) upsertMeta('meta[name="twitter:image"]', 'name', 'twitter:image', image);
     setCanonical(url);
     setJsonLd(ld);
-  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading]);
+  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading, redesSociales, secciones]);
 
   // Favoritos (uno solo para toda la tienda: el corazón queda igual en todas las tarjetas)
   const [favIds, setFavIds] = useState(() => new Set());
@@ -1049,7 +1073,7 @@ export default function App() {
   const ctx = {
     user, setUser, page, setPage: nav, loading, dark, setDark, toast,
     secciones, setSecciones, config, setConfig, design, setDesign,
-    seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, infoSlug, cart, setCart, menuItems, setMenuItems,
+    seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, infoSlug, catSlug, cart, setCart, menuItems, setMenuItems,
     redesSociales, setRedesSociales, badges, setBadges, barras, setBarras, listas, setListas,
     preciosFijos, setPreciosFijos, miPlan, setMiPlan, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
@@ -1078,6 +1102,7 @@ export default function App() {
       case 'account': return user ? <AccountPanel /> : <LoginPage />;
       case 'forgot': return <ForgotPasswordPage />;
       case 'info': return <InfoPage />;
+      case 'categoria': return <CategoriaPage />;
       case 'contacto': return <ContactoPage />;
       case 'favoritos': return user ? <FavoritosPage /> : <LoginPage />;
       case 'search': return <SearchResultsPage />;
@@ -1397,6 +1422,8 @@ function Footer() {
   const activas = redesSociales.filter(r => r.activo && r.url);
   const [infoPags, setInfoPags] = useState([]);
   useEffect(() => { api.getPaginas().then(setInfoPags).catch(() => {}); }, []);
+  const [catsFooter, setCatsFooter] = useState([]);
+  useEffect(() => { api.getCategoriasInfo().then(c => setCatsFooter((c || []).slice(0, 8))).catch(() => {}); }, []);
   return (
     <footer className="footer" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: '40px 24px 28px', marginTop: 40 }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -1419,6 +1446,15 @@ function Footer() {
               ))}
             </div>
           </div>
+          {/* Categorías */}
+          {catsFooter.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Categorías</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {catsFooter.map(c => <a key={c.slug} href={`/categoria/${c.slug}`} onClick={e => { e.preventDefault(); nav('categoria', c.slug); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{c.titulo}</a>)}
+              </div>
+            </div>
+          )}
           {/* Info / páginas */}
           {infoPags.length > 0 && (
             <div>
@@ -1807,6 +1843,74 @@ function ContactoPage() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>Escaneá o imprimí este QR. Lleva directo a toda tu info de contacto.</p>
         <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }} onClick={() => window.open(qrUrl, '_blank')}>Descargar QR</button>
       </div>
+    </div>
+  );
+}
+
+// ─── PÁGINA DE CATEGORÍA (/categoria/<slug>): para que Google encuentre "microscopios", "estaciones de soldado"... ───
+function CategoriaPage() {
+  const { nav, catSlug, design } = useContext(Ctx);
+  const [cats, setCats] = useState(null);
+  const [prods, setProds] = useState(null);
+  const cat = cats ? cats.find(c => c.slug === catSlug) : null;
+  useEffect(() => { api.getCategoriasInfo().then(setCats).catch(() => setCats([])); }, []);
+  useEffect(() => {
+    if (!cat) return;
+    setProds(null);
+    Promise.all(cat.nombres.map(n => api.getProductos({ categoria: n, limit: 300 }).then(r => (r && r.productos) || []).catch(() => [])))
+      .then(ls => {
+        const todos = ls.flat();
+        // primero los que tienen stock, después por nombre
+        const conStock = (p) => (Number(p.stock) > 0 || p.permitir_sin_stock || p.es_digital) ? 0 : 1;
+        todos.sort((a, b) => conStock(a) - conStock(b) || String(a.nombre || '').localeCompare(String(b.nombre || '')));
+        setProds(todos);
+      });
+  }, [cat?.slug]);
+  // Título, descripción y datos para Google
+  useEffect(() => {
+    if (!cat) return;
+    const tienda = design.nombre_tienda || 'Tienda';
+    const url = window.location.origin + '/categoria/' + cat.slug;
+    document.title = `${cat.titulo} | ${tienda}`;
+    const desc = resumenDesc(cat.descripcion) || `${cat.titulo}: ${cat.productos} productos en ${tienda}. Envíos a todo el país.`;
+    upsertMeta('meta[name="description"]', 'name', 'description', desc);
+    upsertMeta('meta[property="og:title"]', 'property', 'og:title', document.title);
+    upsertMeta('meta[property="og:description"]', 'property', 'og:description', desc);
+    upsertMeta('meta[property="og:url"]', 'property', 'og:url', url);
+    setCanonical(url);
+    setJsonLd({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: tienda, item: window.location.origin + '/' },
+      { '@type': 'ListItem', position: 2, name: cat.titulo, item: url },
+    ] });
+  }, [cat?.slug, cat?.titulo, design.nombre_tienda]);
+
+  if (cats && !cat) return (
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '40px 16px' }}>
+      <div className="empty-state"><h3>No encontramos esa categoría</h3><button className="btn btn-primary" onClick={() => nav('landing')}>Ir al inicio</button></div>
+    </div>
+  );
+  const otras = (cats || []).filter(c => c.slug !== catSlug).slice(0, 12);
+  return (
+    <div className="cat-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px' }}>
+      <nav className="cat-migas" aria-label="Ruta">
+        <a href="/" onClick={e => { e.preventDefault(); nav('landing'); }}>Inicio</a><span>/</span><span>{cat ? cat.titulo : ''}</span>
+      </nav>
+      <h1 className="cat-h1">{cat ? cat.titulo : ''}</h1>
+      {cat?.descripcion && <p className="cat-intro">{cat.descripcion}</p>}
+      {!prods ? <div className="spinner" /> : prods.length === 0 ? (
+        <div className="empty-state"><h3>Sin productos por ahora</h3></div>
+      ) : (
+        <>
+          <p className="cat-cant">{prods.length} producto{prods.length !== 1 ? 's' : ''}</p>
+          <div className="product-grid">{prods.map(p => <TarjetaProducto key={p.id} p={p} secId={p.seccion_id} />)}</div>
+        </>
+      )}
+      {otras.length > 0 && (
+        <div className="cat-otras">
+          <h2>Otras categorías</h2>
+          <div>{otras.map(c => <a key={c.slug} href={`/categoria/${c.slug}`} onClick={e => { e.preventDefault(); nav('categoria', c.slug); }}>{c.titulo}</a>)}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4151,7 +4255,9 @@ function ProductDetailPage() {
 
         {/* Info */}
         <div className="pdp-info">
-          <div className="pdp-cat">{p.categoria}</div>
+          {p.categoria && slugify(p.categoria) && !sec?.requiere_aprobacion
+            ? <a className="pdp-cat" href={`/categoria/${slugify(p.categoria)}`} onClick={e => { e.preventDefault(); nav('categoria', slugify(p.categoria)); }}>{p.categoria}</a>
+            : <div className="pdp-cat">{p.categoria}</div>}
           <h1 className="pdp-title">{p.nombre || p.modelo}</h1>
 
           {!p.es_preventa && <div className="pdp-price">
@@ -6927,6 +7033,10 @@ function AdminCategorias() {
   const [masaDestino, setMasaDestino] = useState('');
   const [showCrear, setShowCrear] = useState(false);
   const [nuevaCat, setNuevaCat] = useState('');
+  const [seoEdit, setSeoEdit] = useState(null); // {nombre, titulo, descripcion} → página /categoria/... para Google
+  const guardarSeo = async () => {
+    try { await api.saveCategoriaSeo(seoEdit); toast('Guardado'); setSeoEdit(null); load(); } catch (e) { toast(e.message, 'error'); }
+  };
 
   const crearCat = async () => {
     if (!nuevaCat.trim()) { toast('Poné un nombre', 'error'); return; }
@@ -7039,6 +7149,7 @@ function AdminCategorias() {
             <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{c.cantidad} producto{c.cantidad !== 1 ? 's' : ''}</span>
           </div>
           <button onClick={() => toggleVisible(c.nombre)} title={c.visible ? 'Ocultar' : 'Mostrar'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>{c.visible ? <Eye size={16} /> : <EyeOff size={16} />}</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setSeoEdit({ nombre: c.nombre, titulo: c.titulo || '', descripcion: c.descripcion || '' })} title="Título y texto de la página de esta categoría (Google)"><Globe size={14} style={{ verticalAlign: '-2px' }} /> Google</button>
           <button className="btn btn-outline btn-sm" onClick={() => setRenaming({ nombre: c.nombre, nuevo: c.nombre })}>Renombrar</button>
           <button className="btn btn-outline btn-sm" onClick={() => setMerging({ desde: c.nombre, hasta: '' })}>Fusionar</button>
           <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
@@ -7046,6 +7157,19 @@ function AdminCategorias() {
       ))}
 
       {/* Modal crear categoría */}
+      {seoEdit && (
+        <div className="modal-overlay" onClick={() => setSeoEdit(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header"><span className="modal-title">Página de "{seoEdit.nombre}" en Google</span><button className="modal-close" onClick={() => setSeoEdit(null)}>✕</button></div>
+            <div className="modal-body">
+              <div className="form-group"><label className="form-label">Título</label><input value={seoEdit.titulo} onChange={e => setSeoEdit({ ...seoEdit, titulo: e.target.value })} placeholder="Ej: Estaciones de soldado y accesorios" maxLength={200} /></div>
+              <div className="form-group"><label className="form-label">Texto de presentación</label><textarea rows={5} value={seoEdit.descripcion} onChange={e => setSeoEdit({ ...seoEdit, descripcion: e.target.value })} placeholder="2 o 3 líneas: qué productos hay, marcas, para qué sirven. Es lo que Google muestra debajo del título." maxLength={3000} /></div>
+              <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Se ve en tu web en /categoria/{slugify(seoEdit.nombre)} y ayuda a aparecer cuando buscan esta categoría en Google.</small>
+            </div>
+            <div className="modal-footer"><button className="btn btn-outline" onClick={() => setSeoEdit(null)}>Cancelar</button><button className="btn btn-primary" onClick={guardarSeo}>Guardar</button></div>
+          </div>
+        </div>
+      )}
       {showCrear && (
         <div className="modal-overlay" onClick={() => setShowCrear(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>

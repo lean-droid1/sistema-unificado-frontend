@@ -19,7 +19,7 @@ const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[
 const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id);
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
-const RESERVADAS = new Set(['producto', 'info', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const PRIVADAS = new Set(['buscar', 'carrito', 'favoritos', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview']);
 
 let plantilla = null; // index.html de este deploy (cada deploy tiene sus propias instancias)
@@ -135,13 +135,15 @@ export default async function handler(req, res) {
     const prodId = esProducto ? parseProdId(parts[1]) : null;
     const esSeccion = parts.length === 1 && !RESERVADAS.has(a);
     const esInfo = a === 'info';
+    const esCategoria = a === 'categoria' && parts[1];
 
-    const [dRes, cRes, pRes, sRes, iRes] = await Promise.all([
+    const [dRes, cRes, pRes, sRes, iRes, kRes] = await Promise.all([
       pedir(`${apiUrl}/api/design`, { headers }),
       pedir(`${apiUrl}/api/config`, { headers }),
       prodId ? pedir(`${apiUrl}/api/productos/id/${prodId}`, { headers }) : null,
       esSeccion ? pedir(`${apiUrl}/api/secciones`, { headers }) : null,
       esInfo ? pedir(`${apiUrl}/api/paginas`, { headers }) : null,
+      (esCategoria || esProducto) ? pedir(`${apiUrl}/api/categorias-info`, { headers }) : null,
     ]);
     const design = dRes.data || {};
     const config = cRes.data || {};
@@ -177,7 +179,13 @@ export default async function handler(req, res) {
         if (p.sku) ld.sku = p.sku;
         if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
         if (precio > 0) ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url: m.url };
-        m.ld = ld;
+        // Ruta Inicio > Categoría > Producto (igual que App.jsx)
+        delete ld['@context'];
+        const catP = kRes && Array.isArray(kRes.data) ? kRes.data.find(c => c.slug === slugify(p.categoria)) : null;
+        const migas = [{ '@type': 'ListItem', position: 1, name: tienda, item: origin + '/' }];
+        if (catP) migas.push({ '@type': 'ListItem', position: 2, name: p.categoria, item: `${origin}/categoria/${catP.slug}` });
+        migas.push({ '@type': 'ListItem', position: migas.length + 1, name: nom, item: m.url });
+        m.ld = { '@context': 'https://schema.org', '@graph': [ld, { '@type': 'BreadcrumbList', itemListElement: migas }] };
         m.cuerpo = `<h1>${esc(nom)}</h1>${dLarga ? `<p>${esc(dLarga)}</p>` : ''}${precio > 0 ? `<p>$ ${esc(precio.toLocaleString('es-AR'))}</p>` : ''}`;
       } else if (pRes && pRes.status === 404) {
         status = 404; m.noindex = true; m.title = `Producto no disponible | ${tienda}`;
@@ -203,6 +211,26 @@ export default async function handler(req, res) {
         m.url = origin + '/info/' + slugPagina(pg) + keep;
         m.cuerpo = `<h1>${esc(pg.titulo)}</h1><p>${esc(resumenDesc(pg.contenido, 3000))}</p>`;
       } else if (pags) {
+        status = 404; m.noindex = true;
+      }
+    } else if (esCategoria) {
+      const cats = kRes && Array.isArray(kRes.data) ? kRes.data : null;
+      const cat = cats && cats.find(c => c.slug === parts[1]);
+      if (cat) {
+        const url = origin + '/categoria/' + cat.slug + keep;
+        m.title = `${cat.titulo} | ${tienda}`;
+        m.desc = resumenDesc(cat.descripcion) || `${cat.titulo}: ${cat.productos} productos en ${tienda}. Envíos a todo el país.`;
+        m.url = url;
+        // Lista de productos con links (Google sigue estos links y encuentra cada ficha)
+        const listas = await Promise.all(cat.nombres.map(n => pedir(`${apiUrl}/api/productos?categoria=${encodeURIComponent(n)}&limit=200`, { headers }).then(r => (r.data && r.data.productos) || [])));
+        const prods = listas.flat().slice(0, 300);
+        if (prods[0] && prods[0].imagen) m.image = prods[0].imagen;
+        m.ld = { '@context': 'https://schema.org', '@graph': [
+          { '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: tienda, item: origin + '/' }, { '@type': 'ListItem', position: 2, name: cat.titulo, item: url }] },
+          { '@type': 'ItemList', itemListElement: prods.slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: origin + productPath(p) })) },
+        ] };
+        m.cuerpo = `<h1>${esc(cat.titulo)}</h1>${cat.descripcion ? `<p>${esc(cat.descripcion)}</p>` : ''}<ul>${prods.map(p => `<li><a href="${esc(productPath(p))}">${esc(p.nombre || p.modelo || 'Producto')}</a></li>`).join('')}</ul>`;
+      } else if (cats) {
         status = 404; m.noindex = true;
       }
     } else if (a === 'contacto') {

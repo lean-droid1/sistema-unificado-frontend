@@ -23,11 +23,13 @@ export default async function handler(req, res) {
   const urls = [`${origin}/`];
   try {
     if (apiUrl) {
-      const [secs, prodData, pags] = await Promise.all([
+      const [secs, prodData, pags, cats] = await Promise.all([
         fetch(`${apiUrl}/api/secciones`, { headers }).then(r => r.json()).catch(() => []),
         fetch(`${apiUrl}/api/productos?limit=5000`, { headers }).then(r => r.json()).catch(() => ({ productos: [] })),
-        fetch(`${apiUrl}/api/paginas`, { headers }).then(r => r.json()).catch(() => [])
+        fetch(`${apiUrl}/api/paginas`, { headers }).then(r => r.json()).catch(() => []),
+        fetch(`${apiUrl}/api/categorias-info`, { headers }).then(r => r.json()).catch(() => [])
       ]);
+      for (const c of (Array.isArray(cats) ? cats : [])) if (c.slug) urls.push(`${origin}/categoria/${c.slug}`);
       for (const pg of (Array.isArray(pags) ? pags : [])) urls.push(`${origin}/info/${slugify(pg.slug || pg.titulo) || pg.id}`);
       for (const s of (Array.isArray(secs) ? secs : [])) {
         if (s.slug || s.id) urls.push(`${origin}/${s.slug || ('s-' + s.id)}`);

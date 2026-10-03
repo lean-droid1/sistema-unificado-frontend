@@ -1718,3 +1718,18 @@ body:has(.lm-barra) .aviso-carrito { bottom: calc(100px + env(safe-area-inset-bo
 .cprov-pct{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .cprov-pct input{width:76px;text-align:right}
 .cprov-pct span{font-weight:700;color:var(--text-muted)}
+
+/* Página de categoría */
+.cat-migas{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--text-muted);margin-bottom:10px}
+.cat-migas a{color:var(--primary);font-weight:700;text-decoration:none}
+.cat-h1{font-size:26px;font-weight:900;letter-spacing:-.02em;margin:0 0 8px;line-height:1.15}
+.cat-intro{font-size:14.5px;line-height:1.6;color:var(--text-secondary);max-width:820px;margin:0 0 14px}
+.cat-cant{font-size:13px;color:var(--text-muted);margin:0 0 12px}
+.cat-otras{margin-top:36px;padding-top:20px;border-top:1px solid var(--border)}
+.cat-otras h2{font-size:16px;font-weight:800;margin:0 0 12px}
+.cat-otras>div{display:flex;flex-wrap:wrap;gap:8px}
+.cat-otras a{padding:7px 14px;border:1px solid var(--border);border-radius:999px;font-size:13px;font-weight:600;color:var(--text);text-decoration:none;background:var(--bg-card)}
+.cat-otras a:hover{border-color:var(--primary);color:var(--primary)}
+a.pdp-cat{text-decoration:none;display:inline-block}
+a.pdp-cat:hover{text-decoration:underline}
+@media (max-width:600px){.cat-h1{font-size:21px}}
