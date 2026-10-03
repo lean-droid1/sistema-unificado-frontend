@@ -4867,14 +4867,18 @@ function AdminAnalytics() {
   const [gaId, setGaId] = useState(config.ga_id || '');
   const [pixelId, setPixelId] = useState(config.fb_pixel_id || '');
   const [clarityId, setClarityId] = useState(config.clarity_id || '');
+  const [gscArchivo, setGscArchivo] = useState(config.gsc_archivo || '');
   const [saving, setSaving] = useState(false);
 
   const guardar = async () => {
     setSaving(true);
     try {
-      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, '') };
+      // Search Console: aceptamos el nombre del archivo, el link entero o solo "googleXXXX"
+      const mg = gscArchivo.trim().toLowerCase().match(/google[a-z0-9]{6,64}/);
+      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, ''), gsc_archivo: mg ? mg[0] + '.html' : '' };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
+      setGscArchivo(upd.gsc_archivo);
       toast('Guardado. Recargá la página para que empiece a medir.');
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
@@ -4906,6 +4910,14 @@ function AdminAnalytics() {
           <label className="form-label">Microsoft Clarity — ID del proyecto (gratis)</label>
           <input value={clarityId} onChange={e => setClarityId(e.target.value)} placeholder="abcd1234ef" />
           <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Grabaciones de cómo navegan los clientes y mapas de dónde tocan. Creá el proyecto en clarity.microsoft.com → Configuración → Información general → "ID del proyecto".</small>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Google Search Console — archivo de verificación</label>
+          <input value={gscArchivo} onChange={e => setGscArchivo(e.target.value)} placeholder="google1a2b3c4d5e6f7a8b.html" />
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Para aparecer en Google. En Search Console → Prefijo de URL → método "Archivo HTML": copiá solo el nombre del archivo (no hace falta descargarlo), pegalo acá, guardá y tocá "Verificar".</small>
         </div>
       </div>
 

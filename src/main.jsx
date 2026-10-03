@@ -12,6 +12,12 @@ setAppVh();
 window.addEventListener('resize', setAppVh);
 window.addEventListener('orientationchange', setAppVh);
 
+// Si el servidor no pudo armar la página, manda a /?__r=<ruta>: restauramos la ruta antes de arrancar.
+try {
+  const r = new URLSearchParams(window.location.search).get('__r');
+  if (r !== null) window.history.replaceState(null, '', (r.startsWith('/') && !r.startsWith('//')) ? r : '/');
+} catch (e) {}
+
 iniciarTracker();
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)

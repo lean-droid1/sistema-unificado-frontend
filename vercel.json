@@ -5,8 +5,16 @@
       "destination": "/api/sitemap"
     },
     {
-      "source": "/((?!api/|assets/|.*\\.[a-zA-Z0-9]+$).*)",
-      "destination": "/index.html"
+      "source": "/robots.txt",
+      "destination": "/api/seo?tipo=robots"
+    },
+    {
+      "source": "/:archivo(google[a-zA-Z0-9]+\\.html)",
+      "destination": "/api/seo?tipo=google&f=:archivo"
+    },
+    {
+      "source": "/:ruta((?!api/|assets/|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/api/render?ruta=:ruta"
     }
   ],
   "headers": [
