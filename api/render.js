@@ -16,9 +16,10 @@ const resumenDesc = (s, max = 160) => {
   return (k > 80 ? c.slice(0, k) : c).replace(/[\s,;:.-]+$/, '') + '…';
 };
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-+$/, '');
+const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id);
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
-const RESERVADAS = new Set(['producto', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const RESERVADAS = new Set(['producto', 'info', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const PRIVADAS = new Set(['buscar', 'carrito', 'favoritos', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview']);
 
 let plantilla = null; // index.html de este deploy (cada deploy tiene sus propias instancias)
@@ -133,12 +134,14 @@ export default async function handler(req, res) {
     const esProducto = a === 'producto' && parts[1];
     const prodId = esProducto ? parseProdId(parts[1]) : null;
     const esSeccion = parts.length === 1 && !RESERVADAS.has(a);
+    const esInfo = a === 'info';
 
-    const [dRes, cRes, pRes, sRes] = await Promise.all([
+    const [dRes, cRes, pRes, sRes, iRes] = await Promise.all([
       pedir(`${apiUrl}/api/design`, { headers }),
       pedir(`${apiUrl}/api/config`, { headers }),
       prodId ? pedir(`${apiUrl}/api/productos/id/${prodId}`, { headers }) : null,
       esSeccion ? pedir(`${apiUrl}/api/secciones`, { headers }) : null,
+      esInfo ? pedir(`${apiUrl}/api/paginas`, { headers }) : null,
     ]);
     const design = dRes.data || {};
     const config = cRes.data || {};
@@ -189,6 +192,17 @@ export default async function handler(req, res) {
         m.url = origin + '/' + (sec.slug || ('s-' + sec.id)) + (() => { const k = new URLSearchParams(); if (tiendaQ) k.set('tienda', tiendaQ); if (pag > 1) k.set('pag', String(pag)); const s = k.toString(); return s ? '?' + s : ''; })();
         m.cuerpo = `<h1>${esc(sec.nombre)}</h1>`;
       } else if (secs) {
+        status = 404; m.noindex = true;
+      }
+    } else if (esInfo) {
+      const pags = iRes && Array.isArray(iRes.data) ? iRes.data : null;
+      const pg = pags && (parts[1] ? pags.find(x => slugPagina(x) === parts[1]) : pags[0]);
+      if (pg) {
+        m.title = `${pg.titulo} | ${tienda}`;
+        m.desc = resumenDesc(pg.contenido) || pg.titulo;
+        m.url = origin + '/info/' + slugPagina(pg) + keep;
+        m.cuerpo = `<h1>${esc(pg.titulo)}</h1><p>${esc(resumenDesc(pg.contenido, 3000))}</p>`;
+      } else if (pags) {
         status = 404; m.noindex = true;
       }
     } else if (a === 'contacto') {

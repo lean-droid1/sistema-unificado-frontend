@@ -5,6 +5,10 @@
       "destination": "/api/sitemap"
     },
     {
+      "source": "/productos-google.xml",
+      "destination": "/api/feed"
+    },
+    {
       "source": "/robots.txt",
       "destination": "/api/seo?tipo=robots"
     },

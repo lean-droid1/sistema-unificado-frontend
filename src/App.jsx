@@ -114,14 +114,15 @@ const resumenDesc = (s, max = 160) => {
 };
 
 // ─── ROUTING: URLs reales (SEO + compartir + back-button) ───
-const RUTAS_RESERVADAS = new Set(['producto', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const RUTAS_RESERVADAS = new Set(['producto', 'info', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-+$/, '');
+const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id); // páginas informativas: /info/<slug>
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
 // Preserva ?tienda / ?preview (necesarios para probar tenants sin dominio propio)
 const keptQuery = () => { const cur = new URLSearchParams(window.location.search); const kept = new URLSearchParams(); for (const k of ['tienda', 'preview']) { const v = cur.get(k); if (v) kept.set(k, v); } return kept; };
 function buildPath(page, o = {}) {
-  const { sec, prod, search, pag } = o;
+  const { sec, prod, search, pag, info } = o;
   let base = '/';
   if (page === 'product' && prod?.id) base = productPath(prod);
   else if (page === 'section' && (sec?.slug || sec?.id)) base = `/${sec.slug || ('s-' + sec.id)}`;
@@ -129,6 +130,7 @@ function buildPath(page, o = {}) {
   else if (page === 'cart') base = '/carrito';
   else if (page === 'favoritos') base = '/favoritos';
   else if (page === 'contacto') base = '/contacto';
+  else if (page === 'info') base = '/info' + (info ? '/' + info : '');
   else if (page === 'account') base = '/mi-cuenta';
   else if (page === 'admin') base = '/panel';
   else if (page === 'login') base = '/ingresar';
@@ -149,6 +151,7 @@ function parsePath(pathname, search, secciones = []) {
   if (a === 'carrito') return { page: 'cart' };
   if (a === 'favoritos') return { page: 'favoritos' };
   if (a === 'contacto') return { page: 'contacto' };
+  if (a === 'info') return { page: 'info', info: parts[1] || '' };
   if (a === 'mi-cuenta') return { page: 'account' };
   if (a === 'panel') return { page: 'admin' };
   if (a === 'ingresar') return { page: 'login' };
@@ -520,11 +523,11 @@ export default function App() {
       if (params.get('producto') || params.get('buscar')) return 'landing';
       // Ruta real (path): resolver páginas estáticas al toque; producto/búsqueda/sección se cargan en el init async
       const r = parsePath(window.location.pathname, window.location.search, []);
-      if (['cart', 'favoritos', 'contacto', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
+      if (['cart', 'favoritos', 'contacto', 'info', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
       if (r.page === 'product' || r.page === 'search') return 'landing';
     }
     // Búsqueda/producto/sección dependen de la URL: sin ella se abría una búsqueda vacía al entrar al inicio
-    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance','search','product','section'].includes(sv)) return 'landing'; return sv;
+    const sv = localStorage.getItem('gm_page'); if (!sv || ['login','register','forgot','maintenance','search','product','section','info'].includes(sv)) return 'landing'; return sv;
   });
   const [loading, setLoading] = useState(true);
   const [enMantenimiento, setEnMantenimiento] = useState(false); // true = bloquear la tienda a visitantes (no admin)
@@ -582,6 +585,7 @@ export default function App() {
     }
   }, [config.ga_id, config.fb_pixel_id, config.clarity_id]);
   const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
+  const [infoSlug, setInfoSlug] = useState(() => { try { const r = parsePath(window.location.pathname, '', []); return r.page === 'info' ? r.info : ''; } catch { return ''; } });
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
   const [notifyProduct, setNotifyProduct] = useState(null);
@@ -801,17 +805,19 @@ export default function App() {
     } else if (p === 'section' && secId) {
       sec = secciones.find(s => s.id === Number(secId) || s.slug === secId) || null;
       setSeccionActual(sec); setPage('section');
+    } else if (p === 'info') {
+      setInfoSlug(secId || ''); setPage('info');
     } else {
       setPage(p);
     }
     try {
-      const url = buildPath(p, { sec: (p === 'section' ? sec : seccionActual), prod: (p === 'product' ? prod : selectedProduct), search: globalSearch });
+      const url = buildPath(p, { sec: (p === 'section' ? sec : seccionActual), prod: (p === 'product' ? prod : selectedProduct), search: globalSearch, info: (p === 'info' ? (secId || '') : infoSlug) });
       if ((window.location.pathname + window.location.search) !== url) window.history.pushState({ scrollY: 0 }, '', url);
     } catch (e) {}
     setMobileMenu(false); window.scrollTo(0, 0);
     // Después de pintar la página nueva, volver a subir (si no, a veces arrancaba un poco bajada, debajo de la cabecera)
     requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, 0)));
-  }, [secciones, seccionActual, page, selectedProduct, globalSearch]);
+  }, [secciones, seccionActual, page, selectedProduct, globalSearch, infoSlug]);
   // Refs para leer estado actual dentro del listener de popstate (que se registra una sola vez)
   const seccionesRef = useRef([]); seccionesRef.current = secciones;
   const selectedProductRef = useRef(null); selectedProductRef.current = selectedProduct;
@@ -830,6 +836,7 @@ export default function App() {
       } else if (r.page === 'search') {
         setSelectedProduct(null); setGlobalResults(null); setGlobalSearch(r.search); setPage('search');
       } else {
+        if (r.page === 'info') setInfoSlug(r.info || '');
         setSelectedProduct(null); setPage(r.page || 'landing');
       }
       const y = (e.state && e.state.scrollY) || 0;
@@ -846,10 +853,10 @@ export default function App() {
     if (loading) return;
     if (page === 'section') return; // SectionPage escribe su URL con paginación
     try {
-      const url = buildPath(page, { sec: seccionActual, prod: selectedProduct, search: globalSearch });
+      const url = buildPath(page, { sec: seccionActual, prod: selectedProduct, search: globalSearch, info: infoSlug });
       if ((window.location.pathname + window.location.search) !== url) window.history.replaceState({ ...(window.history.state || {}) }, '', url);
     } catch (e) {}
-  }, [page, selectedProduct?.id, globalSearch, loading]);
+  }, [page, selectedProduct?.id, globalSearch, loading, infoSlug]);
 
   // SEO: título, descripción, OG/Twitter, canonical y datos estructurados por página
   useEffect(() => {
@@ -1042,7 +1049,7 @@ export default function App() {
   const ctx = {
     user, setUser, page, setPage: nav, loading, dark, setDark, toast,
     secciones, setSecciones, config, setConfig, design, setDesign,
-    seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, cart, setCart, menuItems, setMenuItems,
+    seccionActual, setSeccionActual, selectedProduct, setSelectedProduct, infoSlug, cart, setCart, menuItems, setMenuItems,
     redesSociales, setRedesSociales, badges, setBadges, barras, setBarras, listas, setListas,
     preciosFijos, setPreciosFijos, miPlan, setMiPlan, adminTab, setAdminTab, adminSeccion, setAdminSeccion,
     cartForSection, cartCount, addToCart, removeFromCart, updateCartQty, clearCart,
@@ -1417,7 +1424,7 @@ function Footer() {
             <div>
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Información</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {infoPags.map(p => <a key={p.id} href="#" onClick={e => { e.preventDefault(); nav('info'); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
+                {infoPags.map(p => <a key={p.id} href={`/info/${slugPagina(p)}`} onClick={e => { e.preventDefault(); nav('info', slugPagina(p)); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
               </div>
             </div>
           )}
@@ -1805,12 +1812,22 @@ function ContactoPage() {
 }
 
 function InfoPage() {
-  const { nav, selectedProduct: pageData } = useContext(Ctx);
+  const { nav, infoSlug, design } = useContext(Ctx);
   const [paginas, setPaginas] = useState([]);
-  const [active, setActive] = useState(null);
+  useEffect(() => { api.getPaginas().then(p => setPaginas(Array.isArray(p) ? p : [])).catch(() => {}); }, []);
+  // La página activa sale de la URL (/info/<slug>); sin slug, la primera
+  const active = paginas.find(p => slugPagina(p) === infoSlug) || (infoSlug ? null : paginas[0]) || null;
+  const setActive = (p) => nav('info', slugPagina(p));
+  // Título y descripción para Google de esta página
   useEffect(() => {
-    api.getPaginas().then(p => { setPaginas(p); if (pageData?.infoId) { const found = p.find(x => x.id === pageData.infoId); if (found) setActive(found); } else if (p.length) setActive(p[0]); }).catch(() => {});
-  }, []);
+    if (!active) return;
+    const tienda = design.nombre_tienda || 'Tienda';
+    document.title = `${active.titulo} | ${tienda}`;
+    upsertMeta('meta[name="description"]', 'name', 'description', resumenDesc(active.contenido) || active.titulo);
+    upsertMeta('meta[property="og:title"]', 'property', 'og:title', document.title);
+    setCanonical(window.location.origin + '/info/' + slugPagina(active));
+    setJsonLd(null);
+  }, [active?.id]);
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 20px' }}>
       <button onClick={() => nav('landing')} style={{ background: 'none', border: 'none', fontSize: 14, fontWeight: 700, color: 'var(--primary)', cursor: 'pointer', marginBottom: 16 }}>← VOLVER</button>
