@@ -543,6 +543,13 @@ export default function App() {
   useEffect(() => {
     const gaId = (config.ga_id || '').trim();
     const pixelId = (config.fb_pixel_id || '').trim();
+    const clarityId = (config.clarity_id || '').trim().replace(/[^a-z0-9]/gi, '');
+    // Microsoft Clarity (grabaciones de sesión y mapas de calor)
+    if (clarityId && !window.__clarityLoaded) {
+      window.__clarityLoaded = true;
+      window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
+      const sc = document.createElement('script'); sc.async = true; sc.src = `https://www.clarity.ms/tag/${clarityId}`; document.head.appendChild(sc);
+    }
     // Google Analytics 4
     if (gaId && !window.__gaLoaded) {
       window.__gaLoaded = true;
@@ -565,7 +572,7 @@ export default function App() {
       window.fbq('init', pixelId);
       window.fbq('track', 'PageView');
     }
-  }, [config.ga_id, config.fb_pixel_id]);
+  }, [config.ga_id, config.fb_pixel_id, config.clarity_id]);
   const [seccionActual, setSeccionActual] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_seccion') || 'null'); } catch { return null; } });
   const [selectedProduct, setSelectedProduct] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_product') || 'null'); } catch { return null; } });
   const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_cart') || '{}'); } catch { return {}; } });
@@ -4859,13 +4866,15 @@ function AdminAnalytics() {
   const { config, setConfig, toast } = useContext(Ctx);
   const [gaId, setGaId] = useState(config.ga_id || '');
   const [pixelId, setPixelId] = useState(config.fb_pixel_id || '');
+  const [clarityId, setClarityId] = useState(config.clarity_id || '');
   const [saving, setSaving] = useState(false);
 
   const guardar = async () => {
     setSaving(true);
     try {
-      await api.updateConfig({ ga_id: gaId.trim(), fb_pixel_id: pixelId.trim() });
-      setConfig({ ...config, ga_id: gaId.trim(), fb_pixel_id: pixelId.trim() });
+      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, '') };
+      await api.updateConfig(upd);
+      setConfig({ ...config, ...upd });
       toast('Guardado. Recargá la página para que empiece a medir.');
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
@@ -4874,7 +4883,7 @@ function AdminAnalytics() {
   return (
     <div style={{ maxWidth: 640 }}>
       <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>Marketing y estadísticas</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Conectá tu tienda con Google Analytics y Facebook (Meta) para medir visitas, ventas y hacer publicidad. Pegá los IDs y guardá.</p>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Tu panel ya cuenta las visitas y búsquedas solo (Inicio → Visitas de la tienda). Además podés conectar Google Analytics, Meta y Clarity para analizarlo también ahí: pegá los IDs y guardá.</p>
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div className="form-group">
@@ -4889,6 +4898,14 @@ function AdminAnalytics() {
           <label className="form-label">Facebook / Meta Pixel — ID</label>
           <input value={pixelId} onChange={e => setPixelId(e.target.value)} placeholder="123456789012345" />
           <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Lo sacás del Administrador de eventos de Meta → tu Pixel → Configuración. Son solo números.</small>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Microsoft Clarity — ID del proyecto (gratis)</label>
+          <input value={clarityId} onChange={e => setClarityId(e.target.value)} placeholder="abcd1234ef" />
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Grabaciones de cómo navegan los clientes y mapas de dónde tocan. Creá el proyecto en clarity.microsoft.com → Configuración → Información general → "ID del proyecto".</small>
         </div>
       </div>
 
@@ -6317,6 +6334,128 @@ function AdminReglasCompra() {
 
 // ─── ADMIN: Dashboard ───
 // ─── DASHBOARD: cada número se puede tocar y muestra lo que lo forma ───
+// ─── GRÁFICOS CON ONDAS (curvas suaves con relleno degradé) y ANILLO ───
+// Curva suave (Catmull-Rom) que pasa por todos los puntos; los controles no bajan del piso ni pasan el techo
+function curvaSuave(pts, techo, piso) {
+  if (!pts.length) return '';
+  if (pts.length === 1) return `M${pts[0][0]},${pts[0][1]}`;
+  const lim = (y) => Math.max(techo, Math.min(piso, y));
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = lim(p1[1] + (p2[1] - p0[1]) / 6);
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = lim(p2[1] - (p3[1] - p1[1]) / 6);
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+const techoLindo = (v) => { if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); const f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; };
+function GraficoOndas({ etiquetas = [], series = [], alto = 260, formato = (v) => fmt(v), tip, onPunto }) {
+  const ref = useRef(null); const [ancho, setAncho] = useState(600); const [hover, setHover] = useState(null);
+  useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(([e]) => setAncho(Math.max(260, Math.round(e.contentRect.width)))); ro.observe(el); return () => ro.disconnect(); }, []);
+  const n = etiquetas.length; const pL = 46, pR = 12, pT = 14, pB = 40; const W = ancho, H = alto;
+  const maxV = techoLindo(Math.max(1, ...series.flatMap(s => s.valores.map(Number))));
+  const x = (i) => n <= 1 ? (pL + (W - pL - pR) / 2) : pL + i * (W - pL - pR) / (n - 1);
+  const y = (v) => pT + (1 - Number(v || 0) / maxV) * (H - pT - pB);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => maxV * f);
+  const cada = Math.max(1, Math.ceil(n / Math.max(2, Math.floor((W - pL) / 34))));
+  const uid = useMemo(() => 'g' + Math.random().toString(36).slice(2, 8), []);
+  const colW = n > 1 ? (W - pL - pR) / (n - 1) : W - pL - pR;
+  return (
+    <div className="ondas" ref={ref}>
+      <svg width={W} height={H} role="img" aria-label={series.map(s => s.nombre).join(' y ')}>
+        <defs>{series.map((s, si) => (
+          <linearGradient key={si} id={`${uid}-${si}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={s.color} stopOpacity="0.32" /><stop offset="100%" stopColor={s.color} stopOpacity="0.02" />
+          </linearGradient>))}</defs>
+        {ticks.map((t, i) => <g key={i}><line x1={pL} x2={W - pR} y1={y(t)} y2={y(t)} className="ondas-grid" /><text x={pL - 8} y={y(t) + 4} textAnchor="end" className="ondas-eje">{formato(t)}</text></g>)}
+        {etiquetas.map((_, i) => <line key={i} x1={x(i)} x2={x(i)} y1={pT} y2={H - pB} className="ondas-grid v" />)}
+        {series.map((s, si) => { const pts = s.valores.map((v, i) => [x(i), y(v)]); const linea = curvaSuave(pts, pT, H - pB); return (
+          <g key={si}>
+            {pts.length > 1 && <path d={`${linea} L${pts[pts.length - 1][0]},${H - pB} L${pts[0][0]},${H - pB} Z`} fill={`url(#${uid}-${si})`} />}
+            <path d={linea} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" />
+            {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={hover === i ? 5 : 3.2} fill="var(--bg-card)" stroke={s.color} strokeWidth="2" />)}
+          </g>); })}
+        {etiquetas.map((e, i) => i % cada === 0 || (i === n - 1 && (n - 1) % cada >= Math.ceil(cada / 2)) ? <text key={i} transform={`translate(${x(i)},${H - pB + 14}) rotate(-40)`} textAnchor="end" className="ondas-eje">{e}</text> : null)}
+        {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pT} y2={H - pB} className="ondas-guia" />}
+        {etiquetas.map((_, i) => <rect key={i} x={x(i) - colW / 2} y={pT} width={colW} height={H - pT - pB} fill="transparent" style={{ cursor: onPunto ? 'pointer' : 'default' }}
+          onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onPunto && onPunto(i)} />)}
+      </svg>
+      {hover !== null && (
+        <div className="ondas-tip" style={{ left: Math.min(Math.max(x(hover), 80), W - 80), top: Math.max(0, Math.min(...series.map(s => y(s.valores[hover]))) - 12) }}>
+          <b>{etiquetas[hover]}</b>
+          {tip ? tip(hover) : series.map((s, si) => <span key={si}><i style={{ background: s.color }} />{s.nombre}: {formato(s.valores[hover])}</span>)}
+        </div>
+      )}
+      {series.length > 1 && <div className="ondas-ley">{series.map((s, si) => <span key={si}><i style={{ background: s.color }} />{s.nombre}</span>)}</div>}
+    </div>
+  );
+}
+function Anillo({ datos = [], tam = 190 }) {
+  const total = datos.reduce((a, d) => a + (Number(d.n) || 0), 0);
+  const r = tam / 2 - 16, C = 2 * Math.PI * r; let acum = 0;
+  return (
+    <div className="anillo">
+      <svg width={tam} height={tam} viewBox={`0 0 ${tam} ${tam}`} role="img" aria-label="Distribución">
+        <circle cx={tam / 2} cy={tam / 2} r={r} fill="none" stroke="var(--border)" strokeWidth="26" />
+        {total > 0 && datos.map((d, i) => { const largo = (d.n / total) * C; const el = <circle key={i} cx={tam / 2} cy={tam / 2} r={r} fill="none" stroke={d.color} strokeWidth="26" strokeDasharray={`${largo} ${C - largo}`} strokeDashoffset={-acum} transform={`rotate(-90 ${tam / 2} ${tam / 2})`}><title>{`${d.label}: ${d.n}`}</title></circle>; acum += largo; return el; })}
+        <text x="50%" y="48%" textAnchor="middle" className="anillo-num">{fmt(total)}</text>
+        <text x="50%" y="60%" textAnchor="middle" className="anillo-sub">visitas</text>
+      </svg>
+      <div className="anillo-ley">{datos.map((d, i) => <span key={i}><i style={{ background: d.color }} />{d.label} <b>{total ? Math.round(d.n / total * 100) : 0}%</b></span>)}</div>
+    </div>
+  );
+}
+const fmtDuracion = (seg) => { const s = Math.max(0, Math.round(Number(seg) || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60; return h ? `${h}h ${m}m` : m ? `${m}m ${r}s` : `${r}s`; };
+const DISPOSITIVOS = { desktop: ['PC', '#10b981'], mobile: ['Celular', '#0ea5e9'], tablet: ['Tablet', '#8b5cf6'], bot: ['Bots', '#f59e0b'] };
+
+// Visitas de la tienda (contador propio): tarjetas, evolución diaria con ondas, dispositivos y búsquedas
+function DashVisitas({ desde, hasta }) {
+  const [d, setD] = useState(null); const [err, setErr] = useState('');
+  useEffect(() => { let vivo = true; setErr(''); api.getAnalyticsVisitas({ ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}) }).then(r => { if (vivo) setD(r); }).catch(e => { if (vivo) setErr(e.message); }); return () => { vivo = false; }; }, [desde, hasta]);
+  if (err) return null;
+  if (!d) return <div className="dash-cargando">Cargando visitas…</div>;
+  // Días seguidos (los días sin visitas también aparecen)
+  const ini = fechaDia(d.desde); const fin = d.hasta ? fechaDia(d.hasta) : new Date(); fin.setHours(0, 0, 0, 0);
+  const porDia = Object.fromEntries((d.dias || []).map(x => [x.fecha, x]));
+  const dias = []; for (let t = new Date(ini); t <= fin && dias.length < 400; t.setDate(t.getDate() + 1)) dias.push(ymd(t));
+  const etiquetas = dias.map(f => `${f.slice(8, 10)}/${f.slice(5, 7)}`);
+  const kpis = [
+    { l: 'Visitas', v: fmt(d.visitas), I: Eye, c: '#10b981' }, { l: 'Visitantes', v: fmt(d.visitantes), I: Users, c: '#0ea5e9' },
+    { l: 'Páginas vistas', v: fmt(d.paginas), I: FileText, c: '#8b5cf6' }, { l: 'Tiempo promedio', v: fmtDuracion(d.tiempo_promedio_seg), I: Clock, c: '#f59e0b' },
+  ];
+  const disp = (d.dispositivos || []).map(x => ({ label: (DISPOSITIVOS[x.k] || [x.k])[0], color: (DISPOSITIVOS[x.k] || [0, '#94a3b8'])[1], n: x.n }));
+  const maxOr = Math.max(1, ...(d.origenes || []).map(o => o.n));
+  const sinDatos = !d.visitas && !d.busquedas;
+  return (
+    <div className="vis">
+      <div className="dash-card-head" style={{ marginTop: 22 }}><h4 style={{ fontSize: 18 }}>Visitas de la tienda</h4><span>contador propio{!desde ? ' · últimos 30 días' : ''}</span></div>
+      <div className="vkpis">{kpis.map(k => <div key={k.l} className="vkpi" style={{ '--k': k.c }}><div><span>{k.l}</span><b>{k.v}</b></div><i><k.I size={20} /></i></div>)}</div>
+      {sinDatos ? <div className="dash-card vis-vacio">Todavía no hay visitas registradas en este período. Se cuentan desde que se activó el contador.</div> : <>
+        <div className="vis-grid">
+          <div className="dash-card"><h4 className="vis-t">Evolución diaria</h4><p className="vis-s">Visitas y páginas vistas por día.</p>
+            <GraficoOndas etiquetas={etiquetas} series={[{ nombre: 'Páginas vistas', color: '#0ea5e9', valores: dias.map(f => porDia[f]?.paginas || 0) }, { nombre: 'Visitas', color: '#10b981', valores: dias.map(f => porDia[f]?.visitas || 0) }]} />
+          </div>
+          <div className="dash-card"><h4 className="vis-t">Dispositivos</h4><p className="vis-s">Desde qué equipo entran.</p><Anillo datos={disp} /></div>
+        </div>
+        <div className="vis-grid3">
+          <div className="dash-card"><h4 className="vis-t">Lo más buscado</h4><p className="vis-s">Lo que más escriben en el buscador.</p>
+            {(d.busquedas_top || []).length ? <ol className="vis-lista">{d.busquedas_top.map(b => <li key={b.k}><span>{b.k}{b.min_res === 0 && <em className="vis-sin">sin resultados</em>}</span><b>{b.n}</b></li>)}</ol> : <p className="vis-s">Sin búsquedas todavía.</p>}
+          </div>
+          <div className="dash-card vis-alerta"><h4 className="vis-t">Buscado y sin resultados</h4><p className="vis-s">Lo que te piden y no encontraron: conseguilo o cargalo.</p>
+            {(d.busquedas_sin_resultado || []).length ? <ol className="vis-lista">{d.busquedas_sin_resultado.map(b => <li key={b.k}><span>{b.k}</span><b>{b.n}</b></li>)}</ol> : <p className="vis-s">Nada por ahora: todo lo buscado tuvo resultados.</p>}
+          </div>
+          <div className="dash-card"><h4 className="vis-t">De dónde llegan</h4><p className="vis-s">Visitas por origen.</p>
+            <ul className="vis-origen">{(d.origenes || []).map(o => <li key={o.k}><span>{o.k}</span><i><em style={{ width: `${o.n / maxOr * 100}%` }} /></i><b>{o.n}</b></li>)}</ul>
+            <h4 className="vis-t" style={{ marginTop: 14 }}>Páginas más vistas</h4>
+            <ol className="vis-lista">{(d.paginas_top || []).slice(0, 6).map(p => <li key={p.k}><span title={p.k}>{p.nombre || (p.k === '/' ? 'Inicio' : p.k)}</span><b>{p.n}</b></li>)}</ol>
+          </div>
+        </div>
+      </>}
+    </div>
+  );
+}
+
 const RANGOS_DASH = [
   { k: 'todo', t: 'Todo' }, { k: 'hoy', t: 'Hoy' }, { k: '7', t: '7 días' }, { k: '30', t: '30 días' },
   { k: 'mes', t: 'Este mes' }, { k: 'mes_ant', t: 'Mes anterior' }, { k: 'custom', t: 'Elegir fechas' },
@@ -6371,13 +6510,13 @@ function AdminDashboard() {
   const aCobrarN = st.pedidos_a_cobrar || 0;
   const periodo = rango === 'todo' ? 'desde el inicio' : (RANGOS_DASH.find(r => r.k === rango) || {}).t?.toLowerCase();
   const kpis = [
-    { k: 'cobrados', titulo: 'Ventas cobradas', label: 'Ventas cobradas', value: fmtARS(st.total_ventas || 0), color: 'var(--success)',
+    { k: 'cobrados', I: DollarSign, titulo: 'Ventas cobradas', label: 'Ventas cobradas', value: fmtARS(st.total_ventas || 0), color: 'var(--success)',
       sub: pct !== null && rango === 'todo' ? <>Este mes {fmtARS(st.ventas_mes_actual || 0)} <span className={pct >= 0 ? 'dash-up' : 'dash-down'}>{pct >= 0 ? '+' : ''}{pct}%</span> vs mismos días del mes pasado</> : `${st.pedidos_pagados || 0} pedidos pagados` },
-    { k: 'a_cobrar', titulo: 'Pedidos a cobrar', label: 'A cobrar', value: fmtARS(st.total_a_cobrar || 0), color: 'var(--accent, #e8a13a)', sub: `${aCobrarN} pedido${aCobrarN !== 1 ? 's' : ''} con saldo` },
-    { k: 'ganancia', titulo: 'Ganancia por producto', label: 'Ganancia estimada', value: g.facturado_con_costo > 0 ? fmtARS(Math.round(g.ganancia || 0)) : 'Sin datos', color: '#10b981',
+    { k: 'a_cobrar', I: CreditCard, titulo: 'Pedidos a cobrar', label: 'A cobrar', value: fmtARS(st.total_a_cobrar || 0), color: 'var(--accent, #e8a13a)', sub: `${aCobrarN} pedido${aCobrarN !== 1 ? 's' : ''} con saldo` },
+    { k: 'ganancia', I: BarChart3, titulo: 'Ganancia por producto', label: 'Ganancia estimada', value: g.facturado_con_costo > 0 ? fmtARS(Math.round(g.ganancia || 0)) : 'Sin datos', color: '#10b981',
       sub: g.facturado_con_costo > 0 ? `margen ${g.margen_pct}% · ${g.cobertura_pct}% de lo vendido tiene costo` : 'cargá el precio de costo en los productos' },
-    { k: 'pedidos', titulo: 'Pedidos', label: 'Pedidos', value: st.total_pedidos || 0, color: 'var(--primary)', sub: `ticket promedio ${fmtARS(Math.round(st.ticket_promedio || 0))}` },
-    { k: 'hoy', titulo: 'Pedidos de hoy', label: 'Hoy', value: fmtARS(hoyS.total || 0), color: 'var(--primary)', sub: `${hoyS.pedidos || 0} pedido${hoyS.pedidos !== 1 ? 's' : ''} · cobrado ${fmtARS(hoyS.cobrado || 0)}` },
+    { k: 'pedidos', I: ClipboardList, titulo: 'Pedidos', label: 'Pedidos', value: st.total_pedidos || 0, color: 'var(--primary)', sub: `ticket promedio ${fmtARS(Math.round(st.ticket_promedio || 0))}` },
+    { k: 'hoy', I: Clock, titulo: 'Pedidos de hoy', label: 'Hoy', value: fmtARS(hoyS.total || 0), color: 'var(--primary)', sub: `${hoyS.pedidos || 0} pedido${hoyS.pedidos !== 1 ? 's' : ''} · cobrado ${fmtARS(hoyS.cobrado || 0)}` },
   ];
   const minis = [
     { label: 'Productos', value: st.total_productos || 0, go: () => setAdminTab('productos') },
@@ -6417,6 +6556,7 @@ function AdminDashboard() {
           <button key={k.k} type="button" className="dash-kpi" style={{ '--k': k.color }} onClick={() => abrir(k.k, k.titulo)}>
             <span className="dash-kpi-label">{k.label}<ChevronRight size={15} /></span>
             <span className="dash-kpi-valor">{k.value}</span>
+            {k.I && <i className="dash-kpi-ico"><k.I size={20} /></i>}
             <span className="dash-kpi-sub">{k.sub}</span>
           </button>
         ))}
@@ -6442,6 +6582,8 @@ function AdminDashboard() {
         </div>
       )}
 
+      <DashVisitas desde={desde} hasta={hasta} />
+
       <div className="dash-card">
         <div className="dash-card-head"><h4>Pedidos por estado</h4><span>{periodo}</span></div>
         <div className="dash-estados">
@@ -6454,17 +6596,11 @@ function AdminDashboard() {
       </div>
 
       <div className="dash-card">
-        <div className="dash-card-head"><h4>Cobrado por día</h4><span>{fmtARS(suma14)} en estos 14 días · tocá un día para ver sus pedidos</span></div>
-        <div className="dash-bars">
-          {serie.map(x => (
-            <button key={x.f} type="button" className={`dash-bar${x.pedidos ? '' : ' vacio'}`} disabled={!x.pedidos} onClick={() => abrir('dia', `Pedidos del ${x.d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}`, x.f)} aria-label={`${x.d.toLocaleDateString('es-AR')}: cobrado ${fmtARS(x.total)}`}>
-              <span className="dash-tip"><b>{fmtARS(x.total)}</b> cobrado<br />{x.pedidos} pedido{x.pedidos !== 1 ? 's' : ''} · {fmtARS(x.vendido)} vendido</span>
-              <span className="dash-bar-area"><span className="dash-bar-fill" style={{ height: `${Math.max(x.total / maxDia * 100, x.pedidos ? 3 : 1.5)}%` }} /></span>
-              <span className="dash-bar-dia">{DIAS_SEM[x.d.getDay()]}</span>
-              <span className="dash-bar-fecha">{x.d.getDate()}/{x.d.getMonth() + 1}</span>
-            </button>
-          ))}
-        </div>
+        <div className="dash-card-head"><h4>Cobrado por día</h4><span>{fmtARS(suma14)} en estos 14 días · tocá un punto para ver los pedidos del día</span></div>
+        <GraficoOndas etiquetas={serie.map(x => `${x.d.getDate()}/${x.d.getMonth() + 1}`)} alto={230} formato={(v) => v >= 1000 ? `$${fmt(v / 1000)}k` : `$${fmt(v)}`}
+          series={[{ nombre: 'Cobrado', color: 'var(--primary)', valores: serie.map(x => x.total) }]}
+          tip={(i) => <><span>{DIAS_SEM[serie[i].d.getDay()]} · <b>{fmtARS(serie[i].total)}</b> cobrado</span><span>{serie[i].pedidos} pedido{serie[i].pedidos !== 1 ? 's' : ''} · {fmtARS(serie[i].vendido)} vendido</span></>}
+          onPunto={(i) => { const x = serie[i]; if (x.pedidos) abrir('dia', `Pedidos del ${x.d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}`, x.f); }} />
       </div>
 
       <div className="dash-grid2">
