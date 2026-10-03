@@ -24,6 +24,25 @@ const imgSet = (url, w) => (CLD_RE.test(String(url || '')) ? `${imgOpt(url, w)} 
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
+// Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Solo deja pasar links http(s), rutas propias, mailto/tel/wa: nunca "javascript:" ni "data:"
+const urlSegura = (u) => { const v = String(u || '').trim(); if (!v) return ''; if (/^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(v)) return v; if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return ''; return 'https://' + v.replace(/^\/+/, ''); };
+// Imprime una ventana armada con document.write sin scripts adentro (la política de seguridad los bloquea):
+// espera las imágenes desde la página que la abrió y muestra el texto de respaldo si una imagen falla
+function imprimirCuandoCargue(w, { espera = 300, maximo = 3000 } = {}) {
+  let hecho = false;
+  const imprimir = () => { if (hecho) return; hecho = true; setTimeout(() => { try { w.focus(); w.print(); } catch { /* ventana cerrada */ } }, espera); };
+  try {
+    const imgs = Array.from(w.document.images || []);
+    imgs.forEach(i => i.addEventListener('error', () => { i.style.display = 'none'; const n = i.nextElementSibling; if (n && n.dataset && n.dataset.respaldo) n.style.display = 'block'; }));
+    const pend = imgs.filter(i => !i.complete);
+    if (!pend.length) { imprimir(); return; }
+    let d = 0; const fin = () => { d++; if (d >= pend.length) imprimir(); };
+    pend.forEach(i => { i.addEventListener('load', fin); i.addEventListener('error', fin); });
+  } catch { imprimir(); return; }
+  setTimeout(imprimir, maximo);
+}
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
 const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
 // --- Blindaje de precios/totales (evita totales x100 por data vieja o corrupta) ---
@@ -5791,18 +5810,18 @@ function AdminVentaManual() {
           <h2 style="margin:0 0 4px">Tus datos de acceso</h2>
           <p style="color:#555;font-size:13px;margin:0 0 16px">Entrá a nuestra tienda online con estos datos</p>
           <div style="text-align:left;font-size:15px;line-height:2">
-            <div><strong>Cliente:</strong> ${creds.nombre}</div>
+            <div><strong>Cliente:</strong> ${escHtml(creds.nombre)}</div>
             <div style="background:#f0f0f0;padding:8px;border-radius:6px;margin-top:8px">
-              <div><strong>Usuario:</strong> ${creds.usuario}</div>
-              <div><strong>Contraseña:</strong> ${creds.password}</div>
+              <div><strong>Usuario:</strong> ${escHtml(creds.usuario)}</div>
+              <div><strong>Contraseña:</strong> ${escHtml(creds.password)}</div>
             </div>
           </div>
           <p style="color:#777;font-size:12px;margin-top:16px">Podés cambiar tu contraseña desde tu perfil cuando ingreses.</p>
-          <p style="color:#999;font-size:11px;margin-top:8px">${window.location.origin}</p>
+          <p style="color:#999;font-size:11px;margin-top:8px">${escHtml(window.location.origin)}</p>
         </div>
-        <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
       </body></html>`);
     w.document.close();
+    imprimirCuandoCargue(w);
   };
 
   // Buscar producto por código exacto (pistola USB o cámara) y agregarlo
@@ -6909,10 +6928,10 @@ function AdminProductos() {
       const nombre = prod.nombre || prod.modelo || '';
       const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
       return `<div style="border:1px solid #000;padding:8px;display:inline-block;margin:5px;text-align:center;page-break-inside:avoid;width:180px;vertical-align:top">
-        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;height:28px;overflow:hidden">${nombre}</div>
-        <img src="${barcodeUrl}" style="max-width:160px;display:block;margin:0 auto" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <div style="display:none;font-family:monospace;font-size:16px">*${codigo}*</div>
-        <div style="font-size:12px;font-family:monospace;margin-top:2px">${codigo}</div>
+        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;height:28px;overflow:hidden">${escHtml(nombre)}</div>
+        <img src="${escHtml(barcodeUrl)}" style="max-width:160px;display:block;margin:0 auto">
+        <div data-respaldo="1" style="display:none;font-family:monospace;font-size:16px">*${escHtml(codigo)}*</div>
+        <div style="font-size:12px;font-family:monospace;margin-top:2px">${escHtml(codigo)}</div>
         ${conPrecio ? `<div style="font-size:11px;color:#333;margin-top:2px">${fmtARS(prod.precio_base)}</div>` : ''}
       </div>`;
     }).join('');
@@ -6920,9 +6939,9 @@ function AdminProductos() {
     if (!w) { toast('El navegador bloqueó la ventana. Permití los pop-ups para este sitio.', 'error'); return; }
     w.document.write(`<html><head><title>Etiquetas (${prods.length})</title></head>
       <body style="font-family:sans-serif;margin:0;padding:10px">${etiquetas}
-        <script>window.onload=function(){var imgs=Array.prototype.slice.call(document.images);var pend=imgs.filter(function(i){return !i.complete});if(pend.length===0){setTimeout(function(){window.print()},400);return}var d=0;function fin(){d++;if(d>=pend.length)setTimeout(function(){window.print()},300)}pend.forEach(function(i){i.addEventListener('load',fin);i.addEventListener('error',fin)});setTimeout(function(){window.print()},4000)}<\/script>
       </body></html>`);
     w.document.close();
+    imprimirCuandoCargue(w, { espera: 400, maximo: 4000 });
   };
 
   const aplicarMasa = async () => {
@@ -7463,22 +7482,22 @@ function CatOptions({ seccionId, exclude }) {
 function printEtiqueta(prod, opts = {}) {
   const conPrecio = opts.conPrecio || false;
   const codigo = prod.codigo_barras || ('P' + String(prod.id).padStart(6, '0'));
-  const nombre = String(prod.nombre || prod.modelo || '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const nombre = escHtml(prod.nombre || prod.modelo || '');
   const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(codigo)}&code=Code128&dpi=96&dataseparator=`;
   const html = `<div style="border:1px solid #000;padding:10px;display:inline-block;margin:6px;text-align:center;page-break-inside:avoid">
       <div style="font-size:13px;font-weight:bold;margin-bottom:6px;max-width:280px">${nombre}</div>
-      <img src="${barcodeUrl}" style="max-width:280px;display:block;margin:0 auto" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-      <div style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${codigo}*</div>
-      <div style="font-size:14px;font-family:monospace;margin-top:4px">${codigo}</div>
+      <img src="${escHtml(barcodeUrl)}" style="max-width:280px;display:block;margin:0 auto">
+      <div data-respaldo="1" style="display:none;font-family:monospace;font-size:20px;letter-spacing:2px">*${escHtml(codigo)}*</div>
+      <div style="font-size:14px;font-family:monospace;margin-top:4px">${escHtml(codigo)}</div>
       ${conPrecio ? `<div style="font-size:12px;color:#333;margin-top:4px">${fmtARS(prod.precio_base)}</div>` : ''}
     </div>`;
   const w = window.open('', '', 'width=500,height=400');
   if (!w) { window.alert('El navegador bloqueó la ventana de impresión. Permití los pop-ups para este sitio.'); return; }
-  w.document.write(`<html><head><title>Etiqueta ${codigo}</title></head>
+  w.document.write(`<html><head><title>Etiqueta ${escHtml(codigo)}</title></head>
     <body style="font-family:sans-serif;margin:0;padding:10px">${html}
-      <script>window.onload=function(){var imgs=Array.prototype.slice.call(document.images);var pend=imgs.filter(function(i){return !i.complete});if(pend.length===0){setTimeout(function(){window.print()},300);return}var d=0;function fin(){d++;if(d>=pend.length)setTimeout(function(){window.print()},200)}pend.forEach(function(i){i.addEventListener('load',fin);i.addEventListener('error',fin)});setTimeout(function(){window.print()},2500)}<\/script>
     </body></html>`);
   w.document.close();
+  imprimirCuandoCargue(w, { espera: 300, maximo: 2500 });
 }
 
 function ProductModal({ product, onClose }) {
@@ -8625,6 +8644,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     let entregaLinea = `${o.tipo_entrega === 'retiro' ? 'Retiro en local' : 'Envío'}${o.direccion ? ` — ${o.direccion}` : ''}`;
     if (_dEnvio?.entrega) {
       if (_dEnvio.entrega.tipo === 'envio') entregaLinea = `Envío a: ${_dEnvio.entrega.calle} ${_dEnvio.entrega.numero}${_dEnvio.entrega.piso ? `, ${_dEnvio.entrega.piso}` : ''}, ${_dEnvio.entrega.localidad} (CP ${_dEnvio.entrega.cp})${_dEnvio.entrega.dni ? ` · DNI ${_dEnvio.entrega.dni}` : ''}`;
+      // (se escapa al insertarlo en el remito)
       else entregaLinea = 'Retiro en el local';
     }
     const contactoLinea = _dEnvio?.contacto ? `${_dEnvio.contacto.nombre || ''}${_dEnvio.contacto.telefono ? ` · ${_dEnvio.contacto.telefono}` : ''}` : '';
@@ -8641,7 +8661,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const totalRec = listaPagos.reduce((s, p) => s + Number(p.recibido || 0), 0);
     const saldoRem = Math.max(0, Number(editTotal) - totalSald);
     const pagosHTML = listaPagos.length ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
-      ${listaPagos.map(p => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${p.metodo}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: $${fmt(p.recibido)}${Math.abs(dif) > 0.01 ? ` <span style="color:#888">(${dif > 0 ? 'desc. $' + fmt(dif) : 'rec. $' + fmt(-dif)})</span>` : ''}</p>`; }).join('')}
+      ${listaPagos.map(p => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${escHtml(p.metodo)}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: $${fmt(p.recibido)}${Math.abs(dif) > 0.01 ? ` <span style="color:#888">(${dif > 0 ? 'desc. $' + fmt(dif) : 'rec. $' + fmt(-dif)})</span>` : ''}</p>`; }).join('')}
       <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagado: $${fmt(totalRec)}</p>
       ${saldoRem > 0.01 ? `<p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(saldoRem)}</p>` : `<p style="margin:2px 0;font-weight:800;color:#16a34a;font-size:${isSmall ? '12px' : '15px'}">✓ PAGADO</p>`}
     </div>` : '';
@@ -8652,10 +8672,11 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const qrSize = isSmall ? 90 : 120;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(pedidoUrl)}`;
     const rows = items.map(i =>
-      `<tr><td style="padding:3px 4px;border-bottom:1px solid #eee">${itemName(i)}</td><td style="text-align:center;border-bottom:1px solid #eee">${i.qty}</td><td style="text-align:right;border-bottom:1px solid #eee">$${fmt((i.precio_unitario || 0) * i.qty)}</td></tr>`
+      `<tr><td style="padding:3px 4px;border-bottom:1px solid #eee">${escHtml(itemName(i))}</td><td style="text-align:center;border-bottom:1px solid #eee">${escHtml(i.qty)}</td><td style="text-align:right;border-bottom:1px solid #eee">$${fmt((i.precio_unitario || 0) * i.qty)}</td></tr>`
     ).join('');
     const w = window.open('', '_blank');
-    w.document.write(`<!DOCTYPE html><html><head><title>Remito #${o.id}</title><style>
+    if (!w) { toast('Permití los pop-ups para imprimir', 'error'); return; }
+    w.document.write(`<!DOCTYPE html><html><head><title>Remito #${escHtml(o.id)}</title><style>
       @page{size:${widths[format]};margin:${isSmall ? '3mm' : '12mm'}}
       body{font-family:Arial,sans-serif;font-size:${fontSize};margin:0;padding:${isSmall ? '4px' : '0'};color:#111}
       table{width:100%;border-collapse:collapse;margin-top:6px}
@@ -8666,22 +8687,22 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     </style></head><body>
       <div class="head">
         <div>
-          ${logo ? `<img src="${logo}" style="max-height:${isSmall ? '34px' : '58px'};margin-bottom:4px">` : ''}
-          <h1 class="biz">${biz}</h1>
+          ${logo ? `<img src="${escHtml(urlSegura(logo) || '')}" style="max-height:${isSmall ? '34px' : '58px'};margin-bottom:4px">` : ''}
+          <h1 class="biz">${escHtml(biz)}</h1>
           <p style="margin:2px 0;color:#555">${o.tipo==='presupuesto'?'Presupuesto P-':'Remito / Pedido #'}${String(o.id).padStart(4,'0')}</p>
         </div>
         <div style="text-align:center">
-          <img src="${qrUrl}" width="${qrSize}" height="${qrSize}" style="display:block" onerror="this.style.display='none';this.nextElementSibling.textContent='';">
+          <img src="${escHtml(qrUrl)}" width="${qrSize}" height="${qrSize}" style="display:block">
           <span style="font-size:9px;color:#888">Escaneá para abrir</span>
         </div>
       </div>
       <p style="margin:6px 0 2px">${new Date(o.created_at).toLocaleString('es-AR')}</p>
-      <p style="margin:2px 0"><strong>${o.usuario_nombre || (_dEnvio?.contacto?.nombre) || 'Cliente'}</strong> ${o.nombre_fantasia ? `(${o.nombre_fantasia})` : ''}${o.usuario_telefono ? ` · ${o.usuario_telefono}` : (_dEnvio?.contacto?.telefono ? ` · ${_dEnvio.contacto.telefono}` : '')}</p>
-      <p style="margin:2px 0">${entregaLinea}</p>
-      ${factLinea ? `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '12px'};color:#333">${factLinea}</p>` : ''}
+      <p style="margin:2px 0"><strong>${escHtml(o.usuario_nombre || (_dEnvio?.contacto?.nombre) || 'Cliente')}</strong> ${o.nombre_fantasia ? `(${escHtml(o.nombre_fantasia)})` : ''}${o.usuario_telefono ? ` · ${escHtml(o.usuario_telefono)}` : (_dEnvio?.contacto?.telefono ? ` · ${escHtml(_dEnvio.contacto.telefono)}` : '')}</p>
+      <p style="margin:2px 0">${escHtml(entregaLinea)}</p>
+      ${factLinea ? `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '12px'};color:#333">${escHtml(factLinea)}</p>` : ''}
       <p style="margin:6px 0">
         <span class="badge" style="background:${estadoPagoColor}">${estadoPagoLabel}</span>
-        <span style="margin-left:8px">Método: ${o.metodo_pago || '-'}</span>
+        <span style="margin-left:8px">Método: ${escHtml(o.metodo_pago || '-')}</span>
       </p>
       <table><thead><tr><th>Producto</th><th style="text-align:center">Cant</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
       <p style="text-align:right;font-weight:800;font-size:${isSmall ? '14px' : '19px'};margin-top:10px">TOTAL: $${fmt(editTotal)}</p>
@@ -8689,20 +8710,11 @@ function OrderDetailModal({ order: initOrder, onClose }) {
         <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagó (seña): $${fmt(senaMonto)}</p>
         <p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(restaAbonar)}</p>
       </div>` : '')}
-      ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px">Notas: ${o.notas}</p>` : ''}
+      ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px;white-space:pre-line">Notas: ${escHtml(o.notas)}</p>` : ''}
     </body></html>`);
     w.document.close();
-    // Esperar a que carguen las imágenes (logo + QR externo) antes de imprimir
-    w.onload = () => {
-      const imgs = Array.from(w.document.images || []);
-      const pending = imgs.filter(img => !img.complete);
-      if (pending.length === 0) { setTimeout(() => w.print(), 250); return; }
-      let done = 0;
-      const finish = () => { done++; if (done >= pending.length) setTimeout(() => w.print(), 200); };
-      pending.forEach(img => { img.addEventListener('load', finish); img.addEventListener('error', finish); });
-      // Fallback: imprimir igual tras 2.5s aunque alguna imagen no cargue
-      setTimeout(() => w.print(), 2500);
-    };
+    // Esperar a que carguen las imágenes (logo + QR externo) antes de imprimir (máximo 2,5 s)
+    imprimirCuandoCargue(w, { espera: 250, maximo: 2500 });
   };
 
   const estados = ['pendiente', 'preparando', 'listo', 'enviado', 'entregado', 'cancelado'];
