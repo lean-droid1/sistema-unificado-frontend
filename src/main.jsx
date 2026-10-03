@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
+import { iniciarTracker } from './tracker'
 
 // Fix viewport iOS: en Safari la barra de direcciones "come" el 100vh y corta el contenido
 // o deja botones fuera de alcance. Seteamos --app-vh con la altura visible real
@@ -10,5 +11,7 @@ const setAppVh = () => document.documentElement.style.setProperty('--app-vh', (w
 setAppVh();
 window.addEventListener('resize', setAppVh);
 window.addEventListener('orientationchange', setAppVh);
+
+iniciarTracker();
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)

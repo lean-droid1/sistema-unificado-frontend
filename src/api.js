@@ -354,3 +354,11 @@ export async function createTenant(data) { return f('/api/tenants', { method: 'P
 export async function updateTenant(id, data) { return f(`/api/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function setTenantEstado(id, estado) { return f(`/api/tenants/${id}/estado`, { method: 'POST', body: JSON.stringify({ estado }) }); }
 export async function deleteTenant(id) { return f(`/api/tenants/${id}`, { method: 'DELETE' }); }
+
+// Contador propio: se manda sin esperar respuesta (keepalive para que llegue aunque se cierre la página)
+export function trackEvento(data) {
+  try {
+    const headers = { 'Content-Type': 'application/json' }; if (TENANT_SLUG) headers['X-Tenant'] = TENANT_SLUG;
+    fetch(`${BASE}/api/track`, { method: 'POST', headers, body: JSON.stringify(data), keepalive: true }).catch(() => {});
+  } catch { /* nada */ }
+}

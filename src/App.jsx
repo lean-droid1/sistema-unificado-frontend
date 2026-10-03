@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
+import { trackBusqueda } from './tracker';
 import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -10747,6 +10748,9 @@ function SearchResultsPage() {
   useEffect(() => { if (globalSearch.length >= 2 && !globalResults) doGlobalSearch(); }, []);
 
   const total = globalResults?.total || 0;
+  // Contador propio: anotar lo que buscan y cuántos resultados encontraron (una vez por búsqueda)
+  const busqContada = useRef('');
+  useEffect(() => { if (globalResults && globalSearch.length >= 2 && busqContada.current !== globalSearch) { busqContada.current = globalSearch; trackBusqueda(globalSearch, total); } }, [globalResults, globalSearch, total]);
   const resultados = globalResults?.resultados || [];
 
   return (
