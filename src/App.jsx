@@ -210,15 +210,23 @@ const FONT_OPTIONS = [
   { id: 'Poppins', label: 'Poppins', cat: 'Sans redondeada' },
   { id: 'Roboto', label: 'Roboto', cat: 'Sans clásica' },
   { id: 'Montserrat', label: 'Montserrat', cat: 'Sans elegante' },
-  { id: 'Open Sans', label: 'Open Sans', cat: 'Sans neutra' },
-  { id: 'Lato', label: 'Lato', cat: 'Sans cálida' },
+  { id: 'Open Sans', label: 'Open Sans', cat: 'Sans neutra', w: '400;500;600;700;800' },
+  { id: 'Lato', label: 'Lato', cat: 'Sans cálida', w: '400;700;900' },
   { id: 'Nunito', label: 'Nunito', cat: 'Sans amable' },
   { id: 'Work Sans', label: 'Work Sans', cat: 'Sans versátil' },
-  { id: 'Space Grotesk', label: 'Space Grotesk', cat: 'Tech' },
+  { id: 'Space Grotesk', label: 'Space Grotesk', cat: 'Tech', w: '400;500;600;700' },
   { id: 'Outfit', label: 'Outfit', cat: 'Geométrica' },
   { id: 'Playfair Display', label: 'Playfair Display', cat: 'Serif lujo' },
-  { id: 'Merriweather', label: 'Merriweather', cat: 'Serif legible' },
+  { id: 'Merriweather', label: 'Merriweather', cat: 'Serif legible', w: '400;700;900' },
   { id: 'DM Sans', label: 'DM Sans', cat: 'Sans compacta' },
+  { id: 'Hanken Grotesk', label: 'Hanken Grotesk', cat: 'Sans premium' },
+  { id: 'Red Hat Display', label: 'Red Hat Display', cat: 'Sans cálida' },
+  { id: 'IBM Plex Sans', label: 'IBM Plex Sans', cat: 'Técnica', w: '400;500;600;700' },
+  { id: 'Source Sans 3', label: 'Source Sans 3', cat: 'Sans legible' },
+  { id: 'Schibsted Grotesk', label: 'Schibsted Grotesk', cat: 'Sans fuerte' },
+  { id: 'Oswald', label: 'Oswald', cat: 'Condensada (títulos)', w: '400;500;600;700' },
+  { id: 'Barlow Condensed', label: 'Barlow Condensed', cat: 'Condensada (títulos)', w: '500;600;700;800' },
+  { id: 'Archivo Narrow', label: 'Archivo Narrow', cat: 'Condensada', w: '400;500;600;700' },
 ];
 // Estilos de esquina (radio) para cards, botones e inputs
 const RADIUS_STYLES = {
@@ -243,6 +251,46 @@ const CARD_STYLES = {
 // Temas prediseñados COMPLETOS. Cada uno define modo (claro/oscuro) y set completo de colores.
 // mode: 'light' | 'dark' decide la base de fondos/textos. Los vars explícitos pisan la base.
 const THEME_PRESETS = [
+  {
+    id: 'retail', name: 'Retail premium', desc: 'Oscuro · elegante', mode: 'dark', nuevo: true,
+    p: '#8DC63F', s: '#232320', a: '#8DC63F', font: 'Hanken Grotesk',
+    radius: 'redondeado', shadow: 'none', card: 'plano',
+    bg: '#0E0E0D', bgCard: '#181816', text: '#F4F3EF', textSec: '#A7A59E', border: '#2A2926',
+    headerBg: '#0E0E0D', headerText: '#F4F3EF', marqueeBg: '#181816', marqueeText: '#A7A59E',
+    onP: '#0E0E0D', btnBg: '#262624', btnFg: '#F4F3EF', imgBg: '#F2F2EF', upper: 'no',
+  },
+  {
+    id: 'herramienta', name: 'Herramienta pro', desc: 'Oscuro · rojo industrial', mode: 'dark', nuevo: true,
+    p: '#D7262E', s: '#2B2B2B', a: '#D7262E', font: 'Source Sans 3', fontHead: 'Oswald',
+    radius: 'cuadrado', shadow: 'none', card: 'plano',
+    bg: '#0E0E0E', bgCard: '#171717', text: '#FFFFFF', textSec: '#A8A8A8', border: '#2B2B2B',
+    headerBg: '#0E0E0E', headerText: '#FFFFFF', marqueeBg: '#D7262E', marqueeText: '#FFFFFF',
+    onP: '#FFFFFF', onA: '#FFFFFF', btnBg: '#FFFFFF', btnFg: '#0E0E0E', imgBg: '#F1F1EF', upper: 'si', upperHead: 'si',
+  },
+  {
+    id: 'distribuidor', name: 'Distribuidor técnico', desc: 'Oscuro · ámbar técnico', mode: 'dark', nuevo: true,
+    p: '#F2A93B', s: '#202023', a: '#F2A93B', font: 'IBM Plex Sans',
+    radius: 'cuadrado', shadow: 'none', card: 'borde',
+    bg: '#0F0F10', bgCard: '#18181A', text: '#EDEDED', textSec: '#9E9EA3', border: '#2A2A2D',
+    headerBg: '#0F0F10', headerText: '#EDEDED', marqueeBg: '#18181A', marqueeText: '#9E9EA3',
+    onP: '#0F0F10', btnBg: '#26262A', btnFg: '#EDEDED', imgBg: '#F1F1EF', upper: 'no',
+  },
+  {
+    id: 'cobre', name: 'Cobre', desc: 'Oscuro · cálido', mode: 'dark', nuevo: true,
+    p: '#E0915A', s: '#26211D', a: '#E0915A', font: 'Red Hat Display',
+    radius: 'extra', shadow: 'none', card: 'plano',
+    bg: '#14110F', bgCard: '#1D1916', text: '#F3ECE4', textSec: '#B0A496', border: '#352E28',
+    headerBg: '#14110F', headerText: '#F3ECE4', marqueeBg: '#1D1916', marqueeText: '#B0A496',
+    onP: '#14110F', btnBg: '#2A241F', btnFg: '#F3ECE4', imgBg: '#F2EEE9', upper: 'no',
+  },
+  {
+    id: 'mostrador', name: 'Mostrador nocturno', desc: 'Oscuro · negro y amarillo', mode: 'dark', nuevo: true,
+    p: '#FFD23F', s: '#1A1A1A', a: '#FFD23F', font: 'Schibsted Grotesk',
+    radius: 'cuadrado', shadow: 'none', card: 'borde',
+    bg: '#0B0B0B', bgCard: '#141414', text: '#FFFFFF', textSec: '#A6A6A6', border: '#2A2A2A',
+    headerBg: '#0B0B0B', headerText: '#FFFFFF', marqueeBg: '#FFD23F', marqueeText: '#0B0B0B',
+    onP: '#0B0B0B', btnBg: '#FFFFFF', btnFg: '#0B0B0B', imgBg: '#F2F2F2', upper: 'no',
+  },
   {
     id: 'kicks', name: 'Kicks', desc: 'Moderno · claro', mode: 'light',
     p: '#4A69E2', s: '#232321', a: '#FFA52F', font: 'Archivo',
@@ -346,7 +394,8 @@ function ensureFont(font) {
   loadedFonts.add(font);
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@400;500;600;700;800;900&display=swap`;
+  const w = (FONT_OPTIONS.find(f => f.id === font) || {}).w || '400;500;600;700;800;900';
+  link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@${w}&display=swap`;
   document.head.appendChild(link);
 }
 // Bases de modo claro/oscuro. El tema puede pisar cualquiera de estos con sus vars explícitos.
@@ -356,9 +405,17 @@ const MODE_BASE = {
 };
 // Aplicar TODAS las variables de diseño a un root (document o iframe). Sin root = document.
 // Si el tema trae mode, se aplica la base de ese modo primero y luego los overrides.
+// Variables que maneja el diseño (se limpian antes de aplicar, para que no queden restos de otra plantilla)
+const DESIGN_VARS = ['--bg', '--bg-card', '--text', '--text-secondary', '--text-muted', '--border', '--border-light', '--primary', '--primary-dark', '--primary-light', '--primary-hover', '--warning', '--accent', '--header-bg', '--header-text', '--marquee-bg', '--marquee-text', '--font', '--font-heading', '--radius', '--radius-sm', '--radius-pill', '--shadow', '--shadow-lg', '--card-border', '--tt', '--tt-heading', '--img-bg', '--img-bg-pdp', '--on-primary', '--on-accent', '--card-btn-bg', '--card-btn-fg'];
+// Claves del diseño que forman un "estilo" (las que guarda una plantilla y el respaldo del diseño propio)
+const TEMA_KEYS = ['plantilla', 'modo_tema', 'color_primario', 'color_secundario', 'color_acento', 'color_fondo', 'color_card', 'color_texto', 'color_texto_sec', 'color_borde', 'color_header', 'color_header_text', 'color_marquee', 'color_marquee_text', 'color_texto_boton', 'color_texto_acento', 'color_boton_tarjeta', 'color_boton_tarjeta_texto', 'fondo_fotos', 'fuente', 'fuente_titulos', 'mayusculas', 'mayusculas_titulos', 'estilo_bordes', 'estilo_sombra', 'estilo_card'];
+const temaDe = (d) => Object.fromEntries(TEMA_KEYS.map(k => [k, (d && d[k]) || '']));
+// Aplicar TODAS las variables de diseño a un root (document o iframe). Sin root = document.
+// Si el tema trae mode, se aplica la base de ese modo primero y luego los overrides.
 function applyDesignVars(des, rootEl) {
   const root = rootEl || document.documentElement;
   if (!des) return;
+  DESIGN_VARS.forEach(v => root.style.removeProperty(v));
   const set = (k, v) => v && root.style.setProperty(k, v);
 
   // 1) Base de modo (si el tema lo define)
@@ -369,8 +426,8 @@ function applyDesignVars(des, rootEl) {
     set('--bg', b.bg); set('--bg-card', b.bgCard); set('--text', b.text);
     set('--text-secondary', b.textSec); set('--text-muted', b.textMuted);
     set('--border', b.border); set('--border-light', b.borderLight);
-    // toggle clase dark en el root para reglas que dependen de .dark
-    if (root === document.documentElement) { /* el toggle real lo maneja el modo usuario */ }
+    // En la vista previa (iframe) el modo se cambia acá; en la tienda lo maneja el efecto de la app
+    if (rootEl) root.classList.toggle('dark', mode === 'dark');
   }
 
   // 2) Overrides explícitos del tema/diseño
@@ -382,14 +439,25 @@ function applyDesignVars(des, rootEl) {
   set('--text', des.color_texto);
   set('--text-secondary', des.color_texto_sec);
   set('--border', des.color_borde);
+  if (des.color_borde && mode === 'dark') set('--border-light', des.color_borde);
   set('--header-bg', des.color_header);
   set('--header-text', des.color_header_text);
   set('--marquee-bg', des.color_marquee);
   set('--marquee-text', des.color_marquee_text);
   // primary-light derivado (para focus rings) — usar primario con baja opacidad
   if (des.color_primario) set('--primary-light', hexToRgba(des.color_primario, 0.14));
+  // Texto sobre el color principal (verde o amarillo claros llevan texto oscuro)
+  if (des.color_texto_boton) { set('--on-primary', des.color_texto_boton); set('--primary-hover', des.color_primario); }
+  set('--on-accent', des.color_texto_acento);
+  set('--card-btn-bg', des.color_boton_tarjeta);
+  set('--card-btn-fg', des.color_boton_tarjeta_texto);
+  // Fondo detrás de las fotos (las del proveedor vienen con fondo blanco)
+  if (des.fondo_fotos) { set('--img-bg', des.fondo_fotos); set('--img-bg-pdp', des.fondo_fotos); }
 
   if (des.fuente) { ensureFont(des.fuente); set('--font', `'${des.fuente}', sans-serif`); }
+  if (des.fuente_titulos) { ensureFont(des.fuente_titulos); set('--font-heading', `'${des.fuente_titulos}', sans-serif`); }
+  if (des.mayusculas === 'no') set('--tt', 'none');
+  if (des.mayusculas_titulos === 'si') set('--tt-heading', 'uppercase');
   const rad = RADIUS_STYLES[des.estilo_bordes];
   if (rad) { set('--radius', rad.card); set('--radius-sm', rad.btn); set('--radius-pill', rad.pill); }
   const sh = SHADOW_STYLES[des.estilo_sombra];
@@ -635,7 +703,7 @@ export default function App() {
   const themeMode = design.modo_tema || (THEME_PRESETS.find(t => t.id === design.plantilla)?.mode) || null;
   const effectiveDark = themeMode ? (themeMode === 'dark') : dark;
   // clave estable de las variables de diseño relevantes (evita re-correr el efecto en cada render)
-  const designKey = [design.plantilla, design.modo_tema, design.color_primario, design.color_secundario, design.color_acento, design.color_fondo, design.color_card, design.color_texto, design.color_header, design.color_marquee, design.fuente, design.estilo_bordes, design.estilo_sombra, design.estilo_card].join('|');
+  const designKey = TEMA_KEYS.map(k => design[k] || '').join('|');
   useEffect(() => {
     document.documentElement.classList.toggle('dark', effectiveDark);
     localStorage.setItem('gm_dark', dark);
@@ -1339,7 +1407,7 @@ function Header() {
       {/* ROW 1: logo + buscador + actions */}
       <div className="header-inner">
         <button className="header-logo" onClick={() => nav('landing')}>
-          {design.logo_url ? <img src={imgOpt(design.logo_url, 400)} alt={design.nombre_tienda || 'Inicio'} className="header-logo-img" /> : <span style={{ background: 'var(--primary)', color: '#fff', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
+          {design.logo_url ? <img src={imgOpt(design.logo_url, 400)} alt={design.nombre_tienda || 'Inicio'} className="header-logo-img" /> : <span style={{ background: 'var(--primary)', color: 'var(--on-primary, #fff)', padding: '8px 15px', borderRadius: 10, fontSize: 19, fontWeight: 900, letterSpacing: '-0.04em' }}>K</span>}
         </button>
         {/* Buscador inline (siempre visible, al lado del logo) */}
         {showSearch && (
@@ -1360,7 +1428,7 @@ function Header() {
               <button className="btn btn-sm btn-outline desktop-only" onClick={handleLogout}>SALIR</button>
             </>
           ) : (
-            <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: 'var(--accent)', color: 'var(--primary-dark)', borderColor: 'var(--accent)', fontWeight: 800 }}>INGRESAR</button>
+            <button className="btn btn-sm btn-warning desktop-only" onClick={() => nav('login')} style={{ background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--accent)', fontWeight: 800 }}>INGRESAR</button>
           )}
           <button className="hamburger mobile-only" onClick={() => setMobMenu(!mobMenu)}><Ico n="menu" s={20} /></button>
         </div>
@@ -2202,7 +2270,7 @@ function ComerciappLanding({ onLogin, onRegister }) {
 
       {/* HERO */}
       <section style={{ textAlign: 'center', padding: '64px 24px 48px', maxWidth: 820, margin: '0 auto' }}>
-        <div style={{ display: 'inline-block', background: 'var(--primary)', color: '#fff', fontSize: 13, fontWeight: 700, padding: '5px 14px', borderRadius: 999, marginBottom: 20 }}>15 días gratis · sin tarjeta</div>
+        <div style={{ display: 'inline-block', background: 'var(--primary)', color: 'var(--on-primary, #fff)', fontSize: 13, fontWeight: 700, padding: '5px 14px', borderRadius: 999, marginBottom: 20 }}>15 días gratis · sin tarjeta</div>
         <h1 style={{ fontSize: 44, fontWeight: 900, lineHeight: 1.1, margin: '0 0 16px' }}>Tu tienda online y tu sistema de ventas, todo en uno</h1>
         <p style={{ fontSize: 18, color: 'var(--text-muted)', margin: '0 0 28px', lineHeight: 1.5 }}>Creá tu tienda, gestioná stock, vendé en el mostrador y hacé crecer tu negocio. Sin comisiones por venta.</p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -2818,7 +2886,7 @@ function Landing() {
         <div className="landing-block" style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ background: 'var(--primary)', color: '#fff', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>NOVEDADES</span>
+              <span style={{ background: 'var(--primary)', color: 'var(--on-primary, #fff)', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>NOVEDADES</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>Lo último que sumamos</span>
             </h2>
           </div>
@@ -2851,7 +2919,7 @@ function Landing() {
       {/* ── BANNER PUBLICITARIO ── al pie del catálogo (config.banner_texto) */}
       {config.banner_texto && (
         <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
-          <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: 14, padding: '18px 24px', textAlign: 'center', fontWeight: 700, fontSize: 15, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ background: 'var(--primary)', color: 'var(--on-primary, #fff)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', fontWeight: 700, fontSize: 15, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
             <span>{config.banner_texto}</span>
             {config.banner_whatsapp && <a href={`https://wa.me/${waIntl(config.banner_whatsapp)}`} target="_blank" rel="noopener" style={{ background: '#fff', color: 'var(--primary)', padding: '8px 16px', borderRadius: 8, fontWeight: 800, textDecoration: 'none', fontSize: 13 }}>WhatsApp</a>}
           </div>
@@ -4670,7 +4738,7 @@ function ProductDetailPage() {
             <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrlOG)}&text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')} title="X (Twitter)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><RedIcon tipo="twitter" s={20} /></button>
             <button onClick={() => { navigator.clipboard.writeText(shareUrl).then(() => { setLinkCopied(true); toast('Link copiado'); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => toast('No se pudo copiar', 'error')); }} title="Copiar link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? 'var(--success, #22c55e)' : 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="copy" s={18} /></button>
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
-            <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>Crear imagen para redes</button>
+            <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: 'var(--on-primary, #fff)', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>Crear imagen para redes</button>
           </div>
           {showRedes && (() => {
             const viejoNum = precioOriginal ? Number(precioOriginal) : (matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? Number(matched.precio) : 0);
@@ -4910,7 +4978,7 @@ function AccountPanel() {
           <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NOMBRE DE FANTASÍA</label><input value={f.nombre_fantasia} onChange={e => setF({ ...f, nombre_fantasia: e.target.value })} /></div>
           <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
           {f.password && <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>CONTRASEÑA ACTUAL</label><input type="password" value={f.password_actual} onChange={e => setF({ ...f, password_actual: e.target.value })} placeholder="Para confirmar el cambio" autoComplete="current-password" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>La nueva necesita 8+ caracteres, una mayúscula y un número.</small></div>}
-          <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
+          <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: 'var(--on-primary, #fff)', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
           <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
         </div>
       )}
@@ -5814,7 +5882,7 @@ function AdminOwner() {
                   <div style={{ flex: 1, minWidth: 220 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 800, fontSize: 16 }}>{t.nombre}</span>
-                      {t.id === 1 && <span style={{ fontSize: 11, background: 'var(--primary)', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>Vos</span>}
+                      {t.id === 1 && <span style={{ fontSize: 11, background: 'var(--primary)', color: 'var(--on-primary, #fff)', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>Vos</span>}
                       <span style={{ fontSize: 11, background: est.c, color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>{est.t}</span>
                       <span style={{ fontSize: 11, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 10, fontWeight: 700, textTransform: 'uppercase' }}>{t.plan}</span>
                     </div>
@@ -10970,12 +11038,18 @@ function AdminDiseno() {
     } catch (e) { toast('Error al subir', 'error'); }
   };
 
+  // Respaldo del diseño propio: la primera vez que se cambia el estilo, se guarda el anterior como "Predeterminado"
+  const respaldo = (() => { try { const r = JSON.parse(des.respaldo_diseno || ''); return r && typeof r === 'object' ? r : null; } catch { return null; } })();
+  const original = respaldo || temaDe(design);
   const guardar = async () => {
     setSaving(true);
     try {
-      await api.updateDesign(des);
-      setDesign(des);
-      applyDesignVars(des); // aplicar a la app real
+      const cambioEstilo = TEMA_KEYS.some(k => (des[k] || '') !== (design[k] || ''));
+      const datos = (!des.respaldo_diseno && cambioEstilo) ? { ...des, respaldo_diseno: JSON.stringify(temaDe(design)) } : des;
+      await api.updateDesign(datos);
+      setDes(datos);
+      setDesign(datos);
+      applyDesignVars(datos); // aplicar a la app real
       setDirty(false);
       toast('Diseño aplicado ✓ Ahora lo ven tus clientes');
     } catch (e) { toast(e.message, 'error'); }
@@ -10992,9 +11066,15 @@ function AdminDiseno() {
       color_fondo: t.bg, color_card: t.bgCard || '', color_texto: t.text || '', color_texto_sec: t.textSec || '',
       color_borde: t.border || '', color_header: t.headerBg || '', color_header_text: t.headerText || '',
       color_marquee: t.marqueeBg || '', color_marquee_text: t.marqueeText || '',
+      color_texto_boton: t.onP || '', color_texto_acento: t.onA || '', color_boton_tarjeta: t.btnBg || '', color_boton_tarjeta_texto: t.btnFg || '',
+      fondo_fotos: t.imgBg || '', fuente_titulos: t.fontHead || '', mayusculas: t.upper || '', mayusculas_titulos: t.upperHead || '',
     });
-    ensureFont(t.font);
+    ensureFont(t.font); if (t.fontHead) ensureFont(t.fontHead);
   };
+  // Volver al diseño propio (el que había antes de probar plantillas)
+  const aplicarOriginal = () => { set({ ...original }); ensureFont(original.fuente); if (original.fuente_titulos) ensureFont(original.fuente_titulos); };
+  const esOriginal = TEMA_KEYS.every(k => (des[k] || '') === (original[k] || ''));
+  const [verMasTemas, setVerMasTemas] = useState(false);
 
   const TABS = [
     { id: 'temas', label: 'Temas', icon: 'palette' },
@@ -11029,24 +11109,39 @@ function AdminDiseno() {
 
           <div className="editor-controls">
             {/* TEMAS COMPLETOS */}
-            {tab === 'temas' && (
-              <div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Elegí un tema completo para arrancar. Cambia colores, fuente y estilos de una. Después ajustás lo que quieras.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {THEME_PRESETS.map(t => (
-                    <div key={t.id} onClick={() => aplicarTema(t)}
-                      style={{ padding: 12, cursor: 'pointer', borderRadius: 12, border: des.plantilla === t.id ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'var(--bg-card)' }}>
-                      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                        {swatch(t.p)}{swatch(t.s)}{swatch(t.a)}
-                      </div>
-                      <strong style={{ fontSize: 13, fontFamily: `'${t.font}', sans-serif` }}>{t.name}</strong>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.desc}</div>
-                      {des.plantilla === t.id && <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4, fontWeight: 700 }}>✓ Activo</div>}
-                    </div>
-                  ))}
+            {tab === 'temas' && (() => {
+              const tarjeta = (t, activo, onClick, extra) => (
+                <button key={t.id} type="button" onClick={onClick} className={`tema-card${activo ? ' on' : ''}`}>
+                  <span className="tema-muestra" style={{ background: t.bg, borderColor: t.border || 'transparent' }}>
+                    <span style={{ background: t.bgCard || t.bg, color: t.text }}>
+                      <span className="tema-foto" style={{ background: t.imgBg || t.border || '#ddd' }}></span>
+                      <span className="tema-linea" style={{ background: t.text, opacity: 0.85 }}></span>
+                      <span className="tema-linea corta" style={{ background: t.textSec || t.text, opacity: 0.6 }}></span>
+                      <span className="tema-boton" style={{ background: t.p, color: t.onP || '#fff', borderRadius: (RADIUS_STYLES[t.radius] || {}).btn || 8 }}>Comprar</span>
+                    </span>
+                  </span>
+                  <strong style={{ fontFamily: `'${t.fontHead || t.font}', sans-serif`, textTransform: t.upperHead === 'si' ? 'uppercase' : 'none' }}>{t.name}</strong>
+                  <small>{t.desc}</small>
+                  {extra}
+                  {activo && <span className="tema-activo"><Check size={12} /> En uso</span>}
+                </button>
+              );
+              const orig = { id: 'original', name: 'Predeterminado', desc: respaldo ? 'Tu diseño de antes' : 'Tu diseño actual', p: original.color_primario || '#4A69E2', bg: original.color_fondo || '#F3F3F3', bgCard: original.color_card || original.color_fondo, text: original.color_texto || '#232321', textSec: original.color_texto_sec, border: original.color_borde, imgBg: original.fondo_fotos, onP: original.color_texto_boton, radius: original.estilo_bordes, font: original.fuente || 'Archivo', fontHead: original.fuente_titulos, upperHead: original.mayusculas_titulos };
+              return (
+                <div>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Probá una plantilla: cambia colores, letras y estilos de una. Después ajustás todo en las otras pestañas y aplicás. Tu diseño de siempre queda guardado como <b>Predeterminado</b>.</p>
+                  <div className="tema-grid">
+                    {tarjeta(orig, esOriginal, aplicarOriginal)}
+                    {THEME_PRESETS.filter(t => t.nuevo).map(t => tarjeta(t, des.plantilla === t.id && !esOriginal, () => aplicarTema(t)))}
+                  </div>
+                  <button type="button" className="link-btn" style={{ marginTop: 12, fontSize: 13 }} onClick={() => set({ respaldo_diseno: JSON.stringify(temaDe(des)) })}>Guardar el diseño que estoy viendo como Predeterminado</button>
+                  <div style={{ marginTop: 18 }}>
+                    <button type="button" className="link-btn" style={{ fontSize: 13, fontWeight: 700 }} onClick={() => setVerMasTemas(!verMasTemas)}>{verMasTemas ? 'Ocultar' : 'Ver'} más temas ({THEME_PRESETS.filter(t => !t.nuevo).length})</button>
+                    {verMasTemas && <div className="tema-grid" style={{ marginTop: 10 }}>{THEME_PRESETS.filter(t => !t.nuevo).map(t => tarjeta(t, des.plantilla === t.id && !esOriginal, () => aplicarTema(t)))}</div>}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* COLORES */}
             {tab === 'colores' && (
@@ -11061,20 +11156,36 @@ function AdminDiseno() {
                     </button>
                   ))}
                 </div>
-                <label className="form-label" style={{ marginBottom: 8 }}>Colores individuales</label>
                 {[
-                  ['color_primario', 'Primario (botones, links)', '#4A69E2'],
-                  ['color_secundario', 'Secundario (títulos oscuros)', '#232321'],
-                  ['color_acento', 'Acento (badges, ofertas)', '#FFA52F'],
+                  ['g', 'Marca'],
+                  ['color_primario', 'Principal (botones, links)', '#4A69E2'],
+                  ['color_texto_boton', 'Texto sobre el principal', '#ffffff'],
+                  ['color_secundario', 'Secundario', '#232321'],
+                  ['color_acento', 'Acento (ofertas, etiquetas)', '#FFA52F'],
+                  ['color_texto_acento', 'Texto sobre el acento', '#232321'],
+                  ['g', 'Fondos y textos'],
                   ['color_fondo', 'Fondo de la página', '#F3F3F3'],
+                  ['color_card', 'Tarjetas y recuadros', '#ffffff'],
                   ['color_texto', 'Texto principal', '#232321'],
-                ].map(([k, lbl, def]) => (
+                  ['color_texto_sec', 'Texto secundario', '#626262'],
+                  ['color_borde', 'Bordes y líneas', '#E7E7E3'],
+                  ['g', 'Cabecera y barra de mensajes'],
+                  ['color_header', 'Fondo de la cabecera', '#ffffff'],
+                  ['color_header_text', 'Texto de la cabecera', '#232321'],
+                  ['color_marquee', 'Barra de mensajes', '#232321'],
+                  ['color_marquee_text', 'Texto de la barra', '#ffffff'],
+                  ['g', 'Productos'],
+                  ['color_boton_tarjeta', 'Botón "Agregar" de las tarjetas', '#232321'],
+                  ['color_boton_tarjeta_texto', 'Texto del botón "Agregar"', '#ffffff'],
+                  ['fondo_fotos', 'Fondo detrás de las fotos', '#F3F3F3'],
+                ].map(([k, lbl, def]) => k === 'g' ? <label key={lbl} className="form-label" style={{ margin: '14px 0 8px' }}>{lbl}</label> : (
                   <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                     <input type="color" value={des[k] || def} onChange={e => set({ [k]: e.target.value })} style={{ width: 44, height: 36, padding: 2, borderRadius: 8, cursor: 'pointer' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{lbl}</div>
                       <input value={des[k] || def} onChange={e => set({ [k]: e.target.value })} style={{ fontSize: 12, padding: '4px 8px', width: 120 }} />
                     </div>
+                    {des[k] && <button type="button" className="link-btn" onClick={() => set({ [k]: '' })} style={{ fontSize: 12 }} title="Volver al valor automático">Quitar</button>}
                   </div>
                 ))}
               </div>
@@ -11094,6 +11205,14 @@ function AdminDiseno() {
                   ))}
                 </div>
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>Cada fuente se carga de Google Fonts. El preview de la derecha te muestra cómo queda.</p>
+                <label className="form-label" style={{ margin: '18px 0 8px' }}>Fuente de los títulos</label>
+                <select value={des.fuente_titulos || ''} onChange={e => { if (e.target.value) ensureFont(e.target.value); set({ fuente_titulos: e.target.value }); }} style={{ width: '100%' }}>
+                  <option value="">Igual que el texto</option>
+                  {FONT_OPTIONS.map(f => <option key={f.id} value={f.id}>{f.label} · {f.cat}</option>)}
+                </select>
+                <label className="form-label" style={{ margin: '18px 0 8px' }}>Mayúsculas</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 8 }}><input type="checkbox" checked={des.mayusculas !== 'no'} onChange={e => set({ mayusculas: e.target.checked ? '' : 'no' })} /> Botones, menú y etiquetas en MAYÚSCULAS</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><input type="checkbox" checked={des.mayusculas_titulos === 'si'} onChange={e => set({ mayusculas_titulos: e.target.checked ? 'si' : '' })} /> Títulos en MAYÚSCULAS</label>
               </div>
             )}
 
