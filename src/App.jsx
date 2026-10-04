@@ -3993,8 +3993,60 @@ function _pill(ctx, text, x, y, h, bg, fg, font, padX) {
   ctx.fillStyle = fg; ctx.textBaseline = 'middle'; ctx.fillText(text, x + padX, y + h / 2 + 1); ctx.textBaseline = 'alphabetic';
   return w;
 }
+// Saca el fondo claro y parejo de una foto (típico de las fotos de proveedor) y recorta al producto.
+// Devuelve un canvas con fondo transparente, o null si la foto no tiene un fondo así (o no se puede leer).
+function _quitarFondo(img, tol = 42) {
+  try {
+    if (!img || !img.width) return null;
+    const sc = Math.min(1, 1100 / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * sc)), h = Math.max(1, Math.round(img.height * sc));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h), px = d.data;
+    // Color del fondo: mediana del borde
+    const R = [], G = [], B = []; let transp = 0, tot = 0;
+    const tomar = (i) => { const k = i * 4; tot++; if (px[k + 3] < 20) { transp++; return; } R.push(px[k]); G.push(px[k + 1]); B.push(px[k + 2]); };
+    for (let i = 0; i < w; i += 2) { tomar(i); tomar((h - 1) * w + i); }
+    for (let j = 0; j < h; j += 2) { tomar(j * w); tomar(j * w + w - 1); }
+    if (transp / tot > 0.6) return c; // ya viene sin fondo (PNG)
+    const med = (a) => { a.sort((p, q) => p - q); return a[a.length >> 1] || 0; };
+    const bg = [med(R), med(G), med(B)];
+    if (0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2] < 185) return null; // fondo oscuro o de color: no se toca
+    const t2 = tol * tol;
+    const d2 = (k) => { const a = px[k] - bg[0], b = px[k + 1] - bg[1], e = px[k + 2] - bg[2]; return a * a + b * b + e * e; };
+    let parejos = 0, cuenta = 0;
+    for (let i = 0; i < w; i += 3) { cuenta += 2; if (d2(i * 4) < t2) parejos++; if (d2(((h - 1) * w + i) * 4) < t2) parejos++; }
+    if (parejos / cuenta < 0.55) return null; // el borde no es un fondo parejo
+    // Relleno desde los bordes (solo se borra el fondo conectado al borde: lo blanco del producto queda)
+    const N = w * h, fondo = new Uint8Array(N), pila = new Int32Array(N); let sp = 0;
+    const empujar = (i) => { if (!fondo[i] && d2(i * 4) < t2) { fondo[i] = 1; pila[sp++] = i; } };
+    for (let i = 0; i < w; i++) { empujar(i); empujar((h - 1) * w + i); }
+    for (let j = 0; j < h; j++) { empujar(j * w); empujar(j * w + w - 1); }
+    while (sp) {
+      const i = pila[--sp], cx = i % w;
+      if (cx > 0) empujar(i - 1); if (cx < w - 1) empujar(i + 1);
+      if (i >= w) empujar(i - w); if (i < N - w) empujar(i + w);
+    }
+    // Borde suave (sin serrucho) y recorte al producto
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let i = 0; i < N; i++) {
+      const k = i * 4;
+      if (fondo[i]) { px[k + 3] = 0; continue; }
+      const cx = i % w, cy = (i / w) | 0;
+      const vecino = (cx > 0 && fondo[i - 1]) || (cx < w - 1 && fondo[i + 1]) || (cy > 0 && fondo[i - w]) || (cy < h - 1 && fondo[i + w]);
+      if (vecino) { const dd = Math.sqrt(d2(k)); if (dd < tol * 2) px[k + 3] = Math.round(px[k + 3] * Math.max(0.15, (dd - tol) / tol)); }
+      if (px[k + 3] > 24) { if (cx < x0) x0 = cx; if (cx > x1) x1 = cx; if (cy < y0) y0 = cy; if (cy > y1) y1 = cy; }
+    }
+    if (x1 < 0 || (x1 - x0) * (y1 - y0) < N * 0.02) return null; // casi no quedó nada: mejor no tocar
+    x.putImageData(d, 0, 0);
+    const out = document.createElement('canvas'); out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+    out.getContext('2d').drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+    return out;
+  } catch (e) { return null; } // foto sin permiso de lectura (CORS)
+}
 function drawRedesImagen(canvas, o) {
-  const { formato, estilo = 'oferta', imgEl, logoEl, nombre, marca, precioStr, precioViejo, descuento, ahorroStr, chips = [], titular, storeName, dominio, whatsapp } = o;
+  const { formato, estilo = 'oferta', imgEl, imgSF, logoEl, logoSF, logoFondo, nombre, marca, precioStr, precioViejo, descuento, ahorroStr, chips = [], titular, storeName, dominio, whatsapp } = o;
   let primary = '#4A69E2';
   try { const c = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(); if (c) primary = c; } catch (e) {}
   const E = { ...REDES_ESTILOS[estilo] || REDES_ESTILOS.oferta };
@@ -4008,14 +4060,21 @@ function drawRedesImagen(canvas, o) {
   const g = ctx.createLinearGradient(0, 0, W * 0.4, H); g.addColorStop(0, E.fondo[0]); g.addColorStop(1, E.fondo[1]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   if (estilo === 'oscuro') { const rg = ctx.createRadialGradient(W * 0.5, H * 0.3, 40, W * 0.5, H * 0.3, W * 0.9); rg.addColorStop(0, 'rgba(120,140,255,0.18)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); }
+  const marcaAgua = logoFondo ? (logoSF || logoEl) : null;
+  if (marcaAgua && marcaAgua.width) {
+    const lw = W * 0.92, lh = story ? H * 0.5 : H * 0.62;
+    ctx.save(); ctx.globalAlpha = estilo === 'oscuro' ? 0.11 : 0.09;
+    _imgContain(ctx, marcaAgua, (W - lw) / 2, (story ? H * 0.2 : H * 0.12), lw, lh); ctx.restore();
+  }
   // Historias: Instagram tapa ~180 px arriba (perfil) y abajo (responder): ahí no va nada importante
   const safeTop = story ? 180 : 0, safeBot = story ? 180 : 0;
   // Barra de arriba: logo (o nombre de la tienda) + texto destacado
   const topY = story ? safeTop : 40, topH = story ? 92 : 78;
-  if (logoEl && logoEl.width) {
-    const lh = topH, lw = Math.min(300, lh * (logoEl.width / logoEl.height) + 28);
+  const logoTop = logoSF || logoEl;
+  if (logoTop && logoTop.width) {
+    const lh = topH, lw = Math.min(300, lh * (logoTop.width / logoTop.height) + 28);
     ctx.fillStyle = '#ffffff'; _roundRect(ctx, P, topY, lw, lh, 18); ctx.fill();
-    _imgContain(ctx, logoEl, P + 10, topY + 8, lw - 20, lh - 16);
+    _imgContain(ctx, logoTop, P + 10, topY + 8, lw - 20, lh - 16);
   } else if (storeName) {
     _pill(ctx, storeName.toUpperCase(), P, topY + (topH - 64) / 2, 64, '#ffffff', '#141414', F(900, 30), 26);
   }
@@ -4040,10 +4099,24 @@ function drawRedesImagen(canvas, o) {
   // Foto del producto en una tarjeta blanca
   const cardY = topY + topH + (story ? 40 : 22), cardX = P, cardW = W - P * 2;
   const cardH = Math.max(story ? 420 : 300, textoTop - cardY);
-  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
-  ctx.fillStyle = E.card; _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.fill(); ctx.restore();
-  ctx.save(); _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.clip();
-  _imgContain(ctx, imgEl, cardX + 34, cardY + 34, cardW - 68, cardH - 68); ctx.restore();
+  if (imgSF && imgSF.width) {
+    // Producto sin fondo: grande, con sombra propia y una sombra en el piso
+    const pad = 12, aw = cardW - pad * 2, ah = cardH - pad * 2 - 24;
+    const r = Math.min(aw / imgSF.width, ah / imgSF.height);
+    const dw = imgSF.width * r, dh = imgSF.height * r, dx = cardX + pad + (aw - dw) / 2, dy = cardY + pad + (ah - dh) / 2;
+    ctx.save(); ctx.translate(dx + dw / 2, dy + dh + 6); ctx.scale(1, 0.16);
+    const rx = Math.max(60, dw * 0.46); const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    sg.addColorStop(0, estilo === 'oscuro' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.30)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.shadowColor = estilo === 'oscuro' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 18;
+    try { ctx.drawImage(imgSF, dx, dy, dw, dh); } catch (e) {}
+    ctx.restore();
+  } else {
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
+    ctx.fillStyle = E.card; _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.fill(); ctx.restore();
+    ctx.save(); _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.clip();
+    _imgContain(ctx, imgEl, cardX + 34, cardY + 34, cardW - 68, cardH - 68); ctx.restore();
+  }
   // Sello de descuento (dentro de la tarjeta, arriba a la derecha)
   if (descuento >= 5) {
     const r = story ? 112 : 88, cx = cardX + cardW - r - 22, cy = cardY + r + 22;
@@ -4110,6 +4183,10 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, aho
   const [imgEl, setImgEl] = useState(null);
   const [logoEl, setLogoEl] = useState(null);
   const [tainted, setTainted] = useState(false);
+  const [sinFondo, setSinFondo] = useState(true);
+  const [logoFondo, setLogoFondo] = useState(true);
+  const imgSF = useMemo(() => _quitarFondo(imgEl), [imgEl]);
+  const logoSF = useMemo(() => _quitarFondo(logoEl, 48), [logoEl]);
   useEffect(() => { try { localStorage.setItem('gm_redes_estilo', estilo); } catch {} }, [estilo]);
   // Fotos por el proxy propio (evita el bloqueo CORS al descargar)
   const cargar = (u, ok, marcarTaint) => {
@@ -4126,10 +4203,10 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, aho
   if (envioGratis) chips.push('ENVÍO GRATIS'); else if (conEnvio) chips.push('ENVÍOS A TODO EL PAÍS');
   if (stockBajo > 0) chips.push(stockBajo === 1 ? '¡ÚLTIMA UNIDAD!' : `¡ÚLTIMAS ${stockBajo} UNIDADES!`);
   useEffect(() => {
-    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, estilo, imgEl, logoEl, nombre: producto.nombre || producto.modelo || '', marca: producto.marca && !/^gen[eé]ric/i.test(producto.marca) ? producto.marca : '', precioStr, precioViejo, descuento, ahorroStr, chips, titular: titular.trim(), storeName, dominio, whatsapp: conWa ? whatsapp : '' }); };
+    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, estilo, imgEl, imgSF: sinFondo ? imgSF : null, logoEl, logoSF, logoFondo, nombre: producto.nombre || producto.modelo || '', marca: producto.marca && !/^gen[eé]ric/i.test(producto.marca) ? producto.marca : '', precioStr, precioViejo, descuento, ahorroStr, chips, titular: titular.trim(), storeName, dominio, whatsapp: conWa ? whatsapp : '' }); };
     draw();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw).catch(() => {});
-  }, [formato, estilo, imgEl, logoEl, precioStr, envioGratis, titular, conEnvio, conWa]);
+  }, [formato, estilo, imgEl, imgSF, logoEl, logoSF, sinFondo, logoFondo, precioStr, envioGratis, titular, conEnvio, conWa]);
   const nombreArchivo = `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}-${formato}.png`;
   const descargar = () => {
     try {
@@ -4169,6 +4246,8 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, aho
             <input value={titular} maxLength={26} onChange={e => setTitular(e.target.value)} placeholder="Ej: Nuevo ingreso" />
             <div className="redes-sug">{SUGERIDOS.map(t => <button key={t} className={titular === t ? 'on' : ''} onClick={() => setTitular(titular === t ? '' : t)}>{t}</button>)}</div>
             <div className="redes-checks">
+              {imgSF && <label><input type="checkbox" checked={sinFondo} onChange={e => setSinFondo(e.target.checked)} /> Quitar fondo del producto</label>}
+              {logoEl && <label><input type="checkbox" checked={logoFondo} onChange={e => setLogoFondo(e.target.checked)} /> Logo de fondo</label>}
               {!envioGratis && <label><input type="checkbox" checked={conEnvio} onChange={e => setConEnvio(e.target.checked)} /> Envíos a todo el país</label>}
               {whatsapp && <label><input type="checkbox" checked={conWa} onChange={e => setConWa(e.target.checked)} /> Mostrar WhatsApp</label>}
             </div>
