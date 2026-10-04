@@ -186,7 +186,20 @@ const mensajeEstadoPedido = (o, estado, tracking) => {
 };
 const telWaPedido = (o) => { let t = o?.usuario_telefono || ''; if (!t) { try { const de = typeof o?.datos_envio === 'string' ? JSON.parse(o.datos_envio || '{}') : (o?.datos_envio || {}); t = de?.contacto?.telefono || ''; } catch {} } const d = String(t).replace(/\D/g, ''); return d ? (d.startsWith('54') ? d : '54' + d) : ''; };
 const numOrden = (o) => { const id = String(o?.id ?? '').padStart(4, '0'); return (o?.tipo === 'presupuesto') ? `P-${id}` : `#${id}`; };
-const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${String(num).replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
+// Número de WhatsApp en formato internacional. Corrige los números argentinos cargados "a la antigua"
+// (con 0, con 15, sin 54 o sin 9): 1522525568 / 011 15 2252-5568 / 54 11 2252-5568 → 5491122525568.
+// Los de otros países (o con formato desconocido) quedan como están.
+const waIntl = (num) => {
+  const orig = String(num || '').replace(/\D/g, '');
+  let t = orig;
+  if (t.startsWith('00')) { t = t.slice(2); if (!t.startsWith('54')) return t; }
+  if (t.startsWith('54')) { t = t.slice(2); if (t.startsWith('9')) t = t.slice(1); }
+  t = t.replace(/^0/, '');
+  if (t.length === 12) { const la = t.startsWith('11') ? 2 : t.slice(3, 5) === '15' ? 3 : 4; if (t.slice(la, la + 2) === '15') t = t.slice(0, la) + t.slice(la + 2); }
+  if (/^15\d{8}$/.test(t)) t = '11' + t.slice(2); // 15 + 8 dígitos: celular de AMBA cargado sin el 11
+  return t.length === 10 ? '549' + t : orig.replace(/^00/, '');
+};
+const waLink = (num, msg) => `https://api.whatsapp.com/send?phone=${waIntl(num)}&text=${encodeURIComponent(msg)}`;
 const openWA = (num, msg) => window.open(waLink(num, msg), '_blank');
 
 // ─── SISTEMA DE TEMAS / EDITOR VISUAL ───
@@ -900,7 +913,7 @@ export default function App() {
       // Datos del negocio para Google (nombre, logo, contacto, dirección y redes)
       const negocio = { '@type': 'Store', '@id': origin + '/#negocio', name: tienda, url: origin + '/' };
       if (design.logo_url) { negocio.logo = design.logo_url; negocio.image = design.logo_url; }
-      const tel = String(design.whatsapp_numero || '').replace(/\D/g, ''); if (tel) negocio.telephone = '+' + tel;
+      const tel = waIntl(design.whatsapp_numero); if (tel) negocio.telephone = '+' + tel;
       if (design.email_contacto) negocio.email = design.email_contacto;
       if (design.direccion) negocio.address = { '@type': 'PostalAddress', streetAddress: design.direccion, addressCountry: 'AR' };
       const redes = (redesSociales || []).filter(r => r.activo && /^https?:\/\//.test(r.url || '')).map(r => r.url); if (redes.length) negocio.sameAs = redes;
@@ -1654,7 +1667,7 @@ function MaintenanceBlock({ effectiveDark, config, design }) {
   useEffect(() => { api.getMaintenanceStatus().then(setMaint).catch(() => {}); }, []);
   const logo = design?.logo_url || config?.logo || '';
   const nombre = design?.nombre_tienda || config?.nombre_negocio || '';
-  const wa = (config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const wa = waIntl(config?.whatsapp || design?.whatsapp_numero || '');
   const wrap = { minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg, #111)' };
   const inp = { width: '100%', padding: 12, fontSize: 15, marginBottom: 10, borderRadius: 10, border: '1px solid var(--border, #444)', background: 'var(--card-bg, #1a1a1a)', color: 'var(--text, #fff)' };
 
@@ -1706,7 +1719,7 @@ function MaintenancePage() {
   useEffect(() => { api.getMaintenanceStatus().then(setMaint).catch(() => {}); }, []);
   const logo = design?.logo_url || config?.logo || '';
   const nombre = design?.nombre_tienda || config?.nombre_negocio || '';
-  const wa = (config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const wa = waIntl(config?.whatsapp || design?.whatsapp_numero || '');
   return (
     <div style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', background: 'var(--bg)' }}>
       {logo ? <img src={logo} alt={nombre} style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 16, marginBottom: 16 }} /> : null}
@@ -2840,7 +2853,7 @@ function Landing() {
         <div style={{ maxWidth: 1600, margin: '32px auto 0', padding: '0 20px' }}>
           <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: 14, padding: '18px 24px', textAlign: 'center', fontWeight: 700, fontSize: 15, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
             <span>{config.banner_texto}</span>
-            {config.banner_whatsapp && <a href={`https://wa.me/${config.banner_whatsapp}`} target="_blank" rel="noopener" style={{ background: '#fff', color: 'var(--primary)', padding: '8px 16px', borderRadius: 8, fontWeight: 800, textDecoration: 'none', fontSize: 13 }}>WhatsApp</a>}
+            {config.banner_whatsapp && <a href={`https://wa.me/${waIntl(config.banner_whatsapp)}`} target="_blank" rel="noopener" style={{ background: '#fff', color: 'var(--primary)', padding: '8px 16px', borderRadius: 8, fontWeight: 800, textDecoration: 'none', fontSize: 13 }}>WhatsApp</a>}
           </div>
         </div>
       )}
@@ -3135,7 +3148,7 @@ function MayoristaBloqueado({ sec }) {
   const { user, setUser, nav, toast, config, design } = useContext(Ctx);
   const [enviado, setEnviado] = useState(!!(user && user.mayorista_solicitado_at));
   const [enviando, setEnviando] = useState(false);
-  const wa = String(config?.whatsapp || design?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const wa = waIntl(config?.whatsapp || design?.whatsapp_numero || '');
   const pedir = async () => {
     setEnviando(true);
     try { await api.solicitarMayorista(); setEnviado(true); setUser({ ...user, mayorista_solicitado_at: new Date().toISOString() }); toast('Pedido enviado. Te avisamos cuando esté aprobado.'); }
@@ -3583,7 +3596,7 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
 function PedidoExitoModal({ exito, config, onClose }) {
   const nums = exito.nums || [];
   const numStr = nums.map(n => `#${String(n).padStart(4, '0')}`).join(', ');
-  const wa = (config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '').replace(/[^0-9]/g, '');
+  const wa = waIntl(config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '');
   const nombre = exito.contacto?.nombre || '';
   const totalTxt = `${fmtARS(exito.total)}${exito.total_usdt > 0 ? ` + ${fmtMon(exito.total_usdt, 'USDT')}` : ''}`;
   const msg = `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${totalTxt}. Quiero coordinar el pago y la entrega.`;
@@ -4427,7 +4440,7 @@ function ProductDetailPage() {
   const waNum = design.whatsapp_numero || config.whatsapp_flotante || config.whatsapp;
   const shareWA = () => {
     const txt = `Hola, consulto por: *${p.nombre || p.modelo}* — ${fmtARS(precioFinal)}`;
-    window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(txt)}`, '_blank');
+    window.open(`https://wa.me/${waIntl(waNum)}?text=${encodeURIComponent(txt)}`, '_blank');
   };
 
   // URL compartible del producto
@@ -4635,9 +4648,8 @@ function ProductDetailPage() {
             const viejoNum = precioOriginal ? Number(precioOriginal) : (matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? Number(matched.precio) : 0);
             const desc = viejoNum > precioFinal && precioFinal > 0 ? Math.round((1 - precioFinal / viejoNum) * 100) : 0;
             const st = Number(p.stock) || 0;
-            const tel = String(design.whatsapp_numero || '').replace(/\D/g, '');
-            let local = (tel.startsWith('549') ? tel.slice(3) : tel.startsWith('54') ? tel.slice(2) : tel).replace(/^0/, '');
-            if (/^15\d{8}$/.test(local)) local = '11' + local.slice(2); else if (/^1115\d{8}$/.test(local)) local = '11' + local.slice(4);
+            const tel = waIntl(design.whatsapp_numero);
+            const local = tel.startsWith('549') ? tel.slice(3) : tel;
             const waTxt = !local ? '' : local.startsWith('11') && local.length === 10 ? `11 ${local.slice(2, 6)}-${local.slice(6)}` : local;
             return <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} descuento={desc} ahorroStr={desc >= 5 && monedaFinal === 'ARS' ? fmtARS(viejoNum - precioFinal) : ''} envioGratis={envioGratisProd} stockBajo={!tieneVariantes && !p.permitir_sin_stock && st > 0 && st <= 3 ? st : 0} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host.replace(/^www\./, '') : ''} whatsapp={waTxt} logoUrl={design.logo_url || ''} imageUrl={mainImg || allImages[0] || p.imagen} url={shareUrl} onClose={() => setShowRedes(false)} />;
           })()}
@@ -4771,7 +4783,7 @@ function ForgotPasswordPage() {
   const [codigo, setCodigo] = useState('');
   const [newPass, setNewPass] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const wa = String(config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '').replace(/\D/g, '');
+  const wa = waIntl(config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '');
 
   const requestCode = async () => {
     if (!usuario.trim()) { toast('Escribí tu usuario o email', 'error'); return; }
@@ -4951,7 +4963,7 @@ function AccountPanel() {
 // ═══════════════════════════════════════════════════════════
 function CuentaBloqueada({ estado }) {
   const { handleLogout, config } = useContext(Ctx);
-  const wa = (config?.whatsapp || '').replace(/[^0-9]/g, '');
+  const wa = waIntl(config?.whatsapp || '');
   const esVencido = estado === 'vencido';
   const msg = encodeURIComponent('Hola, quiero reactivar mi tienda en ComerciApp.');
   return (
@@ -10085,7 +10097,7 @@ function AdminNotifStock() {
               <span>{n.canal === 'whatsapp' ? `${n.telefono}` : n.email} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleDateString('es-AR')}</span></span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {n.canal === 'whatsapp' && n.telefono
-                  ? <button className="btn btn-success btn-sm" onClick={() => { let t = n.telefono.replace(/\D/g, ''); if (t.startsWith('0')) t = t.slice(1); if (!t.startsWith('54')) t = '549' + t; window.open(`https://wa.me/${t}?text=${encodeURIComponent(`¡Hola! El producto ${g.nombre} que esperabas ya está disponible. ¿Lo querés?`)}`, '_blank'); }}>WhatsApp</button>
+                  ? <button className="btn btn-success btn-sm" onClick={() => { const t = waIntl(n.telefono); window.open(`https://wa.me/${t}?text=${encodeURIComponent(`¡Hola! El producto ${g.nombre} que esperabas ya está disponible. ¿Lo querés?`)}`, '_blank'); }}>WhatsApp</button>
                   : <a href={`mailto:${n.email}?subject=¡Volvió el stock!&body=Hola, el producto ${g.nombre} que esperabas ya está disponible.`} className="btn btn-success btn-sm" style={{ textDecoration: 'none' }}>Email</a>}
                 <button className="btn btn-outline btn-sm" onClick={() => avisar(n.id)}>✓ Avisado</button>
                 <button className="btn btn-danger btn-sm" onClick={() => borrar(n.id)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
@@ -10286,7 +10298,7 @@ function AdminCarritosAbandonados() {
     if (!tel) { toast('Este carrito no tiene teléfono', 'warning'); return; }
     const items = (c.items || []).map(i => `• ${i.nombre || i.modelo} x${i.qty || i.cantidad || 1}`).join('\n');
     const msg = `¡Hola${c.usuario_nombre ? ' ' + c.usuario_nombre : ''}! Vimos que dejaste productos en tu carrito:\n${items}\n\n¿Querés que te ayudemos a completar la compra?`;
-    window.open(`https://wa.me/54${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${waIntl(tel)}?text=${encodeURIComponent(msg)}`, '_blank');
   };
   const recuperar = async (id) => { try { await api.recuperarCarrito(id); toast('Marcado como recuperado'); load(); } catch (e) { toast(e.message, 'error'); } };
   const borrar = async (id) => { if (!confirm('¿Eliminar este carrito?')) return; try { await api.deleteCarritoAbandonado(id); load(); } catch (e) { toast(e.message, 'error'); } };
