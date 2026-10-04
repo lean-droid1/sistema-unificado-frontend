@@ -1753,3 +1753,21 @@ a.pdp-cat:hover{text-decoration:underline}
 .redes-checks label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .redes-ayuda{font-size:11.5px;color:var(--text-muted);margin-top:10px;text-align:center}
 .redes-ver{font-size:11px;font-weight:700;color:var(--text-muted);background:var(--bg-secondary,rgba(0,0,0,.05));border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle}
+/* Aviso destacado de una tienda (condiciones de compra) */
+.aviso-sec{background:#fff7e6;border:1.5px solid #f59e0b;border-left-width:6px;border-radius:12px;padding:14px 16px 12px;margin:0 0 18px;color:#3b2a06;text-align:left}
+.aviso-sec-t{display:flex;align-items:flex-start;gap:8px;font-weight:800;font-size:15.5px;line-height:1.3;color:#92400e;margin-bottom:8px}
+.aviso-sec-t svg{flex-shrink:0;color:#d97706;margin-top:1px}
+.aviso-sec ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.aviso-sec li{font-size:14px;line-height:1.45}
+.aviso-sec li::marker{color:#d97706}
+.aviso-sec.compacto{padding:11px 13px 10px;margin:12px 0}
+.aviso-sec.compacto .aviso-sec-t{font-size:13.5px;margin-bottom:6px}
+.aviso-sec.compacto li{font-size:12.5px}
+.dark .aviso-sec{background:rgba(245,158,11,.11);color:#fde8c2;border-color:#f59e0b}
+.dark .aviso-sec-t{color:#fbbf24}
+.dark .aviso-sec-t svg,.dark .aviso-sec li::marker{color:#fbbf24}
+.aviso-ck{margin:12px 0}
+.aviso-ck .aviso-sec{margin:0 0 10px}
+.aviso-ck-l{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;cursor:pointer}
+.aviso-ck-l input{width:18px;height:18px;flex-shrink:0}
+.may-lock-card .aviso-sec{margin:14px 0}

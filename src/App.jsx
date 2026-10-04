@@ -3039,6 +3039,8 @@ function SectionPage() {
         </div>
       </div>
 
+      <AvisoSeccion sec={sec} />
+
       {/* Buscador + botón de filtros */}
       <div className="sec-tools">
         <label className="sec-search">
@@ -3161,6 +3163,7 @@ function MayoristaBloqueado({ sec }) {
         <span className="may-lock-ico"><Lock size={26} /></span>
         <h1>{sec.nombre}</h1>
         <p>{sec.descripcion ? `${sec.descripcion}. ` : ''}Esta lista de precios es solo para clientes mayoristas autorizados.</p>
+        <AvisoSeccion sec={sec} compacto />
         {!user ? (
           <>
             <div className="may-lock-acciones">
@@ -3177,6 +3180,19 @@ function MayoristaBloqueado({ sec }) {
         {wa && <a className="btn btn-outline may-lock-wa" href={waLink(wa, `Hola, quiero acceso a la lista ${sec.nombre}${user ? ` (mi usuario es ${user.usuario})` : ''}.`)} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} /> Consultar por WhatsApp</a>}
         <button className="link-btn" onClick={() => nav('landing')}>← Volver al inicio</button>
       </div>
+    </div>
+  );
+}
+// Aviso destacado de una tienda (condiciones de compra: armado, retiro, faltantes…). Se carga en Panel → Tiendas → Editar.
+function avisoLineas(sec) { return String(sec?.aviso || '').split('\n').map(l => l.replace(/^[\s•\-*]+/, '').trim()).filter(Boolean); }
+function AvisoSeccion({ sec, compacto, conNombre }) {
+  const lineas = avisoLineas(sec);
+  if (!lineas.length) return null;
+  const titulo = String(sec.aviso_titulo || '').trim() || 'Importante';
+  return (
+    <div className={`aviso-sec${compacto ? ' compacto' : ''}`} role="note">
+      <div className="aviso-sec-t"><AlertTriangle size={compacto ? 16 : 19} /><span>{conNombre ? `${sec.nombre} · ` : ''}{titulo}</span></div>
+      <ul>{lineas.map((l, i) => <li key={i}>{l}</li>)}</ul>
     </div>
   );
 }
@@ -3260,6 +3276,7 @@ function ListaMayorista({ sec, onVista }) {
           </div>
         </div>
       </div>
+      <AvisoSeccion sec={sec} />
       <div className="lm-tools">
         <label className="sec-search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
@@ -3386,7 +3403,9 @@ function EnvioCalculadorProducto({ producto, varianteId, qty }) {
 }
 
 function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, onConfirm, onClose }) {
-  const { toast } = useContext(Ctx);
+  const { toast, secciones } = useContext(Ctx);
+  const secsAviso = (cot.secciones || []).map(cs => (secciones || []).find(x => String(x.id) === String(cs.seccion_id))).filter(x => x && avisoLineas(x).length);
+  const [aceptaAviso, setAceptaAviso] = useState(false);
   const [paso, setPaso] = useState(1);
   const [saving, setSaving] = useState(false);
   const [contacto, setContacto] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '' });
@@ -3576,6 +3595,12 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
                 <div><strong>Pago:</strong> {metodoPago}</div>
                 {facturacion.necesita && <div><strong>Factura:</strong> {facturacion.razon_social} · {facturacion.cuit_dni}</div>}
               </div>
+              {secsAviso.length > 0 && (
+                <div className="aviso-ck">
+                  {secsAviso.map(x => <AvisoSeccion key={x.id} sec={x} compacto conNombre={secsAviso.length > 1} />)}
+                  <label className="aviso-ck-l"><input type="checkbox" checked={aceptaAviso} onChange={e => setAceptaAviso(e.target.checked)} /> <span>Leí y acepto estas condiciones</span></label>
+                </div>
+              )}
               {testMode && <p className="checkout-test"><FlaskConical size={14} /> Modo prueba: el pedido se marca como test.</p>}
             </div>
           )}
@@ -3585,7 +3610,7 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
           {paso > 1 ? <button className="btn btn-outline" onClick={anterior}>← Atrás</button> : <span />}
           {paso < totalPasos
             ? <button className="btn btn-primary" onClick={siguiente}>Siguiente →</button>
-            : <button className="btn btn-primary" onClick={confirmar} disabled={saving} style={{ minWidth: 170 }}>{saving ? 'Creando pedido…' : (testMode ? 'Confirmar (prueba)' : 'Confirmar pedido')}</button>}
+            : <button className="btn btn-primary" onClick={() => { if (secsAviso.length && !aceptaAviso) { toast('Marcá que leíste las condiciones del pedido', 'warning'); return; } confirmar(); }} disabled={saving} style={{ minWidth: 170 }}>{saving ? 'Creando pedido…' : (testMode ? 'Confirmar (prueba)' : 'Confirmar pedido')}</button>}
         </div>
       </div>
     </div>
@@ -3827,6 +3852,8 @@ function CartPage() {
           <button onClick={() => setAvisos([])} className="link-btn">Entendido</button>
         </div>
       )}
+
+      {seccionesConItems.map(s => <AvisoSeccion key={s.id} sec={s} conNombre={seccionesConItems.length > 1} />)}
 
       {/* ¿Cómo lo recibís? */}
       <div className="entrega-switch" role="tablist">
@@ -4633,6 +4660,7 @@ function ProductDetailPage() {
           )}
 
           {waNum && <button className="pdp-wa" onClick={shareWA}><Ico n="message" s={16} /> Consultar por WhatsApp</button>}
+          <AvisoSeccion sec={sec} compacto />
 
           {/* Compartir producto */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
@@ -6087,6 +6115,7 @@ function TiendaModal({ sec, onClose, onSaved, toast }) {
     nombre: sec?.nombre || '', slug: sec?.slug || '', descripcion: sec?.descripcion || '',
     requiere_aprobacion: sec?.requiere_aprobacion || false, visible: sec?.visible !== false,
     cp_origen: sec?.cp_origen || '1888', ignorar_stock: sec?.ignorar_stock || false, permitir_sin_stock: sec?.permitir_sin_stock || false,
+    aviso_titulo: sec?.aviso_titulo || '', aviso: sec?.aviso || '',
   });
   const save = async () => {
     if (!f.nombre.trim()) { toast('Poné un nombre', 'error'); return; }
@@ -6108,6 +6137,13 @@ function TiendaModal({ sec, onClose, onSaved, toast }) {
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.requiere_aprobacion} onChange={e => setF({ ...f, requiere_aprobacion: e.target.checked })} /> Requiere aprobación (mayorista)</label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.visible} onChange={e => setF({ ...f, visible: e.target.checked })} /> Visible en la tienda</label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir vender sin stock</label>
+          <div className="form-group">
+            <label className="form-label">Aviso destacado (opcional)</label>
+            <input value={f.aviso_titulo} maxLength={200} onChange={e => setF({ ...f, aviso_titulo: e.target.value })} placeholder="Título. Ej: Importante: cómo funcionan los pedidos" style={{ marginBottom: 6 }} />
+            <textarea value={f.aviso} rows={5} maxLength={3000} onChange={e => setF({ ...f, aviso: e.target.value })} placeholder={'Una condición por renglón. Ej:\nEl armado demora de 24 a 72 hs hábiles.'} style={{ width: '100%', resize: 'vertical' }} />
+            <small style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>Se muestra como alerta arriba de la tienda, en cada producto y en el carrito. Al confirmar el pedido, el cliente tiene que marcar que lo leyó.</small>
+          </div>
+          {f.aviso.trim() && <AvisoSeccion sec={{ ...f, nombre: f.nombre }} compacto />}
           <button className="btn btn-primary" onClick={save} style={{ width: '100%' }}>{isNew ? 'Crear tienda' : 'Guardar cambios'}</button>
         </div>
       </div>
