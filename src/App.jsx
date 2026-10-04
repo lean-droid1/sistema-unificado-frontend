@@ -4045,7 +4045,8 @@ function _quitarFondo(img, tol = 42) {
     return out;
   } catch (e) { return null; } // foto sin permiso de lectura (CORS)
 }
-// Versión del diseño de la imagen para redes (se muestra en el modal; cada versión queda con tag redes-vN en git)
+// Versión del diseño de la imagen para redes (se muestra en el modal). Para volver a una versión, restaurar
+// drawRedesImagen/ImagenRedesModal desde su commit: v1 5c79a39 · v2 fa5b303 · v3 11d1940
 const REDES_VERSION = 3;
 // Achica una imagen (al estirarla después queda suave, sin detalle): para el logo de fondo
 function _suave(img, ancho = 300) {
