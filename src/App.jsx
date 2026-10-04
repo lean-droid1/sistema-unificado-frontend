@@ -4045,8 +4045,30 @@ function _quitarFondo(img, tol = 42) {
     return out;
   } catch (e) { return null; } // foto sin permiso de lectura (CORS)
 }
+// Versión del diseño de la imagen para redes (se muestra en el modal; cada versión queda con tag redes-vN en git)
+const REDES_VERSION = 3;
+// Achica una imagen (al estirarla después queda suave, sin detalle): para el logo de fondo
+function _suave(img, ancho = 300) {
+  try {
+    if (!img || !img.width) return null;
+    const sc = Math.min(1, ancho / img.width);
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  } catch (e) { return img; }
+}
+// ¿Alguna parte visible del producto (alfa) queda debajo de alguno de los rectángulos?
+function _tapa(alfa, iw, ih, c, rects) {
+  const sx = iw / c.dw, sy = ih / c.dh;
+  for (const r of rects) {
+    const x0 = Math.max(0, Math.floor((r.x - c.dx) * sx)), x1 = Math.min(iw, Math.ceil((r.x + r.w - c.dx) * sx));
+    const y0 = Math.max(0, Math.floor((r.y - c.dy) * sy)), y1 = Math.min(ih, Math.ceil((r.y + r.h - c.dy) * sy));
+    for (let y = y0; y < y1; y += 2) for (let x = x0; x < x1; x += 2) if (alfa[(y * iw + x) * 4 + 3] > 40) return true;
+  }
+  return false;
+}
 function drawRedesImagen(canvas, o) {
-  const { formato, estilo = 'oferta', imgEl, imgSF, logoEl, logoSF, logoFondo, nombre, marca, precioStr, precioViejo, descuento, ahorroStr, chips = [], titular, storeName, dominio, whatsapp } = o;
+  const { formato, estilo = 'oferta', imgEl, imgSF, logoEl, logoSF, logoMA, logoFondo, nombre, marca, precioStr, precioViejo, descuento, ahorroStr, chips = [], titular, storeName, dominio, whatsapp } = o;
   let primary = '#4A69E2';
   try { const c = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(); if (c) primary = c; } catch (e) {}
   const E = { ...REDES_ESTILOS[estilo] || REDES_ESTILOS.oferta };
@@ -4060,50 +4082,61 @@ function drawRedesImagen(canvas, o) {
   const g = ctx.createLinearGradient(0, 0, W * 0.4, H); g.addColorStop(0, E.fondo[0]); g.addColorStop(1, E.fondo[1]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   if (estilo === 'oscuro') { const rg = ctx.createRadialGradient(W * 0.5, H * 0.3, 40, W * 0.5, H * 0.3, W * 0.9); rg.addColorStop(0, 'rgba(120,140,255,0.18)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); }
-  const marcaAgua = logoFondo ? (logoSF || logoEl) : null;
-  if (marcaAgua && marcaAgua.width) {
-    const lw = W * 0.92, lh = story ? H * 0.5 : H * 0.62;
-    ctx.save(); ctx.globalAlpha = estilo === 'oscuro' ? 0.11 : 0.09;
-    _imgContain(ctx, marcaAgua, (W - lw) / 2, (story ? H * 0.2 : H * 0.12), lw, lh); ctx.restore();
-  }
   // Historias: Instagram tapa ~180 px arriba (perfil) y abajo (responder): ahí no va nada importante
   const safeTop = story ? 180 : 0, safeBot = story ? 180 : 0;
-  // Barra de arriba: logo (o nombre de la tienda) + texto destacado
-  const topY = story ? safeTop : 40, topH = story ? 92 : 78;
+  // Barra de arriba (se dibuja al final, encima de todo): logo (o nombre de la tienda) + texto destacado
+  const topY = story ? safeTop : 34, topH = story ? 92 : 74, headBot = topY + topH;
   const logoTop = logoSF || logoEl;
-  if (logoTop && logoTop.width) {
-    const lh = topH, lw = Math.min(300, lh * (logoTop.width / logoTop.height) + 28);
-    ctx.fillStyle = '#ffffff'; _roundRect(ctx, P, topY, lw, lh, 18); ctx.fill();
-    _imgContain(ctx, logoTop, P + 10, topY + 8, lw - 20, lh - 16);
-  } else if (storeName) {
-    _pill(ctx, storeName.toUpperCase(), P, topY + (topH - 64) / 2, 64, '#ffffff', '#141414', F(900, 30), 26);
-  }
-  if (titular) {
-    const th = story ? 72 : 62, tf = F(900, story ? 36 : 30);
-    ctx.font = tf; const tw = ctx.measureText(titular.toUpperCase()).width + 56;
-    _pill(ctx, titular.toUpperCase(), W - P - tw, topY + (topH - th) / 2, th, estilo === 'oferta' ? '#141414' : E.sello, estilo === 'oferta' ? '#ffd400' : '#ffffff', tf, 28);
-  }
-  // Se arma de abajo hacia arriba: pie → precio → beneficios → nombre → marca; la foto ocupa lo que queda
-  const pieH = story ? 160 : 84, pieY = H - safeBot - pieH;
-  const tagH = story ? 132 : 100, tagY = pieY - (story ? 48 : 26) - tagH;
-  const chipH = story ? 58 : 46;
-  let base = tagY - (story ? 34 : 22);
-  const chipsY = chips.length ? base - chipH : null;
-  if (chips.length) base = chipsY - (story ? 40 : 26);
-  const nameSize = story ? 56 : 44, lineH = story ? 66 : 52;
+  let logoRect = null, titRect = null;
+  const th = story ? 72 : 60, tf = F(900, story ? 36 : 30);
+  if (logoTop && logoTop.width) logoRect = { x: P, y: topY, w: Math.min(300, topH * (logoTop.width / logoTop.height) + 28), h: topH };
+  else if (storeName) { ctx.font = F(900, 30); logoRect = { x: P, y: topY + (topH - 64) / 2, w: ctx.measureText(storeName.toUpperCase()).width + 52, h: 64 }; }
+  if (titular) { ctx.font = tf; const tw = ctx.measureText(titular.toUpperCase()).width + 56; titRect = { x: W - P - tw, y: topY + (topH - th) / 2, w: tw, h: th }; }
+  // Se arma de abajo hacia arriba: pie → precio → (beneficios) → nombre → marca + beneficios; la foto ocupa lo que queda
+  const pieH = story ? 150 : 80, pieY = H - safeBot - pieH;
+  const tagH = story ? 124 : 92, tagY = pieY - (story ? 32 : 20) - tagH;
+  const chipH = story ? 54 : 42, cf = F(800, story ? 26 : 21), cpad = story ? 22 : 18;
+  ctx.font = cf;
+  const chipsW = chips.reduce((a, c) => a + ctx.measureText(c).width + cpad * 2, 0) + Math.max(0, chips.length - 1) * 12;
+  const marcaSize = story ? 30 : 24, marcaTxt = marca ? String(marca).toUpperCase() : '';
+  ctx.font = F(900, marcaSize); const marcaW = marcaTxt ? ctx.measureText(marcaTxt).width : 0;
+  // Los beneficios van en la misma fila que la marca si entran (ahorra una fila y la foto queda más grande)
+  const chipsEnFila = chips.length > 0 && marcaW + (marcaTxt ? 32 : 0) + chipsW <= W - P * 2;
+  let base = tagY - (story ? 26 : 16), chipsY = null, chipsX = P;
+  if (chips.length && !chipsEnFila) { chipsY = base - chipH; base = chipsY - (story ? 24 : 14); }
+  const nameSize = story ? 50 : 38, lineH = story ? 58 : 45;
   ctx.font = F(800, nameSize);
   const lineas = _wrapText(ctx, nombre, W - P * 2, story ? 3 : 2);
   const lastBase = base - 6, firstBase = lastBase - (lineas.length - 1) * lineH;
-  const marcaSize = story ? 34 : 28, marcaBase = firstBase - nameSize - (story ? 16 : 12);
-  const textoTop = (marca ? marcaBase - marcaSize : firstBase - nameSize) - (story ? 36 : 26);
-  // Foto del producto en una tarjeta blanca
-  const cardY = topY + topH + (story ? 40 : 22), cardX = P, cardW = W - P * 2;
-  const cardH = Math.max(story ? 420 : 300, textoTop - cardY);
+  let textoTop = firstBase - nameSize - (story ? 22 : 14), marcaBase = null;
+  if (marcaTxt || chipsEnFila) {
+    const filaH = chipsEnFila ? chipH : marcaSize, filaTop = firstBase - nameSize - (story ? 16 : 10) - filaH;
+    if (marcaTxt) marcaBase = filaTop + filaH / 2 + marcaSize * 0.36;
+    if (chipsEnFila) { chipsY = filaTop; chipsX = marcaTxt ? W - P - chipsW : P; }
+    textoTop = filaTop - (story ? 22 : 14);
+  }
+  // Zona de la foto
+  const zonaTop = headBot + (story ? 14 : 10), zonaBot = textoTop;
+  // Logo de fondo: grande, suave y casi transparente, detrás del producto
+  const marcaAgua = logoFondo ? (logoMA || logoSF || logoEl) : null;
+  if (marcaAgua && marcaAgua.width) {
+    ctx.save(); ctx.globalAlpha = estilo === 'oscuro' ? 0.075 : 0.06; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    _imgContain(ctx, marcaAgua, P / 2, zonaTop, W - P, zonaBot - zonaTop); ctx.restore();
+  }
+  let selloY;
   if (imgSF && imgSF.width) {
-    // Producto sin fondo: grande, con sombra propia y una sombra en el piso
-    const pad = 12, aw = cardW - pad * 2, ah = cardH - pad * 2 - 24;
-    const r = Math.min(aw / imgSF.width, ah / imgSF.height);
-    const dw = imgSF.width * r, dh = imgSF.height * r, dx = cardX + pad + (aw - dw) / 2, dy = cardY + pad + (ah - dh) / 2;
+    // Producto sin fondo: lo más grande posible, apoyado sobre una sombra
+    const M = story ? 30 : 26, aw = W - M * 2, piso = story ? 26 : 20;
+    const encaje = (top) => { const ah = zonaBot - piso - top; const r = Math.min(aw / imgSF.width, ah / imgSF.height); const dw = imgSF.width * r, dh = imgSF.height * r; return { dx: M + (aw - dw) / 2, dy: top + (ah - dh) / 2, dw, dh, alto: dh >= ah - 1 }; };
+    let pos = encaje(zonaTop);
+    if (pos.alto) {
+      // Si la forma lo permite, sube entre el logo y el texto destacado sin taparlos
+      let alfa = null;
+      try { alfa = imgSF.getContext ? imgSF.getContext('2d').getImageData(0, 0, imgSF.width, imgSF.height).data : null; } catch (e) {}
+      const tapas = [logoRect, titRect].filter(Boolean).map(r => ({ x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 28 }));
+      if (alfa) for (let top = topY - (story ? 0 : 8); top < zonaTop; top += 12) { const c = encaje(top); if (!_tapa(alfa, imgSF.width, imgSF.height, c, tapas)) { pos = c; break; } }
+    }
+    const { dx, dy, dw, dh } = pos;
     ctx.save(); ctx.translate(dx + dw / 2, dy + dh + 6); ctx.scale(1, 0.16);
     const rx = Math.max(60, dw * 0.46); const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
     sg.addColorStop(0, estilo === 'oscuro' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.30)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
@@ -4111,65 +4144,78 @@ function drawRedesImagen(canvas, o) {
     ctx.save(); ctx.shadowColor = estilo === 'oscuro' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 18;
     try { ctx.drawImage(imgSF, dx, dy, dw, dh); } catch (e) {}
     ctx.restore();
+    selloY = zonaTop + (story ? 10 : 6);
   } else {
+    // Foto con su fondo: en una tarjeta blanca
+    const cardY = zonaTop + (story ? 20 : 10), cardX = P, cardW = W - P * 2, cardH = Math.max(story ? 420 : 300, zonaBot - cardY);
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
     ctx.fillStyle = E.card; _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.fill(); ctx.restore();
     ctx.save(); _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.clip();
-    _imgContain(ctx, imgEl, cardX + 34, cardY + 34, cardW - 68, cardH - 68); ctx.restore();
+    _imgContain(ctx, imgEl, cardX + 30, cardY + 30, cardW - 60, cardH - 60); ctx.restore();
+    selloY = cardY + 22;
   }
-  // Sello de descuento (dentro de la tarjeta, arriba a la derecha)
+  // Sello de descuento (arriba a la derecha de la foto)
   if (descuento >= 5) {
-    const r = story ? 112 : 88, cx = cardX + cardW - r - 22, cy = cardY + r + 22;
+    const r = story ? 108 : 84, cx = W - P - r + 6, cy = selloY + r;
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.18);
     ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
     ctx.fillStyle = E.sello; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowColor = 'transparent';
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, r - 12, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
-    ctx.font = F(900, story ? 70 : 56); ctx.fillText(`-${descuento}%`, 0, story ? 14 : 11);
-    ctx.font = F(900, story ? 30 : 24); ctx.fillText('OFF', 0, story ? 52 : 42);
+    ctx.font = F(900, story ? 66 : 52); ctx.fillText(`-${descuento}%`, 0, story ? 12 : 10);
+    ctx.font = F(900, story ? 29 : 23); ctx.fillText('OFF', 0, story ? 50 : 40);
     ctx.restore(); ctx.textAlign = 'left';
   }
+  // Barra de arriba (encima de la foto)
+  if (logoRect && logoTop && logoTop.width) {
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.18)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#ffffff'; _roundRect(ctx, logoRect.x, logoRect.y, logoRect.w, logoRect.h, 18); ctx.fill(); ctx.restore();
+    _imgContain(ctx, logoTop, logoRect.x + 10, logoRect.y + 8, logoRect.w - 20, logoRect.h - 16);
+  } else if (logoRect) {
+    _pill(ctx, storeName.toUpperCase(), logoRect.x, logoRect.y, logoRect.h, '#ffffff', '#141414', F(900, 30), 26);
+  }
+  if (titRect) _pill(ctx, titular.toUpperCase(), titRect.x, titRect.y, titRect.h, estilo === 'oferta' ? '#141414' : E.sello, estilo === 'oferta' ? '#ffd400' : '#ffffff', tf, 28);
   // Pie: cómo comprar
   ctx.fillStyle = E.pie;
   if (story) { _roundRect(ctx, P, pieY, W - P * 2, pieH, 32); ctx.fill(); } else ctx.fillRect(0, pieY, W, pieH);
   ctx.fillStyle = E.pieTexto;
   if (story) {
     ctx.textAlign = 'center';
-    ctx.font = F(900, 40); ctx.fillText('TOCÁ EL LINK PARA COMPRAR', W / 2, pieY + 66);
-    ctx.font = F(600, 30); ctx.globalAlpha = 0.85; ctx.fillText([whatsapp ? `WhatsApp ${whatsapp}` : '', dominio].filter(Boolean).join('  ·  '), W / 2, pieY + 116); ctx.globalAlpha = 1;
+    ctx.font = F(900, 38); ctx.fillText('TOCÁ EL LINK PARA COMPRAR', W / 2, pieY + 62);
+    ctx.font = F(600, 29); ctx.globalAlpha = 0.85; ctx.fillText([whatsapp ? `WhatsApp ${whatsapp}` : '', dominio].filter(Boolean).join('  ·  '), W / 2, pieY + 108); ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
   } else {
-    ctx.font = F(800, 30); ctx.textBaseline = 'middle';
+    ctx.font = F(800, 29); ctx.textBaseline = 'middle';
     if (whatsapp) ctx.fillText(`Pedilo por WhatsApp ${whatsapp}`, P, pieY + pieH / 2);
-    ctx.textAlign = whatsapp ? 'right' : 'left'; ctx.font = F(600, 28); ctx.globalAlpha = 0.85;
+    ctx.textAlign = whatsapp ? 'right' : 'left'; ctx.font = F(600, 27); ctx.globalAlpha = 0.85;
     ctx.fillText(dominio || '', whatsapp ? W - P : P, pieY + pieH / 2); ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
   // Marca y nombre
-  if (marca) { ctx.fillStyle = E.marca; ctx.font = F(900, marcaSize); ctx.fillText(String(marca).toUpperCase(), P, marcaBase); }
+  if (marcaTxt && marcaBase) { ctx.fillStyle = E.marca; ctx.font = F(900, marcaSize); ctx.fillText(marcaTxt, P, marcaBase); }
   ctx.fillStyle = E.texto; ctx.font = F(800, nameSize);
   lineas.forEach((ln, k) => ctx.fillText(ln, P, firstBase + k * lineH));
   // Beneficios
-  if (chips.length) {
-    let x = P; const cf = F(800, story ? 26 : 22), padX = story ? 24 : 20;
+  if (chips.length && chipsY != null) {
+    let x = chipsX;
     for (const c of chips) {
-      ctx.font = cf; const w = ctx.measureText(c).width + padX * 2;
-      if (x + w > W - P) break;
+      ctx.font = cf; const w = ctx.measureText(c).width + cpad * 2;
+      if (x + w > W - P + 1) break;
       const urg = c.startsWith('¡');
-      _pill(ctx, c, x, chipsY, chipH, urg ? E.sello : E.chip, urg ? '#ffffff' : E.chipTexto, cf, padX);
+      _pill(ctx, c, x, chipsY, chipH, urg ? E.sello : E.chip, urg ? '#ffffff' : E.chipTexto, cf, cpad);
       x += w + 12;
     }
   }
   // Etiqueta de precio
-  ctx.font = F(900, story ? 96 : 74); const pw = ctx.measureText(precioStr).width + (story ? 72 : 56);
+  ctx.font = F(900, story ? 90 : 70); const pw = ctx.measureText(precioStr).width + (story ? 68 : 52);
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
   ctx.fillStyle = E.tag; _roundRect(ctx, P, tagY, pw, tagH, 24); ctx.fill(); ctx.restore();
-  ctx.fillStyle = E.tagTexto; ctx.textBaseline = 'middle'; ctx.fillText(precioStr, P + (story ? 36 : 28), tagY + tagH / 2 + 4); ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = E.tagTexto; ctx.textBaseline = 'middle'; ctx.fillText(precioStr, P + (story ? 34 : 26), tagY + tagH / 2 + 4); ctx.textBaseline = 'alphabetic';
   if (precioViejo) {
-    const ox = P + pw + 28; ctx.fillStyle = E.sub; ctx.font = F(700, story ? 40 : 32);
+    const ox = P + pw + 28; ctx.fillStyle = E.sub; ctx.font = F(700, story ? 38 : 30);
     const oy = tagY + (ahorroStr ? tagH * 0.42 : tagH * 0.62);
     ctx.fillText(precioViejo, ox, oy);
-    const ow = ctx.measureText(precioViejo).width; ctx.strokeStyle = E.sub; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox - 2, oy - (story ? 13 : 10)); ctx.lineTo(ox + ow + 2, oy - (story ? 13 : 10)); ctx.stroke();
-    if (ahorroStr) { ctx.fillStyle = estilo === 'oferta' ? '#b4121f' : '#22c55e'; ctx.font = F(800, story ? 32 : 26); ctx.fillText(`Ahorrás ${ahorroStr}`, ox, oy + (story ? 48 : 38)); }
+    const ow = ctx.measureText(precioViejo).width; ctx.strokeStyle = E.sub; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox - 2, oy - (story ? 12 : 10)); ctx.lineTo(ox + ow + 2, oy - (story ? 12 : 10)); ctx.stroke();
+    if (ahorroStr) { ctx.fillStyle = estilo === 'oferta' ? '#b4121f' : '#22c55e'; ctx.font = F(800, story ? 31 : 25); ctx.fillText(`Ahorrás ${ahorroStr}`, ox, oy + (story ? 46 : 36)); }
   }
 }
 function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, ahorroStr = '', envioGratis, stockBajo = 0, storeName, dominio, whatsapp = '', logoUrl = '', imageUrl, url, onClose }) {
@@ -4187,6 +4233,7 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, aho
   const [logoFondo, setLogoFondo] = useState(true);
   const imgSF = useMemo(() => _quitarFondo(imgEl), [imgEl]);
   const logoSF = useMemo(() => _quitarFondo(logoEl, 48), [logoEl]);
+  const logoMA = useMemo(() => _suave(logoSF || logoEl), [logoSF, logoEl]);
   useEffect(() => { try { localStorage.setItem('gm_redes_estilo', estilo); } catch {} }, [estilo]);
   // Fotos por el proxy propio (evita el bloqueo CORS al descargar)
   const cargar = (u, ok, marcarTaint) => {
@@ -4203,10 +4250,10 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, aho
   if (envioGratis) chips.push('ENVÍO GRATIS'); else if (conEnvio) chips.push('ENVÍOS A TODO EL PAÍS');
   if (stockBajo > 0) chips.push(stockBajo === 1 ? '¡ÚLTIMA UNIDAD!' : `¡ÚLTIMAS ${stockBajo} UNIDADES!`);
   useEffect(() => {
-    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, estilo, imgEl, imgSF: sinFondo ? imgSF : null, logoEl, logoSF, logoFondo, nombre: producto.nombre || producto.modelo || '', marca: producto.marca && !/^gen[eé]ric/i.test(producto.marca) ? producto.marca : '', precioStr, precioViejo, descuento, ahorroStr, chips, titular: titular.trim(), storeName, dominio, whatsapp: conWa ? whatsapp : '' }); };
+    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, estilo, imgEl, imgSF: sinFondo ? imgSF : null, logoEl, logoSF, logoMA, logoFondo, nombre: producto.nombre || producto.modelo || '', marca: producto.marca && !/^gen[eé]ric/i.test(producto.marca) ? producto.marca : '', precioStr, precioViejo, descuento, ahorroStr, chips, titular: titular.trim(), storeName, dominio, whatsapp: conWa ? whatsapp : '' }); };
     draw();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw).catch(() => {});
-  }, [formato, estilo, imgEl, imgSF, logoEl, logoSF, sinFondo, logoFondo, precioStr, envioGratis, titular, conEnvio, conWa]);
+  }, [formato, estilo, imgEl, imgSF, logoEl, logoSF, logoMA, sinFondo, logoFondo, precioStr, envioGratis, titular, conEnvio, conWa]);
   const nombreArchivo = `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}-${formato}.png`;
   const descargar = () => {
     try {
@@ -4228,7 +4275,7 @@ function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, aho
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal redes-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">Imagen para redes</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">Imagen para redes <span className="redes-ver">Diseño v{REDES_VERSION}</span></span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body">
           <div className="redes-fila">
             <div className="redes-seg" role="group" aria-label="Formato">
@@ -4588,7 +4635,8 @@ function ProductDetailPage() {
             const desc = viejoNum > precioFinal && precioFinal > 0 ? Math.round((1 - precioFinal / viejoNum) * 100) : 0;
             const st = Number(p.stock) || 0;
             const tel = String(design.whatsapp_numero || '').replace(/\D/g, '');
-            const local = tel.startsWith('549') ? tel.slice(3) : tel.startsWith('54') ? tel.slice(2) : tel;
+            let local = (tel.startsWith('549') ? tel.slice(3) : tel.startsWith('54') ? tel.slice(2) : tel).replace(/^0/, '');
+            if (/^15\d{8}$/.test(local)) local = '11' + local.slice(2); else if (/^1115\d{8}$/.test(local)) local = '11' + local.slice(4);
             const waTxt = !local ? '' : local.startsWith('11') && local.length === 10 ? `11 ${local.slice(2, 6)}-${local.slice(6)}` : local;
             return <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} descuento={desc} ahorroStr={desc >= 5 && monedaFinal === 'ARS' ? fmtARS(viejoNum - precioFinal) : ''} envioGratis={envioGratisProd} stockBajo={!tieneVariantes && !p.permitir_sin_stock && st > 0 && st <= 3 ? st : 0} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host.replace(/^www\./, '') : ''} whatsapp={waTxt} logoUrl={design.logo_url || ''} imageUrl={mainImg || allImages[0] || p.imagen} url={shareUrl} onClose={() => setShowRedes(false)} />;
           })()}
