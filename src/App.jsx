@@ -3975,96 +3975,205 @@ function _wrapText(ctx, text, maxW, maxLines) {
   return lines;
 }
 function _roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+// Estilos de la imagen para redes
+const REDES_ESTILOS = {
+  oferta: { label: 'Oferta', fondo: ['#ffd400', '#ff9f00'], card: '#ffffff', texto: '#141414', sub: 'rgba(20,20,20,0.72)', tag: '#e3172d', tagTexto: '#ffffff', chip: '#141414', chipTexto: '#ffd400', sello: '#e3172d', pie: '#141414', pieTexto: '#ffffff', marca: '#b4121f' },
+  oscuro: { label: 'Oscuro', fondo: ['#16161b', '#060608'], card: '#ffffff', texto: '#ffffff', sub: 'rgba(255,255,255,0.68)', tag: null, tagTexto: '#ffffff', chip: 'rgba(255,255,255,0.12)', chipTexto: '#ffffff', sello: '#e3172d', pie: null, pieTexto: '#ffffff', marca: null },
+  claro: { label: 'Claro', fondo: ['#f4f5f8', '#e9ebf1'], card: '#ffffff', texto: '#121318', sub: 'rgba(18,19,24,0.62)', tag: '#121318', tagTexto: '#ffffff', chip: null, chipTexto: '#ffffff', sello: '#e3172d', pie: '#121318', pieTexto: '#ffffff', marca: null },
+};
+function _imgContain(ctx, img, x, y, w, h) {
+  if (!img || !img.width) return;
+  const r = Math.min(w / img.width, h / img.height);
+  const dw = img.width * r, dh = img.height * r;
+  try { ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); } catch (e) {}
+}
+function _pill(ctx, text, x, y, h, bg, fg, font, padX) {
+  ctx.font = font; const tw = ctx.measureText(text).width; const w = tw + padX * 2;
+  ctx.fillStyle = bg; _roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = fg; ctx.textBaseline = 'middle'; ctx.fillText(text, x + padX, y + h / 2 + 1); ctx.textBaseline = 'alphabetic';
+  return w;
+}
 function drawRedesImagen(canvas, o) {
-  const { formato, imgEl, nombre, precioStr, precioViejo, envioGratis, storeName, dominio } = o;
-  let color = '#6366f1';
-  try { const c = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(); if (c) color = c; } catch (e) {}
-  const W = 1080, H = formato === 'story' ? 1920 : 1080;
+  const { formato, estilo = 'oferta', imgEl, logoEl, nombre, marca, precioStr, precioViejo, descuento, ahorroStr, chips = [], titular, storeName, dominio, whatsapp } = o;
+  let primary = '#4A69E2';
+  try { const c = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(); if (c) primary = c; } catch (e) {}
+  const E = { ...REDES_ESTILOS[estilo] || REDES_ESTILOS.oferta };
+  if (!E.tag) E.tag = primary; if (!E.chip) E.chip = primary; if (!E.pie) E.pie = primary; if (!E.marca) E.marca = estilo === 'oscuro' ? '#8fa6ff' : primary;
+  const story = formato === 'story';
+  const W = 1080, H = story ? 1920 : 1080, P = 56;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#0d0d0f'; ctx.fillRect(0, 0, W, H);
-  const imgH = formato === 'story' ? Math.round(H * 0.64) : Math.round(H * 0.72);
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, imgH);
-  if (imgEl && imgEl.width) {
-    const ir = imgEl.width / imgEl.height, ar = W / imgH;
-    let dw, dh, dx, dy;
-    if (ir > ar) { dh = imgH; dw = imgH * ir; dx = (W - dw) / 2; dy = 0; }
-    else { dw = W; dh = W / ir; dx = 0; dy = (imgH - dh) / 2; }
-    try { ctx.drawImage(imgEl, dx, dy, dw, dh); } catch (e) {}
+  const F = (peso, px) => `${peso} ${px}px Archivo, "Helvetica Neue", Arial, sans-serif`;
+  // Fondo
+  const g = ctx.createLinearGradient(0, 0, W * 0.4, H); g.addColorStop(0, E.fondo[0]); g.addColorStop(1, E.fondo[1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (estilo === 'oscuro') { const rg = ctx.createRadialGradient(W * 0.5, H * 0.3, 40, W * 0.5, H * 0.3, W * 0.9); rg.addColorStop(0, 'rgba(120,140,255,0.18)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); }
+  // Historias: Instagram tapa ~180 px arriba (perfil) y abajo (responder): ahí no va nada importante
+  const safeTop = story ? 180 : 0, safeBot = story ? 180 : 0;
+  // Barra de arriba: logo (o nombre de la tienda) + texto destacado
+  const topY = story ? safeTop : 40, topH = story ? 92 : 78;
+  if (logoEl && logoEl.width) {
+    const lh = topH, lw = Math.min(300, lh * (logoEl.width / logoEl.height) + 28);
+    ctx.fillStyle = '#ffffff'; _roundRect(ctx, P, topY, lw, lh, 18); ctx.fill();
+    _imgContain(ctx, logoEl, P + 10, topY + 8, lw - 20, lh - 16);
+  } else if (storeName) {
+    _pill(ctx, storeName.toUpperCase(), P, topY + (topH - 64) / 2, 64, '#ffffff', '#141414', F(900, 30), 26);
   }
-  const panelY = imgH;
-  ctx.fillStyle = '#0d0d0f'; ctx.fillRect(0, panelY, W, H - panelY);
-  let y = panelY + 78;
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffffff'; ctx.font = '700 48px Archivo, Arial, sans-serif';
-  const lines = _wrapText(ctx, nombre, W - 100, 2);
-  for (const ln of lines) { ctx.fillText(ln, 50, y); y += 58; }
-  y += 12;
-  if (envioGratis) {
-    ctx.font = '800 34px Archivo, Arial, sans-serif';
-    const t = 'ENVÍO GRATIS';
-    const tw = ctx.measureText(t).width;
-    ctx.fillStyle = color; _roundRect(ctx, 50, y - 40, tw + 44, 60, 14); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.fillText(t, 72, y);
-    y += 86;
+  if (titular) {
+    const th = story ? 72 : 62, tf = F(900, story ? 36 : 30);
+    ctx.font = tf; const tw = ctx.measureText(titular.toUpperCase()).width + 56;
+    _pill(ctx, titular.toUpperCase(), W - P - tw, topY + (topH - th) / 2, th, estilo === 'oferta' ? '#141414' : E.sello, estilo === 'oferta' ? '#ffd400' : '#ffffff', tf, 28);
   }
-  if (precioViejo) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '600 40px Archivo, Arial, sans-serif'; ctx.fillText(precioViejo, 50, y - 6); ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, y - 20); ctx.lineTo(50 + ctx.measureText(precioViejo).width, y - 20); ctx.stroke(); y += 18; }
-  ctx.fillStyle = color; ctx.font = '900 92px Archivo, Arial, sans-serif';
-  ctx.fillText(precioStr, 50, y + 40);
-  ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.font = '800 32px Archivo, Arial, sans-serif';
-  ctx.fillText(storeName || '', 50, H - 58);
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '500 27px Archivo, Arial, sans-serif';
-  ctx.fillText(dominio || '', 50, H - 22);
+  // Se arma de abajo hacia arriba: pie → precio → beneficios → nombre → marca; la foto ocupa lo que queda
+  const pieH = story ? 160 : 84, pieY = H - safeBot - pieH;
+  const tagH = story ? 132 : 100, tagY = pieY - (story ? 48 : 26) - tagH;
+  const chipH = story ? 58 : 46;
+  let base = tagY - (story ? 34 : 22);
+  const chipsY = chips.length ? base - chipH : null;
+  if (chips.length) base = chipsY - (story ? 40 : 26);
+  const nameSize = story ? 56 : 44, lineH = story ? 66 : 52;
+  ctx.font = F(800, nameSize);
+  const lineas = _wrapText(ctx, nombre, W - P * 2, story ? 3 : 2);
+  const lastBase = base - 6, firstBase = lastBase - (lineas.length - 1) * lineH;
+  const marcaSize = story ? 34 : 28, marcaBase = firstBase - nameSize - (story ? 16 : 12);
+  const textoTop = (marca ? marcaBase - marcaSize : firstBase - nameSize) - (story ? 36 : 26);
+  // Foto del producto en una tarjeta blanca
+  const cardY = topY + topH + (story ? 40 : 22), cardX = P, cardW = W - P * 2;
+  const cardH = Math.max(story ? 420 : 300, textoTop - cardY);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
+  ctx.fillStyle = E.card; _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.fill(); ctx.restore();
+  ctx.save(); _roundRect(ctx, cardX, cardY, cardW, cardH, 40); ctx.clip();
+  _imgContain(ctx, imgEl, cardX + 34, cardY + 34, cardW - 68, cardH - 68); ctx.restore();
+  // Sello de descuento (dentro de la tarjeta, arriba a la derecha)
+  if (descuento >= 5) {
+    const r = story ? 112 : 88, cx = cardX + cardW - r - 22, cy = cardY + r + 22;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.18);
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+    ctx.fillStyle = E.sello; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, r - 12, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
+    ctx.font = F(900, story ? 70 : 56); ctx.fillText(`-${descuento}%`, 0, story ? 14 : 11);
+    ctx.font = F(900, story ? 30 : 24); ctx.fillText('OFF', 0, story ? 52 : 42);
+    ctx.restore(); ctx.textAlign = 'left';
+  }
+  // Pie: cómo comprar
+  ctx.fillStyle = E.pie;
+  if (story) { _roundRect(ctx, P, pieY, W - P * 2, pieH, 32); ctx.fill(); } else ctx.fillRect(0, pieY, W, pieH);
+  ctx.fillStyle = E.pieTexto;
+  if (story) {
+    ctx.textAlign = 'center';
+    ctx.font = F(900, 40); ctx.fillText('TOCÁ EL LINK PARA COMPRAR', W / 2, pieY + 66);
+    ctx.font = F(600, 30); ctx.globalAlpha = 0.85; ctx.fillText([whatsapp ? `WhatsApp ${whatsapp}` : '', dominio].filter(Boolean).join('  ·  '), W / 2, pieY + 116); ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  } else {
+    ctx.font = F(800, 30); ctx.textBaseline = 'middle';
+    if (whatsapp) ctx.fillText(`Pedilo por WhatsApp ${whatsapp}`, P, pieY + pieH / 2);
+    ctx.textAlign = whatsapp ? 'right' : 'left'; ctx.font = F(600, 28); ctx.globalAlpha = 0.85;
+    ctx.fillText(dominio || '', whatsapp ? W - P : P, pieY + pieH / 2); ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+  // Marca y nombre
+  if (marca) { ctx.fillStyle = E.marca; ctx.font = F(900, marcaSize); ctx.fillText(String(marca).toUpperCase(), P, marcaBase); }
+  ctx.fillStyle = E.texto; ctx.font = F(800, nameSize);
+  lineas.forEach((ln, k) => ctx.fillText(ln, P, firstBase + k * lineH));
+  // Beneficios
+  if (chips.length) {
+    let x = P; const cf = F(800, story ? 26 : 22), padX = story ? 24 : 20;
+    for (const c of chips) {
+      ctx.font = cf; const w = ctx.measureText(c).width + padX * 2;
+      if (x + w > W - P) break;
+      const urg = c.startsWith('¡');
+      _pill(ctx, c, x, chipsY, chipH, urg ? E.sello : E.chip, urg ? '#ffffff' : E.chipTexto, cf, padX);
+      x += w + 12;
+    }
+  }
+  // Etiqueta de precio
+  ctx.font = F(900, story ? 96 : 74); const pw = ctx.measureText(precioStr).width + (story ? 72 : 56);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = E.tag; _roundRect(ctx, P, tagY, pw, tagH, 24); ctx.fill(); ctx.restore();
+  ctx.fillStyle = E.tagTexto; ctx.textBaseline = 'middle'; ctx.fillText(precioStr, P + (story ? 36 : 28), tagY + tagH / 2 + 4); ctx.textBaseline = 'alphabetic';
+  if (precioViejo) {
+    const ox = P + pw + 28; ctx.fillStyle = E.sub; ctx.font = F(700, story ? 40 : 32);
+    const oy = tagY + (ahorroStr ? tagH * 0.42 : tagH * 0.62);
+    ctx.fillText(precioViejo, ox, oy);
+    const ow = ctx.measureText(precioViejo).width; ctx.strokeStyle = E.sub; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox - 2, oy - (story ? 13 : 10)); ctx.lineTo(ox + ow + 2, oy - (story ? 13 : 10)); ctx.stroke();
+    if (ahorroStr) { ctx.fillStyle = estilo === 'oferta' ? '#b4121f' : '#22c55e'; ctx.font = F(800, story ? 32 : 26); ctx.fillText(`Ahorrás ${ahorroStr}`, ox, oy + (story ? 48 : 38)); }
+  }
 }
-function ImagenRedesModal({ producto, precioStr, precioViejo, envioGratis, storeName, dominio, imageUrl, url, onClose }) {
+function ImagenRedesModal({ producto, precioStr, precioViejo, descuento = 0, ahorroStr = '', envioGratis, stockBajo = 0, storeName, dominio, whatsapp = '', logoUrl = '', imageUrl, url, onClose }) {
   const { toast } = useContext(Ctx);
   const canvasRef = useRef(null);
   const [formato, setFormato] = useState('feed');
+  const [estilo, setEstilo] = useState(() => { try { return localStorage.getItem('gm_redes_estilo') || 'oferta'; } catch { return 'oferta'; } });
+  const [titular, setTitular] = useState(descuento >= 5 ? 'Oferta' : '');
+  const [conEnvio, setConEnvio] = useState(true);
+  const [conWa, setConWa] = useState(!!whatsapp);
   const [imgEl, setImgEl] = useState(null);
+  const [logoEl, setLogoEl] = useState(null);
   const [tainted, setTainted] = useState(false);
-  useEffect(() => {
-    if (!imageUrl) { setImgEl(null); return; }
-    // Traer la foto por el proxy propio (evita el bloqueo CORS al descargar)
-    const src = /^https?:\/\//i.test(imageUrl) ? ('/api/img?url=' + encodeURIComponent(imageUrl)) : imageUrl;
+  useEffect(() => { try { localStorage.setItem('gm_redes_estilo', estilo); } catch {} }, [estilo]);
+  // Fotos por el proxy propio (evita el bloqueo CORS al descargar)
+  const cargar = (u, ok, marcarTaint) => {
+    if (!u) { ok(null); return; }
+    const src = /^https?:\/\//i.test(u) ? ('/api/img?url=' + encodeURIComponent(u)) : u;
     const im = new Image(); im.crossOrigin = 'anonymous';
-    im.onload = () => { setImgEl(im); setTainted(false); };
-    im.onerror = () => { const im2 = new Image(); im2.onload = () => { setImgEl(im2); setTainted(true); }; im2.onerror = () => setImgEl(null); im2.src = imageUrl; };
+    im.onload = () => ok(im);
+    im.onerror = () => { const im2 = new Image(); im2.onload = () => { ok(im2); if (marcarTaint) setTainted(true); }; im2.onerror = () => ok(null); im2.src = u; };
     im.src = src;
-  }, [imageUrl]);
+  };
+  useEffect(() => { setTainted(false); cargar(imageUrl, setImgEl, true); }, [imageUrl]);
+  useEffect(() => { cargar(logoUrl, setLogoEl, false); }, [logoUrl]);
+  const chips = [];
+  if (envioGratis) chips.push('ENVÍO GRATIS'); else if (conEnvio) chips.push('ENVÍOS A TODO EL PAÍS');
+  if (stockBajo > 0) chips.push(stockBajo === 1 ? '¡ÚLTIMA UNIDAD!' : `¡ÚLTIMAS ${stockBajo} UNIDADES!`);
   useEffect(() => {
-    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, imgEl, nombre: producto.nombre || producto.modelo || '', precioStr, precioViejo, envioGratis, storeName, dominio }); };
+    const draw = () => { if (canvasRef.current) drawRedesImagen(canvasRef.current, { formato, estilo, imgEl, logoEl, nombre: producto.nombre || producto.modelo || '', marca: producto.marca && !/^gen[eé]ric/i.test(producto.marca) ? producto.marca : '', precioStr, precioViejo, descuento, ahorroStr, chips, titular: titular.trim(), storeName, dominio, whatsapp: conWa ? whatsapp : '' }); };
     draw();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw).catch(() => {});
-  }, [formato, imgEl, precioStr, envioGratis]);
+  }, [formato, estilo, imgEl, logoEl, precioStr, envioGratis, titular, conEnvio, conWa]);
+  const nombreArchivo = `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}-${formato}.png`;
   const descargar = () => {
     try {
-      const url = canvasRef.current.toDataURL('image/png');
-      const a = document.createElement('a'); a.href = url; a.download = `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}-${formato}.png`; document.body.appendChild(a); a.click(); a.remove();
+      const u = canvasRef.current.toDataURL('image/png');
+      const a = document.createElement('a'); a.href = u; a.download = nombreArchivo; document.body.appendChild(a); a.click(); a.remove();
     } catch (e) { toast('Esta foto no permite descargarse por permisos del servidor de imágenes. Probá con otro producto.', 'error'); }
   };
   const compartir = async () => {
     try {
       const blob = await new Promise((res, rej) => { try { canvasRef.current.toBlob(b => b ? res(b) : rej(new Error('no blob')), 'image/png'); } catch (e) { rej(e); } });
-      const file = new File([blob], `${(producto.nombre || 'producto').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.png`, { type: 'image/png' });
+      const file = new File([blob], nombreArchivo, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: producto.nombre || 'Producto', text: `${producto.nombre || ''} — ${precioStr}${url ? '\n' + url : ''}`, url: url || undefined });
       } else { descargar(); }
     } catch (e) { if (e && e.name === 'AbortError') return; descargar(); }
   };
   const puedeCompartir = typeof navigator !== 'undefined' && navigator.canShare;
+  const SUGERIDOS = ['Oferta', 'Nuevo ingreso', 'Llegó', 'Oferta de la semana', 'Últimas unidades'];
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+      <div className="modal redes-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header"><span className="modal-title">Imagen para redes</span><button className="modal-close" onClick={onClose}>✕</button></div>
-        <div className="modal-body" style={{ textAlign: 'center' }}>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
-            <button className={`btn btn-sm ${formato === 'feed' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFormato('feed')}>Feed (cuadrado)</button>
-            <button className={`btn btn-sm ${formato === 'story' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFormato('story')}>Story (vertical)</button>
+        <div className="modal-body">
+          <div className="redes-fila">
+            <div className="redes-seg" role="group" aria-label="Formato">
+              <button className={formato === 'feed' ? 'on' : ''} onClick={() => setFormato('feed')}>Post</button>
+              <button className={formato === 'story' ? 'on' : ''} onClick={() => setFormato('story')}>Historia</button>
+            </div>
+            <div className="redes-seg" role="group" aria-label="Estilo">
+              {Object.entries(REDES_ESTILOS).map(([k, v]) => <button key={k} className={estilo === k ? 'on' : ''} onClick={() => setEstilo(k)}>{v.label}</button>)}
+            </div>
           </div>
-          <canvas ref={canvasRef} style={{ width: '100%', maxWidth: formato === 'story' ? 250 : 330, borderRadius: 12, border: '1px solid var(--border)', display: 'inline-block' }} />
-          {tainted && <p style={{ fontSize: 11, color: 'var(--warning, #d97706)', marginTop: 8 }}>Vista previa lista. Si la descarga falla, es por permisos del servidor de fotos.</p>}
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>{puedeCompartir ? 'Tocá “Compartir” y elegí Instagram, TikTok, Stories, etc. O descargá la imagen.' : 'Descargá la imagen y subila a tu historia o post de Instagram / Facebook / TikTok.'}</p>
-          {url && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Para historias de Instagram: subí la imagen y agregá el <b>sticker de link</b> con este enlace (copialo abajo).</p>}
+          <div className="redes-prev"><canvas ref={canvasRef} className={formato === 'story' ? 'story' : ''} /></div>
+          {tainted && <p className="redes-aviso">Vista previa lista. Si la descarga falla, es por permisos del servidor de fotos.</p>}
+          <div className="redes-opc">
+            <label className="form-label">Texto destacado (opcional)</label>
+            <input value={titular} maxLength={26} onChange={e => setTitular(e.target.value)} placeholder="Ej: Nuevo ingreso" />
+            <div className="redes-sug">{SUGERIDOS.map(t => <button key={t} className={titular === t ? 'on' : ''} onClick={() => setTitular(titular === t ? '' : t)}>{t}</button>)}</div>
+            <div className="redes-checks">
+              {!envioGratis && <label><input type="checkbox" checked={conEnvio} onChange={e => setConEnvio(e.target.checked)} /> Envíos a todo el país</label>}
+              {whatsapp && <label><input type="checkbox" checked={conWa} onChange={e => setConWa(e.target.checked)} /> Mostrar WhatsApp</label>}
+            </div>
+          </div>
+          {url && <p className="redes-ayuda">Para historias de Instagram: subí la imagen y agregá el <b>sticker de link</b> con el enlace del producto (botón "Copiar link").</p>}
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cerrar</button>
@@ -4395,7 +4504,15 @@ function ProductDetailPage() {
             {typeof navigator !== 'undefined' && navigator.share && <button onClick={() => navigator.share({ title: shareName, text: shareText, url: shareUrl }).catch(() => {})} title="Compartir" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6, display: 'inline-flex', alignItems: 'center' }}><Ico n="link" s={18} /></button>}
             <button onClick={() => setShowRedes(true)} title="Crear imagen para Instagram, TikTok, Facebook y Stories" style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', padding: '7px 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>Crear imagen para redes</button>
           </div>
-          {showRedes && <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} envioGratis={envioGratisProd} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host : ''} imageUrl={mainImg || allImages[0] || p.imagen} url={shareUrl} onClose={() => setShowRedes(false)} />}
+          {showRedes && (() => {
+            const viejoNum = precioOriginal ? Number(precioOriginal) : (matched && Number(matched.precio_oferta) > 0 && Number(matched.precio_oferta) < Number(matched.precio) ? Number(matched.precio) : 0);
+            const desc = viejoNum > precioFinal && precioFinal > 0 ? Math.round((1 - precioFinal / viejoNum) * 100) : 0;
+            const st = Number(p.stock) || 0;
+            const tel = String(design.whatsapp_numero || '').replace(/\D/g, '');
+            const local = tel.startsWith('549') ? tel.slice(3) : tel.startsWith('54') ? tel.slice(2) : tel;
+            const waTxt = !local ? '' : local.startsWith('11') && local.length === 10 ? `11 ${local.slice(2, 6)}-${local.slice(6)}` : local;
+            return <ImagenRedesModal producto={p} precioStr={fmtMon(precioFinal, monedaFinal)} precioViejo={precioViejoStr} descuento={desc} ahorroStr={desc >= 5 && monedaFinal === 'ARS' ? fmtARS(viejoNum - precioFinal) : ''} envioGratis={envioGratisProd} stockBajo={!tieneVariantes && !p.permitir_sin_stock && st > 0 && st <= 3 ? st : 0} storeName={design.nombre_tienda || ''} dominio={typeof window !== 'undefined' ? window.location.host.replace(/^www\./, '') : ''} whatsapp={waTxt} logoUrl={design.logo_url || ''} imageUrl={mainImg || allImages[0] || p.imagen} url={shareUrl} onClose={() => setShowRedes(false)} />;
+          })()}
 
           {p.sku && !p.sku.startsWith('RXZ-') && <p className="pdp-sku">SKU: {p.sku}</p>}
           {p.notas && <div className="pdp-note"><FileText size={15} style={{ verticalAlign: '-2px' }} /> {p.notas}</div>}
