@@ -723,7 +723,7 @@ export default function App() {
       const total = items.reduce((s, i) => s + puItem(i) * i.qty, 0);
       api.guardarCarritoAbandonado({
         usuario_id: user.id, email: user.email || '', telefono: user.telefono || user.whatsapp || '',
-        items: items.map(i => ({ nombre: i.nombre || i.modelo, qty: i.qty, precio: i.precio_unitario || i.precio_base })),
+        items: items.map(i => ({ nombre: i.nombre || i.modelo, qty: i.qty, precio: puItem(i), producto_id: i.id, seccion_id: i.seccion_id, imagen: i.imagen || '' })),
         total, seccion_id: items[0]?.seccion_id || null
       }).catch(() => {});
     }, 30000); // 30s con items en el carrito sin cerrar compra
@@ -10390,18 +10390,50 @@ function AdminReportes() {
   );
 }
 
+// Tipo de cliente del carrito: mayorista / revendedor / minorista (un cliente puede ser mayorista y revendedor)
+const tiposCliente = (c) => {
+  const t = [];
+  if (c.cli_mayorista) t.push('mayorista');
+  if (c.cli_revendedor) t.push('revendedor');
+  if (!t.length) t.push(c.usuario_id ? 'minorista' : 'sin_cuenta');
+  return t;
+};
+const TIPO_CLI = { mayorista: 'Mayorista', revendedor: 'Revendedor', minorista: 'Minorista', sin_cuenta: 'Sin cuenta' };
 function AdminCarritosAbandonados() {
-  const { toast } = useContext(Ctx);
+  const { toast, secciones } = useContext(Ctx);
   const [carritos, setCarritos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState('todos');
   const load = async () => { setLoading(true); try { setCarritos(await api.getCarritosAbandonados() || []); } catch (e) { toast(e.message, 'error'); } setLoading(false); };
   useEffect(() => { load(); }, []);
+
+  // Tiendas del carrito con su subtotal (los carritos viejos no guardaban la tienda de cada producto)
+  const tiendasDe = (c) => {
+    const its = c.items || [];
+    if (!its.some(i => i.seccion_id)) return c.seccion_nombre ? [{ id: c.seccion_id, nombre: c.seccion_nombre, subtotal: Number(c.total) || 0, cant: its.length }] : [];
+    const g = new Map();
+    for (const i of its) {
+      const k = String(i.seccion_id || c.seccion_id || '');
+      const sec = (secciones || []).find(x => String(x.id) === k);
+      const e = g.get(k) || { id: k, nombre: sec ? sec.nombre : (c.seccion_nombre || 'Tienda'), subtotal: 0, cant: 0 };
+      e.subtotal += (Number(i.precio) || 0) * (Number(i.qty || i.cantidad) || 1); e.cant += 1;
+      g.set(k, e);
+    }
+    return [...g.values()];
+  };
 
   const contactar = (c) => {
     const tel = (c.telefono || '').replace(/\D/g, '');
     if (!tel) { toast('Este carrito no tiene teléfono', 'warning'); return; }
+    const nombre = c.usuario_nombre ? ' ' + String(c.usuario_nombre).split(' ')[0] : '';
     const items = (c.items || []).map(i => `• ${i.nombre || i.modelo} x${i.qty || i.cantidad || 1}`).join('\n');
-    const msg = `¡Hola${c.usuario_nombre ? ' ' + c.usuario_nombre : ''}! Vimos que dejaste productos en tu carrito:\n${items}\n\n¿Querés que te ayudemos a completar la compra?`;
+    const tiendas = tiendasDe(c);
+    const totalTxt = tiendas.length > 1 ? tiendas.map(t => `${t.nombre}: ${fmtARS(t.subtotal)}`).join('\n') + `\nTotal: ${fmtARS(c.total)}` : `Total: ${fmtARS(c.total)}`;
+    const tipos = tiposCliente(c);
+    let msg;
+    if (tipos.includes('mayorista')) msg = `Hola${nombre}, ¿cómo estás? Vimos que dejaste armado un pedido mayorista sin confirmar:\n${items}\n\n${totalTxt}\n\n¿Lo confirmamos así o querés cambiar algo? Cuando lo confirmes arrancamos con el armado.`;
+    else if (tipos.includes('revendedor')) msg = `Hola${nombre}, ¿cómo estás? Te quedó un pedido sin confirmar:\n${items}\n\n${totalTxt}\n\n¿Lo confirmamos? Si necesitás cambiar algo, avisame y lo ajustamos.`;
+    else msg = `¡Hola${nombre}! Vimos que dejaste productos en tu carrito:\n${items}\n\n${totalTxt}\n\n¿Querés que te ayudemos a completar la compra?`;
     window.open(`https://wa.me/${waIntl(tel)}?text=${encodeURIComponent(msg)}`, '_blank');
   };
   const recuperar = async (id) => { try { await api.recuperarCarrito(id); toast('Marcado como recuperado'); load(); } catch (e) { toast(e.message, 'error'); } };
@@ -10409,31 +10441,47 @@ function AdminCarritosAbandonados() {
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>;
 
+  const cuenta = (t) => carritos.filter(c => tiposCliente(c).includes(t)).length;
+  const FILTROS = [['todos', 'Todos', carritos.length], ['mayorista', 'Mayoristas', cuenta('mayorista')], ['revendedor', 'Revendedores', cuenta('revendedor')], ['minorista', 'Minoristas', cuenta('minorista') + cuenta('sin_cuenta')]];
+  const lista = carritos.filter(c => filtro === 'todos' || (filtro === 'minorista' ? tiposCliente(c).some(t => t === 'minorista' || t === 'sin_cuenta') : tiposCliente(c).includes(filtro)));
+  const enJuego = lista.reduce((a, c) => a + (Number(c.total) || 0), 0);
+
   return (
     <div style={{ maxWidth: 900 }}>
       <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Carritos abandonados ({carritos.length})</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Clientes que agregaron productos pero no completaron la compra. Contactalos por WhatsApp para recuperar la venta.</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Clientes que agregaron productos pero no completaron la compra. Contactalos por WhatsApp para recuperar la venta.</p>
+      <div className="ca-filtros" role="group" aria-label="Tipo de cliente">
+        {FILTROS.map(([id, lbl, n]) => <button key={id} className={filtro === id ? 'on' : ''} onClick={() => setFiltro(id)}>{lbl} <span>{n}</span></button>)}
+      </div>
+      {lista.length > 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>{lista.length} {lista.length === 1 ? 'carrito' : 'carritos'} · <b style={{ color: 'var(--text)' }}>{fmtARS(enJuego)}</b> en juego</p>}
 
-      {carritos.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay carritos abandonados</p> : carritos.map(c => (
-        <div key={c.id} className="card" style={{ padding: 14, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <strong>{c.usuario_nombre || c.email || c.telefono || 'Anónimo'}</strong>
-              {c.seccion_nombre && <span style={{ fontSize: 10, background: 'var(--border)', padding: '1px 8px', borderRadius: 4, marginLeft: 8 }}>{c.seccion_nombre}</span>}
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(c.created_at).toLocaleString('es-AR')} · {(c.items || []).length} productos</div>
-              <div className="itp-lista">{(c.items || []).slice(0, 6).map((i, k) => <ItemProd key={k} id={i.producto_id || i.id} nombre={i.nombre || i.modelo} imagen={i.imagen} sub={`x${i.qty || i.cantidad || 1}`} tam={32} />)}{(c.items || []).length > 6 ? <small>y {(c.items || []).length - 6} más…</small> : null}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{fmtARS(c.total)}</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-success btn-sm" onClick={() => contactar(c)}>WhatsApp</button>
-                <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}>✓ Recuperado</button>
-                <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
+      {lista.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>{carritos.length ? 'No hay carritos de este tipo' : 'No hay carritos abandonados'}</p> : lista.map(c => {
+        const tiendas = tiendasDe(c);
+        return (
+          <div key={c.id} className="card" style={{ padding: 14, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                  <strong>{c.usuario_nombre || c.email || c.telefono || 'Anónimo'}</strong>
+                  {c.usuario_fantasia && c.usuario_fantasia !== c.usuario_nombre && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.usuario_fantasia}</span>}
+                  {tiposCliente(c).map(t => <span key={t} className={`ca-tipo ca-${t}`}>{TIPO_CLI[t]}</span>)}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(c.created_at).toLocaleString('es-AR')} · {(c.items || []).length} productos</div>
+                {tiendas.length > 0 && <div className="ca-tiendas">{tiendas.map(t => <span key={t.id || t.nombre}><Store size={12} /> {t.nombre}{tiendas.length > 1 ? ` · ${fmtARS(t.subtotal)}` : ''}</span>)}</div>}
+                <div className="itp-lista">{(c.items || []).slice(0, 6).map((i, k) => <ItemProd key={k} id={i.producto_id || i.id} nombre={i.nombre || i.modelo} imagen={i.imagen} sub={`x${i.qty || i.cantidad || 1}`} tam={32} />)}{(c.items || []).length > 6 ? <small>y {(c.items || []).length - 6} más…</small> : null}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{fmtARS(c.total)}</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-success btn-sm" onClick={() => contactar(c)}><MessageCircle size={14} /> WhatsApp</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}><Check size={14} /> Recuperado</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)} aria-label="Eliminar carrito"><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

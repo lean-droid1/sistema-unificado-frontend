@@ -1794,3 +1794,15 @@ h1, h2, .sec-title, .pdp-title, .cat-h1, .cart-title, .hero-slide-title, .landin
 .tema-linea.corta{width:55%}
 .tema-boton{align-self:flex-start;font-size:9px;font-weight:700;padding:3px 8px;margin-top:2px}
 .tema-activo{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--success)}
+/* Carritos abandonados: filtro por tipo de cliente, etiquetas y tiendas */
+.ca-filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ca-filtros button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--bg-card);color:var(--text);font-size:13px;font-weight:600}
+.ca-filtros button span{font-size:11px;color:var(--text-muted);font-weight:700}
+.ca-filtros button.on{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.ca-filtros button.on span{color:inherit;opacity:.8}
+.ca-tipo{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:5px;background:var(--border);color:var(--text)}
+.ca-mayorista{background:rgba(5,150,105,.16);color:#059669}
+.ca-revendedor{background:rgba(124,58,237,.15);color:#7c3aed}
+.dark .ca-mayorista{color:#34d399}.dark .ca-revendedor{color:#b39dfa}
+.ca-tiendas{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:12px;color:var(--text-secondary)}
+.ca-tiendas span{display:inline-flex;align-items:center;gap:4px}
