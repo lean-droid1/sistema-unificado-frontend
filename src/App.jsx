@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, createContext, useCo
 import { createPortal } from 'react-dom';
 import * as api from './api';
 import { trackBusqueda } from './tracker';
-import { ChevronDown, SlidersHorizontal, Check, Store, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Search, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -798,8 +798,10 @@ export default function App() {
             setPage('landing');
           }
         }
-        // Carrito compartido: ?carrito=BASE64 precarga el carrito y lleva al cart
+        // Carrito compartido: ?carrito=BASE64 precarga el carrito y lleva al cart (y ?cupon=X deja el cupón listo)
         const carritoParam = new URLSearchParams(window.location.search).get('carrito');
+        const cuponParam = new URLSearchParams(window.location.search).get('cupon');
+        if (cuponParam && /^[A-Za-z0-9_-]{3,40}$/.test(cuponParam)) { try { localStorage.setItem('gm_cupon_pend', cuponParam.toUpperCase()); } catch {} }
         if (carritoParam) {
           try {
             let payload;
@@ -808,23 +810,26 @@ export default function App() {
             const _padded = _b64 + '='.repeat((4 - (_b64.length % 4)) % 4);
             try { payload = JSON.parse(decodeURIComponent(atob(_padded))); }
             catch { payload = JSON.parse(atob(_padded)); } // fallback sin encodeURIComponent
-            const nuevoCart = {};
-            for (const it of (payload || [])) {
-              const prod = await api.getProducto(it.p).catch(() => null);
-              if (!prod) continue;
-              const secId = String(it.s || prod.seccion_id);
-              if (!nuevoCart[secId]) nuevoCart[secId] = [];
-              nuevoCart[secId].push({ ...prod, seccion_id: secId, qty: Number(it.q) || 1, precio_unitario: prod.precio_base });
+            const r = await cargarItemsCompartidos(payload, secs);
+            const logueado = !!api.getToken();
+            if (r.faltan.length && !logueado) {
+              // Productos de tiendas con acceso (ej. mayorista): quedan guardados y se cargan al ingresar con la cuenta
+              try { localStorage.setItem('gm_carrito_pend', JSON.stringify(r.faltan)); } catch {}
             }
-            if (Object.keys(nuevoCart).length) {
-              localStorage.setItem('gm_cart', JSON.stringify(nuevoCart));
-              setCart(nuevoCart); setPage('cart');
-              toast('Carrito cargado — revisá y continuá la compra');
+            if (r.n) {
+              localStorage.setItem('gm_cart', JSON.stringify(r.cart));
+              setCart(r.cart); setPage('cart');
+              toast(r.faltan.length ? `Carrito cargado. ${r.faltan.length === 1 ? 'Un producto es' : `${r.faltan.length} productos son`} de la lista mayorista: ${logueado ? 'pedí acceso mayorista para verlos' : 'ingresá con tu cuenta para verlos'}.` : 'Carrito cargado — revisá y continuá la compra', r.faltan.length ? 'warning' : 'success');
+            } else if (r.faltan.length) {
+              toast(logueado ? 'Este carrito es de la lista mayorista y tu cuenta todavía no tiene acceso.' : 'Este carrito es de la lista mayorista: ingresá con tu cuenta y se carga solo.', 'warning');
+              if (!logueado) setPage('login');
             } else {
               toast('El carrito compartido no tiene productos disponibles', 'error');
             }
             window.history.replaceState({}, '', window.location.pathname);
           } catch (e) { toast('No se pudo cargar el carrito compartido', 'error'); }
+        } else if (cuponParam) {
+          try { window.history.replaceState({}, '', window.location.pathname); } catch {}
         }
         // Búsqueda compartida: ?buscar=TERM abre la página de resultados
         const buscarParam = new URLSearchParams(window.location.search).get('buscar');
@@ -904,6 +909,27 @@ export default function App() {
     // Después de pintar la página nueva, volver a subir (si no, a veces arrancaba un poco bajada, debajo de la cabecera)
     requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, 0)));
   }, [secciones, seccionActual, page, selectedProduct, globalSearch, infoSlug, catSlug]);
+  // Carrito compartido con productos de tiendas con acceso (ej. mayorista): al ingresar con la cuenta se suman solos
+  useEffect(() => {
+    if (!user || !secciones.length) return;
+    let pend; try { pend = JSON.parse(localStorage.getItem('gm_carrito_pend') || 'null'); } catch { pend = null; }
+    if (!Array.isArray(pend) || !pend.length) return;
+    try { localStorage.removeItem('gm_carrito_pend'); } catch {}
+    cargarItemsCompartidos(pend, secciones).then(r => {
+      if (!r.n) { toast('Tu cuenta todavía no tiene acceso a la lista mayorista de ese carrito. Pedí el acceso y volvé a abrir el link.', 'warning'); return; }
+      setCart(prev => {
+        const next = { ...prev };
+        for (const [sid, its] of Object.entries(r.cart)) {
+          const cur = Array.isArray(next[sid]) ? [...next[sid]] : [];
+          for (const it of its) { const k = cur.findIndex(x => String(x.id) === String(it.id)); if (k >= 0) cur[k] = { ...cur[k], qty: Math.max(cur[k].qty || 0, it.qty) }; else cur.push(it); }
+          next[sid] = cur;
+        }
+        return next;
+      });
+      nav('cart');
+      toast(r.faltan.length ? `Se sumaron ${r.n} productos. ${r.faltan.length} no están disponibles para tu cuenta.` : 'Listo, se cargó el carrito que te compartieron', r.faltan.length ? 'warning' : 'success');
+    }).catch(() => {});
+  }, [user?.id, secciones.length]);
   // Refs para leer estado actual dentro del listener de popstate (que se registra una sola vez)
   const seccionesRef = useRef([]); seccionesRef.current = secciones;
   const selectedProductRef = useRef(null); selectedProductRef.current = selectedProduct;
@@ -3717,14 +3743,18 @@ function PedidoExitoModal({ exito, config, onClose }) {
 
 function CartPage() {
   const { secciones, user, nav, toast, cart, setCart, removeFromCart, updateCartQty, clearCart, testMode, config } = useContext(Ctx);
-  const [cuponInput, setCuponInput] = useState('');
-  const [cupon, setCupon] = useState('');
+  // Cupón que llegó por link (?cupon=X): queda cargado solo
+  const cuponPend = useMemo(() => { try { return localStorage.getItem('gm_cupon_pend') || ''; } catch { return ''; } }, []);
+  const [cuponInput, setCuponInput] = useState(cuponPend);
+  const [cupon, setCupon] = useState(cuponPend);
+  const [, setTick] = useState(0); // refresca la cuenta regresiva del cupón
   const [metodos, setMetodos] = useState([]);
   const [entregaTipo, setEntregaTipo] = useState(() => localStorage.getItem('gm_entrega_tipo') || 'envio');
   const [cp, setCp] = useState(() => localStorage.getItem('gm_cp') || '');
   const [cpInput, setCpInput] = useState(() => localStorage.getItem('gm_cp') || '');
   const [envioSel, setEnvioSel] = useState({}); // { seccion_id: id de la opción de envío }
   const [cot, setCot] = useState(null);
+  useEffect(() => { if (!cot?.cupon?.vence_at) return; const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, [cot?.cupon?.vence_at]);
   const [cotizando, setCotizando] = useState(false);
   const [cotError, setCotError] = useState('');
   const [avisos, setAvisos] = useState([]);
@@ -3759,7 +3789,13 @@ function CartPage() {
         });
         if (seq !== reqSeq.current) return;
         setCot(r); setCotError('');
-        if (cupon && r.cupon && !r.cupon.ok) { toast(r.cupon.error || 'Cupón no válido', 'error'); setCupon(''); }
+        if (cupon && r.cupon && !r.cupon.ok) {
+          const esPend = cupon === cuponPend;
+          // Sin sesión, el cupón personal queda guardado hasta que ingrese
+          if (esPend && !user && /sesi[oó]n/i.test(r.cupon.error || '')) toast(r.cupon.error || 'Iniciá sesión para usar tu cupón', 'warning');
+          else { toast(r.cupon.error || 'Cupón no válido', 'error'); if (esPend) { try { localStorage.removeItem('gm_cupon_pend'); } catch {} } }
+          setCupon('');
+        }
         // El servidor avisa productos que ya no están o sin stock: corregir el carrito
         if (r.avisos && r.avisos.length) {
           setAvisos(prev => Array.from(new Set([...prev, ...r.avisos.map(a => a.mensaje)])));
@@ -3849,7 +3885,7 @@ function CartPage() {
   // Compartir carrito: link que precarga el carrito + texto con el detalle
   const compartirCarrito = () => {
     const payload = allItems.map(i => ({ s: i.seccion_id, p: i.id, q: i.qty }));
-    const encoded = btoa(encodeURIComponent(JSON.stringify(payload))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const encoded = codificarCarrito(payload);
     const link = `${window.location.origin}${window.location.pathname}?carrito=${encoded}`;
     let txt = `*Carrito armado para vos*\n\n`;
     for (const s of cot?.secciones || []) {
@@ -3858,8 +3894,11 @@ function CartPage() {
       txt += '\n';
     }
     txt += `*Total: ${fmtARS(totales.total)}*${totales.total_usdt > 0 ? ` + ${fmtMon(totales.total_usdt, 'USDT')}` : ''}\n\nAbrí este link para continuar la compra:\n${link}`;
-    if (navigator.share) navigator.share({ title: 'Carrito', text: txt }).catch(() => {});
-    else navigator.clipboard.writeText(txt).then(() => toast('Detalle del carrito copiado')).catch(() => toast('No se pudo copiar', 'error'));
+    // Productos de tiendas con aprobación (mayorista): quien abra el link los ve solo si su cuenta tiene acceso
+    const restr = allItems.filter(i => secciones.find(x => String(x.id) === String(i.seccion_id))?.requiere_aprobacion).length;
+    const aviso = () => { if (restr) toast(`${restr === allItems.length ? 'Este carrito es' : `${restr} de los productos son`} de la lista mayorista: quien abra el link tiene que ingresar con una cuenta mayorista aprobada para verlos.`, 'warning'); };
+    if (navigator.share) navigator.share({ title: 'Carrito', text: txt }).then(aviso).catch(() => {});
+    else navigator.clipboard.writeText(txt).then(() => { toast('Detalle del carrito copiado'); aviso(); }).catch(() => toast('No se pudo copiar', 'error'));
   };
 
   const abrirCheckout = () => {
@@ -3882,6 +3921,7 @@ function CartPage() {
       const tot = r?.totales || totales;
       trackEvent('purchase', 'Purchase', { value: tot.total, currency: 'ARS', num_items: allItems.length });
       seccionesConItems.forEach(sec => clearCart(sec.id));
+      try { localStorage.removeItem('gm_cupon_pend'); } catch {}
       setShowCheckout(false);
       setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {} });
     } catch (e) { toast(e.message, 'error'); throw e; }
@@ -4025,7 +4065,9 @@ function CartPage() {
       {/* Cupón */}
       <div className="cupon-box">
         {cupon && cot?.cupon?.ok ? (
-          <div className="cupon-ok"><Tag size={15} /> Cupón <b>{cot.cupon.codigo}</b> aplicado <button className="link-btn" onClick={() => { setCupon(''); setCuponInput(''); }}>Quitar</button></div>
+          <div className="cupon-ok"><Tag size={15} /> Cupón <b>{cot.cupon.codigo}</b> aplicado <button className="link-btn" onClick={() => { setCupon(''); setCuponInput(''); try { localStorage.removeItem('gm_cupon_pend'); } catch {} }}>Quitar</button>
+            {cot.cupon.vence_at && <span className="cupon-vence"><Clock size={13} /><span>{faltaTxt(cot.cupon.vence_at) ? <>Vence en <b>{faltaTxt(cot.cupon.vence_at)}</b>: cerrá la compra antes</> : 'El cupón venció'}</span></span>}
+          </div>
         ) : (
           <div className="cupon-row">
             <input placeholder="Código de cupón" value={cuponInput} onChange={e => setCuponInput(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && cuponInput.trim() && setCupon(cuponInput.trim())} />
@@ -10390,6 +10432,24 @@ function AdminReportes() {
   );
 }
 
+// Carga los productos de un carrito compartido. Los que no se pueden ver (tienda con acceso, sin sesión) vuelven en `faltan`.
+async function cargarItemsCompartidos(payload, secs) {
+  const cart = {}, faltan = []; let n = 0;
+  for (const it of (Array.isArray(payload) ? payload : [])) {
+    const prod = await api.getProducto(it.p).catch(() => null);
+    const secId = String(it.s || (prod && prod.seccion_id) || '');
+    if (!prod || (secs && secId && !secs.some(x => String(x.id) === secId))) { faltan.push(it); continue; }
+    if (!cart[secId]) cart[secId] = [];
+    cart[secId].push({ ...prod, seccion_id: secId, qty: Number(it.q) || 1, precio_unitario: prod.precio_base });
+    n++;
+  }
+  return { cart, faltan, n };
+}
+// Carrito → link que lo precarga en la tienda (?carrito=…). Mismo formato que "Compartir carrito".
+const codificarCarrito = (arr) => btoa(encodeURIComponent(JSON.stringify(arr))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+// "hace 5 min", "hace 2 h", "hace 3 d"
+const haceTxt = (d) => { const m = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000)); return m < 60 ? `hace ${m || 1} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`; };
+const faltaTxt = (d) => { const m = Math.round((new Date(d).getTime() - Date.now()) / 60000); return m <= 0 ? '' : m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${Math.round(m / 1440)} d`; };
 // Tipo de cliente del carrito: mayorista / revendedor / minorista (un cliente puede ser mayorista y revendedor)
 const tiposCliente = (c) => {
   const t = [];
@@ -10399,13 +10459,116 @@ const tiposCliente = (c) => {
   return t;
 };
 const TIPO_CLI = { mayorista: 'Mayorista', revendedor: 'Revendedor', minorista: 'Minorista', sin_cuenta: 'Sin cuenta' };
+const ESTILOS_MSJ = [
+  { id: 'cupon', label: 'Cupón por tiempo', desc: 'Descuento que vence en pocas horas' },
+  { id: 'reserva', label: 'Te lo reservo', desc: 'Le guardás el carrito por un rato' },
+  { id: 'directo', label: 'Cierre directo', desc: 'Le ofrecés pasarle los datos de pago' },
+  { id: 'amable', label: 'Consulta amable', desc: 'Le preguntás si tuvo alguna duda' },
+];
+const PLAZO_TXT = { 1: 'la próxima hora', 2: 'las próximas 2 horas', 3: 'las próximas 3 horas', 6: 'las próximas 6 horas', 12: 'las próximas 12 horas', 24: 'las próximas 24 horas' };
+// Arma el mensaje de WhatsApp. {CUPON} y {VENCE} se completan al enviar (el cupón se crea en ese momento).
+function armarMensajeCarrito({ estilo, c, tiendas, pct, horas, link, tienda }) {
+  const tipos = tiposCliente(c);
+  const mayor = tipos.includes('mayorista');
+  const nombre = c.usuario_nombre ? ' ' + String(c.usuario_nombre).split(' ')[0] : '';
+  const de = tienda ? ` Te escribo de ${tienda}.` : '';
+  const items = (c.items || []).map(i => `• ${i.nombre || i.modelo} x${i.qty || i.cantidad || 1}`).join('\n');
+  const total = tiendas.length > 1 ? tiendas.map(t => `${t.nombre}: ${fmtARS(t.subtotal)}`).join('\n') + `\nTotal: ${fmtARS(c.total)}` : `Total: ${fmtARS(c.total)}`;
+  const que = mayor ? 'tu pedido mayorista' : 'tu carrito';
+  const quedo = mayor ? 'Vi que te quedó armado un pedido mayorista sin confirmar' : 'Vi que te quedó el carrito armado';
+  const linkTxt = link ? `\n\nTe dejo ${que} listo para finalizar: ${link}` : '';
+  const armado = mayor ? ' Cuando lo confirmes arrancamos con el armado.' : '';
+  if (estilo === 'cupon') return `Hola${nombre}, ¿cómo estás?${de} ${quedo}:\n${items}\n\n${total}\n\nSi lo cerrás en ${PLAZO_TXT[horas] || `las próximas ${horas} horas`}, tenés un ${pct}% de descuento con este código: {CUPON}\nVale {VENCE} y es solo para vos.${armado}${linkTxt}`;
+  if (estilo === 'reserva') return `Hola${nombre}, ¿cómo estás?${de} ${quedo}:\n${items}\n\n${total}\n\nTe lo reservo hasta mañana; después se libera para otros clientes. Si querés asegurarlo, cerralo ahora.${armado}${linkTxt}`;
+  if (estilo === 'directo') return `Hola${nombre}, te escribo${tienda ? ` de ${tienda}` : ''} por ${que}:\n${items}\n\n${total}\n\n¿Te lo confirmo y te paso los datos para pagar?${armado}${link ? `\n\nSi preferís, lo cerrás directo desde acá: ${link}` : ''}`;
+  return `¡Hola${nombre}!${de} ${quedo}:\n${items}\n\n${total}\n\n¿Te quedó alguna duda? Si querés te ayudo a completar la compra.${link ? `\n\n${mayor ? 'Tu pedido' : 'Tu carrito'}: ${link}` : ''}`;
+}
+function MensajeCarritoModal({ c, tiendas, onClose, onEnviado }) {
+  const { toast, design, config } = useContext(Ctx);
+  const tienda = design?.nombre_tienda || config?.nombre_tienda || '';
+  const conLink = (c.items || []).some(i => i.producto_id);
+  const [estilo, setEstilo] = useState('cupon');
+  const [pct, setPct] = useState(3);
+  const [horas, setHoras] = useState(1);
+  const [incluirLink, setIncluirLink] = useState(conLink);
+  const [texto, setTexto] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [linkWa, setLinkWa] = useState('');
+  const linkBase = conLink ? `${window.location.origin}/carrito?carrito=${codificarCarrito((c.items || []).filter(i => i.producto_id).map(i => ({ s: i.seccion_id || c.seccion_id, p: i.producto_id, q: i.qty || i.cantidad || 1 })))}` : '';
+  useEffect(() => {
+    setTexto(armarMensajeCarrito({ estilo, c, tiendas, pct, horas, link: incluirLink && linkBase ? (estilo === 'cupon' ? `${linkBase}&cupon={CUPON}` : linkBase) : '', tienda }));
+  }, [estilo, pct, horas, incluirLink]);
+  const enviar = async () => {
+    const tel = (c.telefono || '').replace(/\D/g, '');
+    if (!tel) { toast('Este carrito no tiene teléfono', 'warning'); return; }
+    if (estilo === 'cupon' && !(Number(pct) > 0 && Number(pct) <= 50)) { toast('Poné un descuento entre 1% y 50%', 'error'); return; }
+    // La ventana se abre ya (si se abre después de esperar al servidor, el celular la bloquea)
+    const ventana = window.open('', '_blank');
+    setEnviando(true);
+    try {
+      let msg = texto;
+      if (estilo === 'cupon' && /\{CUPON\}/.test(msg)) {
+        const r = await api.crearCuponCarrito(c.id, Number(pct), Number(horas));
+        const v = new Date(r.vence_at);
+        const hora = v.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+        const hoy = v.toDateString() === new Date().toDateString();
+        msg = msg.replace(/\{CUPON\}/g, r.codigo).replace(/\{VENCE\}/g, hoy ? `hasta hoy a las ${hora}` : `hasta mañana a las ${hora}`);
+      }
+      await api.marcarCarritoContactado(c.id).catch(() => {});
+      const url = `https://wa.me/${waIntl(tel)}?text=${encodeURIComponent(msg)}`;
+      if (ventana) { ventana.location.href = url; onEnviado(); }
+      else { setLinkWa(url); }
+    } catch (e) { if (ventana) ventana.close(); toast(e.message, 'error'); }
+    setEnviando(false);
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="modal-header"><span className="modal-title">Mensaje para {c.usuario_nombre || c.telefono || 'el cliente'}</span><button className="modal-close" onClick={onClose} aria-label="Cerrar"><X size={18} /></button></div>
+        <div className="modal-body">
+          <div className="ca-estilos" role="radiogroup" aria-label="Estilo del mensaje">
+            {ESTILOS_MSJ.map(e => <button key={e.id} type="button" role="radio" aria-checked={estilo === e.id} className={estilo === e.id ? 'on' : ''} onClick={() => setEstilo(e.id)}><b>{e.label}</b><small>{e.desc}</small></button>)}
+          </div>
+          {estilo === 'cupon' && (
+            <div className="ca-cupon-opc">
+              <label>Descuento<span><input type="number" min="1" max="50" step="0.5" value={pct} onChange={e => setPct(e.target.value)} /> %</span></label>
+              <label>Vence en<select value={horas} onChange={e => setHoras(Number(e.target.value))}>{[1, 2, 3, 6, 12, 24].map(h => <option key={h} value={h}>{h === 1 ? '1 hora' : `${h} horas`}</option>)}</select></label>
+              <small>Se crea un código único, de un solo uso y solo para este cliente. Se aplica solo al abrir el link.</small>
+            </div>
+          )}
+          {conLink ? <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, margin: '10px 0' }}><input type="checkbox" checked={incluirLink} onChange={e => setIncluirLink(e.target.checked)} /> Incluir link que le carga el carrito listo para pagar</label>
+            : <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '10px 0' }}>Este carrito es anterior a la mejora y no tiene el link para retomar la compra.</p>}
+          <label className="form-label">Mensaje (lo podés editar)</label>
+          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={11} style={{ width: '100%', fontSize: 13.5, lineHeight: 1.45 }} />
+          {estilo === 'cupon' && <small style={{ color: 'var(--text-muted)' }}>{'{CUPON}'} y {'{VENCE}'} se completan solos al enviar.</small>}
+          {linkWa && <a className="btn btn-success" style={{ width: '100%', marginTop: 12 }} href={linkWa} target="_blank" rel="noopener noreferrer" onClick={() => onEnviado()}><MessageCircle size={16} /> Abrir WhatsApp</a>}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          {!linkWa && <button className="btn btn-success" onClick={enviar} disabled={enviando}><MessageCircle size={16} /> {enviando ? 'Preparando…' : 'Enviar por WhatsApp'}</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
 function AdminCarritosAbandonados() {
   const { toast, secciones } = useContext(Ctx);
+  const [vista, setVista] = useState('pendientes');
   const [carritos, setCarritos] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState('todos');
-  const load = async () => { setLoading(true); try { setCarritos(await api.getCarritosAbandonados() || []); } catch (e) { toast(e.message, 'error'); } setLoading(false); };
-  useEffect(() => { load(); }, []);
+  const [sinContactar, setSinContactar] = useState(false);
+  const [busq, setBusq] = useState('');
+  const [orden, setOrden] = useState('recientes');
+  const [msj, setMsj] = useState(null);
+  const load = async (v = vista) => {
+    setLoading(true);
+    try { const [cs, st] = await Promise.all([api.getCarritosAbandonados(v === 'recuperados' ? 'recuperados' : ''), api.getCarritosStats().catch(() => null)]); setCarritos(cs || []); setStats(st); }
+    catch (e) { toast(e.message, 'error'); }
+    setLoading(false);
+  };
+  useEffect(() => { load(vista); }, [vista]);
 
   // Tiendas del carrito con su subtotal (los carritos viejos no guardaban la tienda de cada producto)
   const tiendasDe = (c) => {
@@ -10421,42 +10584,48 @@ function AdminCarritosAbandonados() {
     }
     return [...g.values()];
   };
-
-  const contactar = (c) => {
-    const tel = (c.telefono || '').replace(/\D/g, '');
-    if (!tel) { toast('Este carrito no tiene teléfono', 'warning'); return; }
-    const nombre = c.usuario_nombre ? ' ' + String(c.usuario_nombre).split(' ')[0] : '';
-    const items = (c.items || []).map(i => `• ${i.nombre || i.modelo} x${i.qty || i.cantidad || 1}`).join('\n');
-    const tiendas = tiendasDe(c);
-    const totalTxt = tiendas.length > 1 ? tiendas.map(t => `${t.nombre}: ${fmtARS(t.subtotal)}`).join('\n') + `\nTotal: ${fmtARS(c.total)}` : `Total: ${fmtARS(c.total)}`;
-    const tipos = tiposCliente(c);
-    let msg;
-    if (tipos.includes('mayorista')) msg = `Hola${nombre}, ¿cómo estás? Vimos que dejaste armado un pedido mayorista sin confirmar:\n${items}\n\n${totalTxt}\n\n¿Lo confirmamos así o querés cambiar algo? Cuando lo confirmes arrancamos con el armado.`;
-    else if (tipos.includes('revendedor')) msg = `Hola${nombre}, ¿cómo estás? Te quedó un pedido sin confirmar:\n${items}\n\n${totalTxt}\n\n¿Lo confirmamos? Si necesitás cambiar algo, avisame y lo ajustamos.`;
-    else msg = `¡Hola${nombre}! Vimos que dejaste productos en tu carrito:\n${items}\n\n${totalTxt}\n\n¿Querés que te ayudemos a completar la compra?`;
-    window.open(`https://wa.me/${waIntl(tel)}?text=${encodeURIComponent(msg)}`, '_blank');
-  };
   const recuperar = async (id) => { try { await api.recuperarCarrito(id); toast('Marcado como recuperado'); load(); } catch (e) { toast(e.message, 'error'); } };
   const borrar = async (id) => { if (!confirm('¿Eliminar este carrito?')) return; try { await api.deleteCarritoAbandonado(id); load(); } catch (e) { toast(e.message, 'error'); } };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>;
-
   const cuenta = (t) => carritos.filter(c => tiposCliente(c).includes(t)).length;
   const FILTROS = [['todos', 'Todos', carritos.length], ['mayorista', 'Mayoristas', cuenta('mayorista')], ['revendedor', 'Revendedores', cuenta('revendedor')], ['minorista', 'Minoristas', cuenta('minorista') + cuenta('sin_cuenta')]];
-  const lista = carritos.filter(c => filtro === 'todos' || (filtro === 'minorista' ? tiposCliente(c).some(t => t === 'minorista' || t === 'sin_cuenta') : tiposCliente(c).includes(filtro)));
+  const q = busq.trim().toLowerCase();
+  let lista = carritos.filter(c => filtro === 'todos' || (filtro === 'minorista' ? tiposCliente(c).some(t => t === 'minorista' || t === 'sin_cuenta') : tiposCliente(c).includes(filtro)));
+  if (sinContactar && vista === 'pendientes') lista = lista.filter(c => !c.contactado_at);
+  if (q) lista = lista.filter(c => [c.usuario_nombre, c.usuario_fantasia, c.telefono, c.email, ...(c.items || []).map(i => i.nombre)].some(x => String(x || '').toLowerCase().includes(q)));
+  lista = [...lista].sort((a, b) => orden === 'monto' ? (Number(b.total) || 0) - (Number(a.total) || 0) : orden === 'antiguos' ? new Date(a.created_at) - new Date(b.created_at) : 0);
   const enJuego = lista.reduce((a, c) => a + (Number(c.total) || 0), 0);
+  const POR = { contacto: 'Lo contactaste', manual: 'Marcado a mano', solo: 'Compró por su cuenta' };
 
   return (
     <div style={{ maxWidth: 900 }}>
-      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Carritos abandonados ({carritos.length})</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Clientes que agregaron productos pero no completaron la compra. Contactalos por WhatsApp para recuperar la venta.</p>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Carritos abandonados</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Clientes que agregaron productos pero no completaron la compra. Contactalos por WhatsApp para recuperar la venta. Cuando el cliente compra, el carrito pasa solo a Recuperados.</p>
+      {stats && (
+        <div className="ca-stats">
+          <div><small>Dejados · 30 días</small><b>{stats.dejados}</b><span>{fmtARS(stats.monto_dejado)}</span></div>
+          <div><small>Recuperados</small><b>{stats.recuperados}</b><span>{fmtARS(stats.monto_recuperado)}</span></div>
+          <div><small>Recuperación</small><b>{stats.tasa}%</b><span>{stats.compraron_solos ? `${stats.compraron_solos} compraron solos` : 'de los dejados'}</span></div>
+          <div><small>Sin contactar</small><b>{stats.sin_contactar}</b><span>pendientes</span></div>
+        </div>
+      )}
+      <div className="admin-subtabs" style={{ marginBottom: 10 }}>
+        <button className={`admin-subtab ${vista === 'pendientes' ? 'active' : ''}`} onClick={() => setVista('pendientes')}>Pendientes</button>
+        <button className={`admin-subtab ${vista === 'recuperados' ? 'active' : ''}`} onClick={() => setVista('recuperados')}>Recuperados</button>
+      </div>
       <div className="ca-filtros" role="group" aria-label="Tipo de cliente">
         {FILTROS.map(([id, lbl, n]) => <button key={id} className={filtro === id ? 'on' : ''} onClick={() => setFiltro(id)}>{lbl} <span>{n}</span></button>)}
+        {vista === 'pendientes' && <button className={sinContactar ? 'on' : ''} onClick={() => setSinContactar(!sinContactar)}>Sin contactar <span>{carritos.filter(c => !c.contactado_at).length}</span></button>}
       </div>
-      {lista.length > 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>{lista.length} {lista.length === 1 ? 'carrito' : 'carritos'} · <b style={{ color: 'var(--text)' }}>{fmtARS(enJuego)}</b> en juego</p>}
-
-      {lista.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>{carritos.length ? 'No hay carritos de este tipo' : 'No hay carritos abandonados'}</p> : lista.map(c => {
+      <div className="ca-tools">
+        <label className="ca-buscar"><Search size={16} /><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Buscar</span><input value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar cliente, teléfono o producto" /></label>
+        <select value={orden} onChange={e => setOrden(e.target.value)} aria-label="Ordenar"><option value="recientes">Más recientes</option><option value="monto">Mayor monto</option><option value="antiguos">Más antiguos</option></select>
+      </div>
+      {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div> : <>
+      {lista.length > 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>{lista.length} {lista.length === 1 ? 'carrito' : 'carritos'} · <b style={{ color: 'var(--text)' }}>{fmtARS(vista === 'recuperados' ? lista.reduce((a, c) => a + (Number(c.monto_recuperado) || Number(c.total) || 0), 0) : enJuego)}</b> {vista === 'recuperados' ? 'recuperados' : 'en juego'}</p>}
+      {lista.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>{carritos.length ? 'No hay carritos con este filtro' : vista === 'recuperados' ? 'Todavía no hay carritos recuperados' : 'No hay carritos abandonados'}</p> : lista.map(c => {
         const tiendas = tiendasDe(c);
+        const cuponVivo = c.cupon_codigo && c.cupon_vence && new Date(c.cupon_vence) > new Date();
         return (
           <div key={c.id} className="card" style={{ padding: 14, marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
@@ -10467,21 +10636,35 @@ function AdminCarritosAbandonados() {
                   {tiposCliente(c).map(t => <span key={t} className={`ca-tipo ca-${t}`}>{TIPO_CLI[t]}</span>)}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(c.created_at).toLocaleString('es-AR')} · {(c.items || []).length} productos</div>
+                {vista === 'pendientes' && (
+                  <div className="ca-seguimiento">
+                    {c.contactado_at ? <span className="ok"><Check size={12} /> Contactado {haceTxt(c.contactado_at)}{c.contactos > 1 ? ` (${c.contactos} veces)` : ''}</span> : <span>Sin contactar</span>}
+                    {cuponVivo && <span className="cup"><Tag size={12} /> Cupón {c.cupon_codigo} · vence en {faltaTxt(c.cupon_vence)}</span>}
+                    {c.cupon_codigo && !cuponVivo && <span>Cupón {c.cupon_codigo} vencido</span>}
+                  </div>
+                )}
+                {vista === 'recuperados' && (
+                  <div className="ca-seguimiento"><span className={c.recuperado_por === 'solo' ? '' : 'ok'}><Check size={12} /> {POR[c.recuperado_por] || 'Recuperado'}{c.recuperado_at ? ` · ${new Date(c.recuperado_at).toLocaleDateString('es-AR')}` : ''}{Number(c.monto_recuperado) > 0 ? ` · compró ${fmtARS(c.monto_recuperado)}` : ''}{c.pedido_id ? ` · pedido #${String(c.pedido_id).padStart(4, '0')}` : ''}</span></div>
+                )}
                 {tiendas.length > 0 && <div className="ca-tiendas">{tiendas.map(t => <span key={t.id || t.nombre}><Store size={12} /> {t.nombre}{tiendas.length > 1 ? ` · ${fmtARS(t.subtotal)}` : ''}</span>)}</div>}
                 <div className="itp-lista">{(c.items || []).slice(0, 6).map((i, k) => <ItemProd key={k} id={i.producto_id || i.id} nombre={i.nombre || i.modelo} imagen={i.imagen} sub={`x${i.qty || i.cantidad || 1}`} tam={32} />)}{(c.items || []).length > 6 ? <small>y {(c.items || []).length - 6} más…</small> : null}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{fmtARS(c.total)}</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button className="btn btn-success btn-sm" onClick={() => contactar(c)}><MessageCircle size={14} /> WhatsApp</button>
-                  <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}><Check size={14} /> Recuperado</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)} aria-label="Eliminar carrito"><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
-                </div>
+                {vista === 'pendientes' && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <button className="btn btn-success btn-sm" onClick={() => setMsj(c)}><MessageCircle size={14} /> WhatsApp</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => recuperar(c.id)}><Check size={14} /> Recuperado</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => borrar(c.id)} aria-label="Eliminar carrito"><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         );
       })}
+      </>}
+      {msj && <MensajeCarritoModal c={msj} tiendas={tiendasDe(msj)} onClose={() => setMsj(null)} onEnviado={() => { setMsj(null); toast('Mensaje listo en WhatsApp'); load(); }} />}
     </div>
   );
 }

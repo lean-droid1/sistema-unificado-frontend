@@ -324,7 +324,10 @@ export async function getNotificacionesStock() { return f('/api/notificaciones-s
 export async function avisarNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}/avisar`, { method: 'POST' }); }
 export async function deleteNotificacionStock(id) { return f(`/api/notificaciones-stock/${id}`, { method: 'DELETE' }); }
 export async function crearCarritoAbandonado(data) { return f('/api/carritos-abandonados', { method: 'POST', body: JSON.stringify(data) }); }
-export async function getCarritosAbandonados() { return f('/api/carritos-abandonados'); }
+export async function getCarritosAbandonados(estado) { return f(`/api/carritos-abandonados${estado ? `?estado=${estado}` : ''}`); }
+export async function getCarritosStats() { return f('/api/carritos-abandonados/stats'); }
+export async function marcarCarritoContactado(id) { return f(`/api/carritos-abandonados/${id}/contactado`, { method: 'POST' }); }
+export async function crearCuponCarrito(id, porcentaje, horas) { return f(`/api/carritos-abandonados/${id}/cupon`, { method: 'POST', body: JSON.stringify({ porcentaje, horas }) }); }
 export async function recuperarCarrito(id) { return f(`/api/carritos-abandonados/${id}/recuperar`, { method: 'POST' }); }
 export async function deleteCarritoAbandonado(id) { return f(`/api/carritos-abandonados/${id}`, { method: 'DELETE' }); }
 export async function guardarCarritoAbandonado(data) { return f('/api/carritos-abandonados', { method: 'POST', body: JSON.stringify(data) }); }
