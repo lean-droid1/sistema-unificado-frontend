@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, createContext, useCo
 import { createPortal } from 'react-dom';
 import * as api from './api';
 import { trackBusqueda } from './tracker';
-import { ChevronDown, SlidersHorizontal, Check, Store, Search, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -114,7 +114,7 @@ const resumenDesc = (s, max = 160) => {
 };
 
 // ─── ROUTING: URLs reales (SEO + compartir + back-button) ───
-const RUTAS_RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const RUTAS_RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'arrepentimiento', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-+$/, '');
 const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id); // páginas informativas: /info/<slug>
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
@@ -130,6 +130,7 @@ function buildPath(page, o = {}) {
   else if (page === 'cart') base = '/carrito';
   else if (page === 'favoritos') base = '/favoritos';
   else if (page === 'contacto') base = '/contacto';
+  else if (page === 'arrepentimiento') base = '/arrepentimiento';
   else if (page === 'info') base = '/info' + (info ? '/' + info : '');
   else if (page === 'categoria' && cat) base = '/categoria/' + cat;
   else if (page === 'account') base = '/mi-cuenta';
@@ -152,6 +153,7 @@ function parsePath(pathname, search, secciones = []) {
   if (a === 'carrito') return { page: 'cart' };
   if (a === 'favoritos') return { page: 'favoritos' };
   if (a === 'contacto') return { page: 'contacto' };
+  if (a === 'arrepentimiento') return { page: 'arrepentimiento' };
   if (a === 'info') return { page: 'info', info: parts[1] || '' };
   if (a === 'categoria' && parts[1]) return { page: 'categoria', cat: parts[1] };
   if (a === 'mi-cuenta') return { page: 'account' };
@@ -606,7 +608,7 @@ export default function App() {
       if (params.get('producto') || params.get('buscar')) return 'landing';
       // Ruta real (path): resolver páginas estáticas al toque; producto/búsqueda/sección se cargan en el init async
       const r = parsePath(window.location.pathname, window.location.search, []);
-      if (['cart', 'favoritos', 'contacto', 'info', 'categoria', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
+      if (['cart', 'favoritos', 'contacto', 'arrepentimiento', 'info', 'categoria', 'account', 'admin', 'login', 'register', 'forgot'].includes(r.page)) return r.page;
       if (r.page === 'product' || r.page === 'search') return 'landing';
     }
     // Búsqueda/producto/sección dependen de la URL: sin ella se abría una búsqueda vacía al entrar al inicio
@@ -1211,6 +1213,7 @@ export default function App() {
       case 'info': return <InfoPage />;
       case 'categoria': return <CategoriaPage />;
       case 'contacto': return <ContactoPage />;
+      case 'arrepentimiento': return <ArrepentimientoPage />;
       case 'favoritos': return user ? <FavoritosPage /> : <LoginPage />;
       case 'search': return <SearchResultsPage />;
       case 'maintenance': return <MaintenancePage />;
@@ -1619,6 +1622,9 @@ function Footer() {
             {activas.map(r => <a key={r.id || r.tipo} href={urlSegura(r.url) || undefined} target="_blank" rel="noopener" style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><RedIcon tipo={redIconTipo(r.tipo)} s={16} /> <span>{RED_LABELS[r.tipo] || r.tipo.replace(/_/g, ' ')}</span></a>)}
           </div>
         )}
+        <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
+          <a href="/arrepentimiento" onClick={e => { e.preventDefault(); nav('arrepentimiento'); }} className="btn-arrepentimiento"><Undo2 size={15} /> Botón de arrepentimiento</a>
+        </div>
         <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>{design.footer_texto || `© ${new Date().getFullYear()} ${design.nombre_tienda || ''} — Todos los derechos reservados`}</p>
         {!miPlan?.features?.ocultar_marca && (
           <div style={{ textAlign: 'center', marginTop: 10 }}>
@@ -3712,7 +3718,45 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
 }
 
 // Pantalla de éxito post-checkout: número de pedido grande + botón para enviar el pedido por WhatsApp
+// GTIN/EAN válido (8, 12, 13 o 14 dígitos con dígito verificador GS1)
+const gtinValido = (g) => {
+  const x = String(g || '');
+  if (!/^\d+$/.test(x) || ![8, 12, 13, 14].includes(x.length)) return false;
+  const d = x.split('').map(Number); const ver = d.pop();
+  const suma = d.reverse().reduce((a, n, i) => a + n * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (suma % 10)) % 10 === ver;
+};
+// Fecha (AAAA-MM-DD) sumando días hábiles desde hoy
+const fechaHabiles = (n) => {
+  const d = new Date(); let k = 0;
+  while (k < n) { d.setDate(d.getDate() + 1); const w = d.getDay(); if (w !== 0 && w !== 6) k++; }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+// Reseñas de Clientes en Google: después de comprar, Google ofrece al cliente una encuesta (le llega por mail después de la entrega)
+function useEncuestaGoogle(exito, config) {
+  const hecho = useRef(false);
+  useEffect(() => {
+    const mid = String(config?.google_merchant_id || '').replace(/\D/g, '');
+    if (hecho.current || !mid || !exito?.email || exito.test || !(exito.nums || []).length) return;
+    hecho.current = true;
+    const dias = exito.mayorista ? 7 : exito.entrega === 'retiro' ? 2 : 5;
+    const datos = {
+      merchant_id: Number(mid), order_id: exito.nums.join('-'), email: exito.email,
+      delivery_country: 'AR', estimated_delivery_date: fechaHabiles(dias),
+      ...(exito.gtins && exito.gtins.length ? { products: exito.gtins.map(g => ({ gtin: g })) } : {}),
+    };
+    window.renderOptIn = () => { try { window.gapi.load('surveyoptin', () => window.gapi.surveyoptin.render(datos)); } catch {} };
+    if (window.gapi && window.gapi.load) { window.renderOptIn(); return; }
+    if (!document.getElementById('gcr-platform')) {
+      const sc = document.createElement('script'); sc.id = 'gcr-platform'; sc.async = true; sc.defer = true;
+      sc.src = 'https://apis.google.com/js/platform.js?onload=renderOptIn';
+      document.body.appendChild(sc);
+    }
+  }, []);
+}
+
 function PedidoExitoModal({ exito, config, onClose }) {
+  useEncuestaGoogle(exito, config);
   const nums = exito.nums || [];
   const numStr = nums.map(n => `#${String(n).padStart(4, '0')}`).join(', ');
   const wa = waIntl(config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '');
@@ -3923,7 +3967,11 @@ function CartPage() {
       seccionesConItems.forEach(sec => clearCart(sec.id));
       try { localStorage.removeItem('gm_cupon_pend'); } catch {}
       setShowCheckout(false);
-      setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {} });
+      setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {},
+        // Para la encuesta de Reseñas de Clientes en Google
+        email: (dc.contacto && dc.contacto.email) || user?.email || '', entrega: entregaTipo, test: !!testMode,
+        mayorista: seccionesConItems.some(sec => sec.requiere_aprobacion),
+        gtins: Array.from(new Set(allItems.map(i => String(i.codigo_barras || '').trim()).filter(gtinValido))) });
     } catch (e) { toast(e.message, 'error'); throw e; }
   };
 
@@ -5088,6 +5136,9 @@ function AccountPanel() {
               )}
               {viewDetail.estado_pago === 'pagado' && <div style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 700, background: 'var(--border-light)', padding: 8, borderRadius: 8 }}>✓ Pagado completo</div>}
               {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /> {viewDetail.notas}</div>}
+              {viewDetail.tipo !== 'presupuesto' && viewDetail.estado !== 'cancelado' && (
+                <button className="link-btn" style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }} onClick={() => { try { sessionStorage.setItem('gm_arrep_pedido', String(viewDetail.id)); } catch {} setViewDetail(null); nav('arrepentimiento'); }}><Undo2 size={14} /> Arrepentirme de esta compra</button>
+              )}
             </div>
           </div>
         </div>
@@ -5167,7 +5218,7 @@ function AdminPanel() {
   // Mapa tab → permiso requerido
   const tabPerm = {
     dashboard: 'stats',
-    pedidos: 'pedidos', presupuestos: 'pedidos', reglas_compra: 'pedidos',
+    pedidos: 'pedidos', presupuestos: 'pedidos', reglas_compra: 'pedidos', arrepentimientos: 'pedidos',
     venta_manual: 'pedidos', ordenes_compra: 'pedidos', caja: 'stats',
     cupones: 'config', promociones: 'config', carritos: 'stats', reportes: 'stats',
     leads: 'stats', analytics: 'config',
@@ -5186,6 +5237,7 @@ function AdminPanel() {
     { id: 'inicio', label: 'Inicio', icon: 'chart', single: 'dashboard' },
     { id: 'ventas', label: 'Ventas', icon: 'receipt', items: [
       { id: 'pedidos', label: 'Pedidos' },
+      { id: 'arrepentimientos', label: 'Arrepentimientos' },
       { id: 'presupuestos', label: 'Presupuestos' },
       { id: 'venta_manual', label: 'Punto de venta' },
       { id: 'caja', label: 'Caja / Arqueo' },
@@ -5341,6 +5393,7 @@ function AdminPanel() {
         {adminTab === 'cupones' && <AdminCupones />}
         {adminTab === 'promociones' && <AdminPromociones />}
         {adminTab === 'carritos' && <AdminCarritosAbandonados />}
+        {adminTab === 'arrepentimientos' && <AdminArrepentimientos />}
         {adminTab === 'reportes' && <AdminReportes />}
         {adminTab === 'caja' && <AdminCaja />}
         {adminTab === 'metodos_pago' && <AdminMetodosPago />}
@@ -5473,6 +5526,7 @@ function AdminAnalytics() {
   const [pixelId, setPixelId] = useState(config.fb_pixel_id || '');
   const [clarityId, setClarityId] = useState(config.clarity_id || '');
   const [gscArchivo, setGscArchivo] = useState(config.gsc_archivo || '');
+  const [merchantId, setMerchantId] = useState(config.google_merchant_id || '');
   const [saving, setSaving] = useState(false);
 
   const guardar = async () => {
@@ -5480,7 +5534,7 @@ function AdminAnalytics() {
     try {
       // Search Console: aceptamos el nombre del archivo, el link entero o solo "googleXXXX"
       const mg = gscArchivo.trim().toLowerCase().match(/google[a-z0-9]{6,64}/);
-      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, ''), gsc_archivo: mg ? mg[0] + '.html' : '' };
+      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, ''), gsc_archivo: mg ? mg[0] + '.html' : '', google_merchant_id: merchantId.replace(/\D/g, '') };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
       setGscArchivo(upd.gsc_archivo);
@@ -5523,6 +5577,14 @@ function AdminAnalytics() {
           <label className="form-label">Google Search Console — archivo de verificación</label>
           <input value={gscArchivo} onChange={e => setGscArchivo(e.target.value)} placeholder="google1a2b3c4d5e6f7a8b.html" />
           <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Para aparecer en Google. En Search Console → Prefijo de URL → método "Archivo HTML": copiá solo el nombre del archivo (no hace falta descargarlo), pegalo acá, guardá y tocá "Verificar".</small>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Reseñas de Clientes en Google — ID de comerciante</label>
+          <input value={merchantId} onChange={e => setMerchantId(e.target.value)} placeholder="1234567890" inputMode="numeric" />
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>El número de tu cuenta de Merchant Center. Al terminar una compra, Google le ofrece al cliente una encuesta para calificar tu tienda (llega por mail después de la fecha de entrega). En los pedidos de prueba no aparece.</small>
         </div>
       </div>
 
@@ -9633,7 +9695,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           {/* Items */}
           <h4>Items {!editing && <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} style={{ marginLeft: 8 }}>Editar</button>}</h4>
           {loadingItems ? <p>Cargando...</p> : (
-            <table className="admin-table" style={{ marginBottom: 12 }}>
+            <table className="admin-table pedido-items" style={{ marginBottom: 12 }}>
               <thead><tr><th>Producto</th><th style={{width:60}}>Cant</th><th style={{width:80}}>Precio</th><th style={{width:80}}>Subtotal</th>{editing && <th style={{width:40}}></th>}</tr></thead>
               <tbody>
                 {items.map((i, idx) => (
@@ -10551,6 +10613,117 @@ function MensajeCarritoModal({ c, tiendas, onClose, onEnviado }) {
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════
+// BOTÓN DE ARREPENTIMIENTO (Ley 24.240 art. 34 / Res. 424/2020)
+// ═══════════════════════════════════════════════════════════
+function ArrepentimientoPage() {
+  const { user, nav, design, config, toast } = useContext(Ctx);
+  const tienda = design.nombre_tienda || config.nombre_negocio || 'la tienda';
+  const [f, setF] = useState(() => {
+    let pedido = '';
+    try { pedido = sessionStorage.getItem('gm_arrep_pedido') || new URLSearchParams(window.location.search).get('pedido') || ''; sessionStorage.removeItem('gm_arrep_pedido'); } catch {}
+    return { nombre: user?.nombre || '', email: user?.email || '', telefono: user?.telefono || '', dni: '', pedido: String(pedido).replace(/\D/g, ''), detalle: '' };
+  });
+  const [enviando, setEnviando] = useState(false);
+  const [listo, setListo] = useState(null);
+  const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
+  const enviar = async (e) => {
+    e.preventDefault();
+    if (f.nombre.trim().length < 2) { toast('Escribí tu nombre y apellido', 'error'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) { toast('Escribí un email válido: ahí te mandamos el código', 'error'); return; }
+    setEnviando(true);
+    try { const r = await api.enviarArrepentimiento(f); setListo({ ...r, email: f.email.trim() }); window.scrollTo(0, 0); }
+    catch (err) { toast(err.message, 'error'); }
+    setEnviando(false);
+  };
+  if (listo) return (
+    <div className="arrep">
+      <div className="card arrep-card" style={{ textAlign: 'center' }}>
+        <CheckCircle size={46} color="var(--success, #16a34a)" style={{ display: 'inline-block' }} />
+        <h1 className="arrep-titulo" style={{ justifyContent: 'center' }}>Recibimos tu solicitud</h1>
+        <p className="arrep-txt">Este es tu código de identificación de la revocación. Guardalo: lo vas a necesitar para seguir el trámite.</p>
+        <div className="arrep-codigo">{listo.codigo}</div>
+        <p className="arrep-txt">Fecha: {listo.fecha}. También te lo mandamos a <b>{listo.email}</b>. Nos vamos a comunicar con vos para coordinar la devolución y el reintegro.</p>
+        <button className="btn btn-outline" style={{ width: '100%', marginTop: 8 }} onClick={() => nav('landing')}>Volver a la tienda</button>
+      </div>
+    </div>
+  );
+  return (
+    <div className="arrep">
+      <div className="card arrep-card">
+        <h1 className="arrep-titulo"><Undo2 size={22} /> Botón de arrepentimiento</h1>
+        <p className="arrep-txt">Si compraste en {tienda}, tenés <b>10 días corridos</b> desde que recibiste el producto (o desde la compra, lo que ocurra último) para revocarla, sin dar explicaciones. No hace falta tener cuenta. Los gastos de devolución corren por cuenta de la tienda.</p>
+        <p className="arrep-txt">Completá el formulario y te damos al instante un código de identificación de tu solicitud.</p>
+        <form onSubmit={enviar}>
+          <div className="form-group"><label className="form-label">Nombre y apellido *</label><input value={f.nombre} onChange={set('nombre')} autoComplete="name" required /></div>
+          <div className="form-group"><label className="form-label">Email *</label><input type="email" value={f.email} onChange={set('email')} autoComplete="email" required /></div>
+          <div className="arrep-fila">
+            <div className="form-group"><label className="form-label">Teléfono</label><input value={f.telefono} onChange={set('telefono')} inputMode="tel" autoComplete="tel" /></div>
+            <div className="form-group"><label className="form-label">DNI</label><input value={f.dni} onChange={set('dni')} inputMode="numeric" /></div>
+          </div>
+          <div className="form-group"><label className="form-label">Número de pedido</label><input value={f.pedido} onChange={set('pedido')} inputMode="numeric" placeholder="Ej: 6021" /><small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Está en el mail de la compra. Si no lo tenés, dejalo vacío y contanos qué compraste abajo.</small></div>
+          <div className="form-group"><label className="form-label">Comentario (opcional)</label><textarea value={f.detalle} onChange={set('detalle')} rows={3} style={{ width: '100%' }} placeholder="Qué producto querés devolver" /></div>
+          <button className="btn btn-primary" type="submit" disabled={enviando} style={{ width: '100%', padding: 14, fontWeight: 800 }}>{enviando ? 'Enviando…' : 'Enviar solicitud de arrepentimiento'}</button>
+        </form>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, lineHeight: 1.5 }}>Ley 24.240 de Defensa del Consumidor (art. 34) y Resolución 424/2020 de la Secretaría de Comercio Interior.</p>
+      </div>
+    </div>
+  );
+}
+
+const ARREP_ESTADOS = { pendiente: 'Pendiente', en_proceso: 'En proceso', resuelta: 'Resuelta', rechazada: 'Rechazada' };
+function AdminArrepentimientos() {
+  const { toast } = useContext(Ctx);
+  const [lista, setLista] = useState(null);
+  const [vista, setVista] = useState('abiertas');
+  const [notas, setNotas] = useState({});
+  const cargar = () => api.getArrepentimientos().then(r => setLista(Array.isArray(r) ? r : [])).catch(e => { toast(e.message, 'error'); setLista([]); });
+  useEffect(() => { cargar(); }, []);
+  const cambiar = async (a, estado) => { try { await api.updateArrepentimiento(a.id, { estado }); toast('Actualizado'); cargar(); } catch (e) { toast(e.message, 'error'); } };
+  const guardarNota = async (a) => { const nota = notas[a.id]; if (nota === undefined || nota === (a.nota_admin || '')) return; try { await api.updateArrepentimiento(a.id, { estado: a.estado, nota_admin: nota }); toast('Nota guardada'); cargar(); } catch (e) { toast(e.message, 'error'); } };
+  if (!lista) return <div className="spinner" />;
+  const abiertas = lista.filter(a => a.estado === 'pendiente' || a.estado === 'en_proceso');
+  const ver = vista === 'abiertas' ? abiertas : lista;
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h2 style={{ fontWeight: 900, fontSize: 22, margin: '0 0 6px' }}>Arrepentimientos</h2>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>Solicitudes del Botón de arrepentimiento de la tienda. El cliente ya recibió su código por mail; comunicate para coordinar la devolución y el reintegro. Tiene 10 días corridos desde que recibió el producto.</p>
+      <div className="ca-filtros" style={{ marginBottom: 12 }}>
+        <button className={vista === 'abiertas' ? 'on' : ''} onClick={() => setVista('abiertas')}>Abiertas <span>{abiertas.length}</span></button>
+        <button className={vista === 'todas' ? 'on' : ''} onClick={() => setVista('todas')}>Todas <span>{lista.length}</span></button>
+      </div>
+      {ver.length === 0 && <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{vista === 'abiertas' ? 'No hay solicitudes abiertas.' : 'Todavía no hay solicitudes.'}</div>}
+      {ver.map(a => {
+        const tel = waIntl(a.telefono || '');
+        return (
+          <div key={a.id} className="card arrep-item">
+            <div className="arrep-item-top">
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: '.03em' }}>{a.codigo}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{new Date(a.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} · {haceTxt(a.created_at)}</div>
+              </div>
+              <select value={a.estado} onChange={e => cambiar(a, e.target.value)} className={`arrep-estado ${a.estado}`}>
+                {Object.entries(ARREP_ESTADOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div className="arrep-datos">
+              <div><b>{a.nombre}</b>{a.dni ? ` · DNI ${a.dni}` : ''}</div>
+              <div>{a.email}{a.telefono ? ` · ${a.telefono}` : ''}</div>
+              {a.pedido && <div>Pedido <b>#{a.pedido}</b>{a.pedido_id ? (a.pedido_total ? ` · ${fmtARS(a.pedido_total)} · ${a.pedido_estado || ''}` : '') : <span style={{ color: 'var(--danger)' }}> · no coincide con sus datos, revisalo</span>}</div>}
+              {a.detalle && <div className="arrep-detalle">{a.detalle}</div>}
+            </div>
+            <textarea className="arrep-nota" rows={2} placeholder="Nota interna (qué se acordó, reintegro, etc.)" value={notas[a.id] ?? a.nota_admin ?? ''} onChange={e => setNotas(n => ({ ...n, [a.id]: e.target.value }))} onBlur={() => guardarNota(a)} />
+            <div className="arrep-acciones">
+              {tel && <a className="btn btn-success btn-sm" href={`https://wa.me/${tel}?text=${encodeURIComponent(`Hola ${String(a.nombre || '').split(' ')[0]}, te escribimos por tu solicitud de arrepentimiento ${a.codigo}.`)}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} /> WhatsApp</a>}
+              {a.email && <a className="btn btn-outline btn-sm" href={`mailto:${a.email}?subject=${encodeURIComponent(`Tu solicitud de arrepentimiento ${a.codigo}`)}`}><Mail size={15} /> Email</a>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AdminCarritosAbandonados() {
   const { toast, secciones } = useContext(Ctx);
   const [vista, setVista] = useState('pendientes');

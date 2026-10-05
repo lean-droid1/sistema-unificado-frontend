@@ -1835,3 +1835,35 @@ h1, h2, .sec-title, .pdp-title, .cat-h1, .cart-title, .hero-slide-title, .landin
 .ca-cupon-opc input{width:80px}
 .ca-cupon-opc select{width:auto}
 .ca-cupon-opc small{flex-basis:100%;font-size:11.5px;color:var(--text-muted)}
+
+/* Botón de arrepentimiento */
+.btn-arrepentimiento { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: 1.5px solid var(--border); border-radius: 999px; color: var(--text); font-weight: 700; font-size: 13px; text-decoration: none; background: var(--bg); }
+.btn-arrepentimiento:hover { border-color: var(--primary); color: var(--primary); }
+.arrep { max-width: 560px; margin: 32px auto; padding: 0 16px; }
+.arrep-card { padding: 24px; border-radius: 18px; }
+.arrep-titulo { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 900; margin: 6px 0 10px; }
+.arrep-txt { font-size: 14px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 12px; }
+.arrep-codigo { font-size: 26px; font-weight: 900; letter-spacing: .06em; background: var(--bg-secondary, var(--border-light)); border-radius: 12px; padding: 14px; margin: 6px 0 14px; user-select: all; }
+.arrep-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.arrep-fila .form-group { min-width: 0; }
+@media (max-width: 420px) { .arrep-fila { grid-template-columns: 1fr; gap: 0; } }
+.arrep-item { padding: 14px 16px; margin-bottom: 10px; border-radius: 14px; }
+.arrep-item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.arrep-estado { width: auto; min-width: 128px; font-weight: 700; font-size: 13px; padding: 6px 10px; border-radius: 10px; }
+.arrep-estado.pendiente { border-color: var(--accent, #f59e0b); }
+.arrep-estado.resuelta { border-color: var(--success, #16a34a); }
+.arrep-datos { font-size: 13px; color: var(--text-secondary); line-height: 1.6; overflow-wrap: anywhere; }
+.arrep-detalle { margin-top: 6px; padding: 8px 10px; background: var(--bg-secondary, var(--border-light)); border-radius: 8px; color: var(--text); }
+.arrep-nota { width: 100%; margin-top: 10px; font-size: 13px; }
+.arrep-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* Detalle del pedido en el celular: los ítems pasan de tabla a filas apiladas (sin cortar el subtotal) */
+@media (max-width: 600px) {
+  .pedido-items thead { display: none; }
+  .pedido-items, .pedido-items tbody { display: block !important; width: 100%; }
+  .pedido-items tr { display: grid !important; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .pedido-items td { display: block !important; padding: 0 !important; border: 0 !important; min-width: 0; white-space: normal !important; }
+  .pedido-items td:nth-child(1) { grid-column: 1 / -1; }
+  .pedido-items td:nth-child(2)::before { content: 'x'; color: var(--text-muted); }
+  .pedido-items td:nth-child(4) { text-align: right; font-weight: 800; }
+}

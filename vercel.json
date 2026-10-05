@@ -17,11 +17,11 @@
       "destination": "/api/seo?tipo=google&f=:archivo"
     },
     {
-      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar)",
+      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar|arrepentimiento)",
       "destination": "/index.html"
     },
     {
-      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar)/:resto*",
+      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar|arrepentimiento)/:resto*",
       "destination": "/index.html"
     },
     {

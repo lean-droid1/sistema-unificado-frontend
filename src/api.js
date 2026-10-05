@@ -371,3 +371,7 @@ export function trackEvento(data) {
     fetch(`${BASE}/api/track`, { method: 'POST', headers, body: JSON.stringify(data), keepalive: true }).catch(() => {});
   } catch { /* nada */ }
 }
+// Botón de arrepentimiento
+export async function enviarArrepentimiento(data) { return f('/api/arrepentimiento', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getArrepentimientos() { return f('/api/arrepentimientos'); }
+export async function updateArrepentimiento(id, data) { return f(`/api/arrepentimientos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
