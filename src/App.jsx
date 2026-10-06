@@ -5133,9 +5133,6 @@ function AccountPanel() {
               )}
               {viewDetail.estado_pago === 'pagado' && <div style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 700, background: 'var(--border-light)', padding: 8, borderRadius: 8 }}>✓ Pagado completo</div>}
               {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /> {viewDetail.notas}</div>}
-              {viewDetail.tipo !== 'presupuesto' && viewDetail.estado !== 'cancelado' && (
-                <button className="link-btn" style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }} onClick={() => { try { sessionStorage.setItem('gm_arrep_pedido', String(viewDetail.id)); } catch {} setViewDetail(null); nav('arrepentimiento'); }}><Undo2 size={14} /> Arrepentirme de esta compra</button>
-              )}
             </div>
           </div>
         </div>
