@@ -84,7 +84,8 @@ export async function logout() { await f('/api/logout', { method: 'POST' }).catc
 export async function login(usuario, password, otp_code) { const data = await f('/api/login', { method: 'POST', body: JSON.stringify({ usuario, password, otp_code }) }); if (data.token) { token = data.token; localStorage.setItem('gm_token', data.token); } return data; }
 export async function register(datos) { return f('/api/register', { method: 'POST', body: JSON.stringify(datos) }); }
 export async function getMe() { return f('/api/me'); }
-export async function updateMe(datos) { return f('/api/me', { method: 'PUT', body: JSON.stringify(datos) }); }
+// Al cambiar la contraseña el servidor cierra las otras sesiones y devuelve un token nuevo para esta
+export async function updateMe(datos) { const d = await f('/api/me', { method: 'PUT', body: JSON.stringify(datos) }); if (d && d.token) { setToken(d.token); delete d.token; } return d; }
 export async function forgotPassword(usuario) { return f('/api/forgot-password', { method: 'POST', body: JSON.stringify({ usuario }) }); }
 export async function resetPassword(codigo, nueva_password) { return f('/api/reset-password', { method: 'POST', body: JSON.stringify({ codigo, nueva_password }) }); }
 
