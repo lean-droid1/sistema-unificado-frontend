@@ -701,12 +701,12 @@ export default function App() {
     (async () => {
       try {
         const [secs, cfg, des, menu, redes, lsts, pf, plan] = await Promise.all([
-          api.getSecciones(), api.getConfig(), api.getDesign().catch(() => ({})),
+          api.getSecciones().catch(() => []), api.getConfig().catch(() => ({})), api.getDesign().catch(() => ({})),
           api.getMenu().catch(() => []), api.getRedesSociales().catch(() => []),
           api.getListas().catch(() => []), api.getPreciosFijos().catch(() => []),
           api.getMiPlan().catch(() => ({ plan: 'full', estado: 'activo', features: null }))
         ]);
-        setSecciones(secs); setConfig(cfg); setDesign(des);
+        setSecciones(Array.isArray(secs) ? secs : []); setConfig(cfg && typeof cfg === 'object' ? cfg : {}); setDesign(des);
         if (plan) setMiPlan(plan);
         applyDesignVars(des);
         setMenuItems(menu); setRedesSociales(redes);
@@ -1138,7 +1138,9 @@ export default function App() {
   if (enMantenimiento) return <MaintenanceBlock effectiveDark={effectiveDark} config={config} design={design} />;
 
   // Route
+  const tiendaSuspendida = ['suspendido', 'vencido'].includes(miPlan?.estado) && !user?.es_owner;
   const renderPage = () => {
+    if (tiendaSuspendida && !(['login', 'forgot'].includes(page) || (page === 'admin' && isAdmin))) return <TiendaNoDisponible />;
     switch (page) {
       case 'section': return seccionActual ? <SectionPage /> : <Landing />;
       case 'product': return selectedProduct ? <ProductDetailPage /> : <Landing />;
@@ -4788,9 +4790,23 @@ function AccountPanel() {
 // ═══════════════════════════════════════════════════════════
 // ADMIN PANEL (with sidebar!)
 // ═══════════════════════════════════════════════════════════
+function TiendaNoDisponible() {
+  const { design } = useContext(Ctx);
+  return (
+    <div style={{ maxWidth: 480, margin: '64px auto', padding: '0 16px' }}>
+      <div className="card" style={{ padding: 36, textAlign: 'center' }}>
+        <div style={{ marginBottom: 12, color: 'var(--text-muted)' }}><Store size={44} /></div>
+        <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 10px' }}>{design?.nombre_tienda ? `${design.nombre_tienda} no está disponible` : 'Esta tienda no está disponible'}</h2>
+        <p style={{ fontSize: 15, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>Por el momento no está tomando pedidos. Volvé a intentar más tarde.</p>
+      </div>
+    </div>
+  );
+}
+
 function CuentaBloqueada({ estado }) {
-  const { handleLogout, config } = useContext(Ctx);
-  const wa = waIntl(config?.whatsapp || '');
+  const { handleLogout, config, miPlan } = useContext(Ctx);
+  // WhatsApp de ComerciApp para reactivar (antes usaba el de la propia tienda suspendida)
+  const wa = waIntl(miPlan?.soporte_whatsapp || config?.whatsapp || '');
   const esVencido = estado === 'vencido';
   const msg = encodeURIComponent('Hola, quiero reactivar mi tienda en ComerciApp.');
   return (
