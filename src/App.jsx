@@ -3123,9 +3123,9 @@ function EnvioCalculadorProducto({ producto, varianteId, qty }) {
   );
 }
 
-function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, onConfirm, onClose }) {
+function CheckoutModal({ user, cot: cotCarrito, entregaTipo, cp, metodos, config, testMode, onConfirm, onClose, recotizar }) {
   const { toast, secciones } = useContext(Ctx);
-  const secsAviso = (cot.secciones || []).map(cs => (secciones || []).find(x => String(x.id) === String(cs.seccion_id))).filter(x => x && avisoLineas(x).length);
+  const secsAviso = (cotCarrito.secciones || []).map(cs => (secciones || []).find(x => String(x.id) === String(cs.seccion_id))).filter(x => x && avisoLineas(x).length);
   const [aceptaAviso, setAceptaAviso] = useState(false);
   const [paso, setPaso] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -3137,6 +3137,18 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
   });
   const [metodoPago, setMetodoPago] = useState(metodos && metodos[0] ? (metodos[0].nombre || metodos[0]) : 'Transferencia');
   const [notas, setNotas] = useState('');
+  // Con el medio de pago elegido se vuelve a cotizar en el servidor (ej. descuento por transferencia)
+  const [cotPago, setCotPago] = useState(null);
+  const [recotizando, setRecotizando] = useState(false);
+  useEffect(() => {
+    if (!recotizar) return undefined;
+    let vivo = true;
+    setCotPago(null); setRecotizando(true);
+    recotizar(metodoPago).then(r => { if (vivo && r && Array.isArray(r.secciones)) setCotPago(r); }).catch(() => {}).finally(() => { if (vivo) setRecotizando(false); });
+    return () => { vivo = false; };
+  }, [metodoPago]);
+  const cot = cotPago || cotCarrito;
+  const pctPago = (nombre) => { const v = parseFloat(String(config[`descuento_${String(nombre || '').toLowerCase().replace(/\s+/g, '_')}`] || '').trim()); return v > 0 ? Math.min(v, 100) : 0; };
   const esEnvio = entregaTipo === 'envio' && cot.secciones.some(s => s.requiere_envio);
   const totales = cot.totales || {};
 
@@ -3262,7 +3274,7 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
                         <input type="radio" checked={metodoPago === nombre} onChange={() => setMetodoPago(nombre)} />
                         <span className="pago-opt-ico"><RenderIcon value={m.icono} size={18} /></span>
                         <div>
-                          <div className="pago-opt-nombre">{nombre}</div>
+                          <div className="pago-opt-nombre">{nombre}{pctPago(nombre) > 0 && <span className="pago-opt-off">−{pctPago(nombre)}%</span>}</div>
                           {(m.descripcion || m.instrucciones) && <div className="pago-opt-desc">{m.descripcion || m.instrucciones}</div>}
                         </div>
                       </label>
@@ -3294,6 +3306,7 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
                     ))}
                     {esEnvio && s.requiere_envio && <div className="resumen-linea muted"><span>Envío{s.envio.elegido ? ` · ${s.envio.elegido.nombre}` : ' · a coordinar'}</span><span>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? (s.envio.a_cotizar ? 'A cotizar' : 'Gratis') : '—')}</span></div>}
                     {s.descuento > 0 && <div className="resumen-linea ok"><span>Cupón {s.cupon}</span><span>-{fmtARS(s.descuento)}</span></div>}
+                    {s.descuento_pago > 0 && <div className="resumen-linea ok"><span>Descuento pagando con {s.metodo_pago} ({s.descuento_pago_pct}%)</span><span>-{fmtARS(s.descuento_pago)}</span></div>}
                   </div>
                 ))}
                 <div className="resumen-total"><span>Total</span><span>{fmtARS(totales.total)}</span></div>
@@ -3331,7 +3344,7 @@ function CheckoutModal({ user, cot, entregaTipo, cp, metodos, config, testMode, 
           {paso > 1 ? <button className="btn btn-outline" onClick={anterior}>← Atrás</button> : <span />}
           {paso < totalPasos
             ? <button className="btn btn-primary" onClick={siguiente}>Siguiente →</button>
-            : <button className="btn btn-primary" onClick={() => { if (secsAviso.length && !aceptaAviso) { toast('Marcá que leíste las condiciones del pedido', 'warning'); return; } confirmar(); }} disabled={saving} style={{ minWidth: 170 }}>{saving ? 'Creando pedido…' : (testMode ? 'Confirmar (prueba)' : 'Confirmar pedido')}</button>}
+            : <button className="btn btn-primary" onClick={() => { if (secsAviso.length && !aceptaAviso) { toast('Marcá que leíste las condiciones del pedido', 'warning'); return; } confirmar(); }} disabled={saving || recotizando} style={{ minWidth: 170 }}>{saving ? 'Creando pedido…' : (testMode ? 'Confirmar (prueba)' : 'Confirmar pedido')}</button>}
         </div>
       </div>
     </div>
@@ -3604,7 +3617,14 @@ function CartPage() {
       {exito && <PedidoExitoModal exito={exito} config={config} onClose={() => { setExito(null); nav('landing'); }} />}
       {showCheckout && cot && (
         <CheckoutModal user={user} cot={cot} entregaTipo={entregaTipo} cp={cp} metodos={metodos} config={config} testMode={testMode}
-          onConfirm={checkout} onClose={() => setShowCheckout(false)} />
+          onConfirm={checkout} onClose={() => setShowCheckout(false)}
+          recotizar={(metodo) => api.cotizarCarrito({
+            entrega: { tipo: entregaTipo, cp }, cupon, metodo_pago: metodo,
+            secciones: seccionesConItems.map(sec => ({
+              seccion_id: sec.id, envio_id: envioSel[sec.id] || null, metodo_pago: metodo,
+              items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty })),
+            })),
+          })} />
       )}
 
       {showMixPopup && (
