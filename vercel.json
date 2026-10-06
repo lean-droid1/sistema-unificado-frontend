@@ -17,12 +17,16 @@
       "destination": "/api/seo?tipo=google&f=:archivo"
     },
     {
-      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar|arrepentimiento)",
-      "destination": "/index.html"
+      "source": "/",
+      "destination": "/api/render?ruta=/"
     },
     {
-      "source": "/:p(panel|carrito|mi-cuenta|ingresar|registro|recuperar|favoritos|preview|buscar|arrepentimiento)/:resto*",
-      "destination": "/index.html"
+      "source": "/:p(panel)",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/:p(panel)/:resto*",
+      "destination": "/app.html"
     },
     {
       "source": "/:ruta((?!api/|assets/|.*\\.[a-zA-Z0-9]+$).*)",

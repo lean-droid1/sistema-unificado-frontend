@@ -20,7 +20,7 @@ const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[
 const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id);
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
-const RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda']);
+const RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda', 'arrepentimiento']);
 const PRIVADAS = new Set(['buscar', 'carrito', 'favoritos', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview']);
 
 let plantilla = null, plantillaHora = 0; // index.html de este deploy (se revalida cada 2 minutos)
@@ -56,7 +56,9 @@ async function cargarPlantilla(origin) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), 4000);
     try {
-      const r = await fetch(`${origin}/index.html?v=${Date.now()}`, { signal: ac.signal, cache: 'no-store' });
+      // La app se publica como app.html (así "/" también pasa por acá); index.html queda de respaldo
+      let r = await fetch(`${origin}/app.html?v=${Date.now()}`, { signal: ac.signal, cache: 'no-store' });
+      if (!r.ok) r = await fetch(`${origin}/index.html?v=${Date.now()}`, { signal: ac.signal, cache: 'no-store' });
       const html = r.ok ? await r.text() : '';
       if (!html.includes('id="root"')) throw new Error('plantilla inválida');
       const js = (html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/) || html.match(/src="(\/assets\/[^"]+\.js)"/) || [])[1];
@@ -75,6 +77,8 @@ async function cargarPlantilla(origin) {
 }
 
 function inyectar(html, m) {
+  // WhatsApp y Facebook necesitan la imagen con dirección completa
+  if (m.image && m.origin && /^\/(?!\/)/.test(m.image)) m.image = m.origin + m.image;
   let h = html
     .replace(/<title>[\s\S]*?<\/title>\s*/i, '')
     .replace(/<meta\s+(?:name|property)="(?:description|robots|og:[^"]*|twitter:[^"]*|product:[^"]*)"[^>]*>\s*/gi, '')
@@ -125,7 +129,9 @@ export default async function handler(req, res) {
   try { html = await cargarPlantilla(origin); }
   catch (e) {
     res.statusCode = 302;
-    res.setHeader('Location', '/?__r=' + encodeURIComponent(ruta + (qs ? '?' + qs : '')));
+    // Directo a la app (no a "/", que también pasa por acá): main.jsx restaura la ruta
+    const vuelta = ruta === '/' && typeof q.__r === 'string' ? q.__r : ruta + (qs ? '?' + qs : '');
+    res.setHeader('Location', '/app.html?__r=' + encodeURIComponent(vuelta));
     res.setHeader('Cache-Control', 'no-store');
     res.end();
     return;
@@ -137,6 +143,20 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', `public, max-age=0, s-maxage=${cacheSeg}, stale-while-revalidate=300`);
     res.end(cuerpoHtml);
   };
+
+  // Sitio de ComerciApp (comerciapp.com.ar sin subdominio): su propia marca, no la de una tienda
+  if (/^(www\.)?comerciapp\.com\.ar$/i.test(host.replace(/:\d+$/, ''))) {
+    const a0 = ruta.split('/').filter(Boolean)[0] || '';
+    const titulo = a0 === 'crear-tienda' ? 'Creá tu tienda gratis | ComerciApp' : a0 === 'ingresar' ? 'Ingresar | ComerciApp' : 'ComerciApp — Tu tienda online y tu sistema de ventas';
+    const desc = 'Tienda online, pedidos, punto de venta y control de stock en un solo lugar. Sin comisiones por venta. 15 días gratis, sin tarjeta.';
+    const base = `${proto}://${host}`;
+    return enviar(200, inyectar(html, {
+      tienda: 'ComerciApp', title: titulo, desc, image: `${base}/og-comerciapp.jpg`, type: 'website',
+      url: base + (a0 === 'crear-tienda' ? '/crear-tienda' : '/'), noindex: !(a0 === '' || a0 === 'crear-tienda'), precio: 0,
+      ld: a0 === '' ? { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'ComerciApp', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: base + '/', description: desc, offers: { '@type': 'Offer', price: 0, priceCurrency: 'ARS', description: '15 días de prueba gratis' } } : null,
+      cuerpo: `<h1>${esc(titulo)}</h1><p>${esc(desc)}</p>`,
+    }), 600);
+  }
 
   try {
     const apiUrl = (process.env.VITE_API_URL || process.env.API_URL || '').replace(/\/$/, '');
@@ -166,6 +186,7 @@ export default async function handler(req, res) {
     const config = cRes.data || {};
     const tienda = design.nombre_tienda || 'Tienda';
     const m = {
+      origin,
       tienda,
       title: tienda,
       desc: stripHtml(design.descripcion_tienda || config.meta_description) || `${tienda} — comprá online, envíos a todo el país.`,

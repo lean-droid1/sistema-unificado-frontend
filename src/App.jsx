@@ -70,6 +70,14 @@ function aplicarPromo(base, product, promos, seccionId, moneda) {
 }
 
 // ─── SEO: meta tags dinámicos por página ───
+// ¿Es el sitio de la plataforma (comerciapp.com.ar sin subdominio, o ?comerciapp=1 para probar)?
+function esRaizComerciApp() {
+  try {
+    if (new URLSearchParams(window.location.search).get('comerciapp') === '1') return true;
+    const host = window.location.hostname;
+    return host === 'comerciapp.com.ar' || host === 'www.comerciapp.com.ar';
+  } catch { return false; }
+}
 function upsertMeta(selector, attr, key, content) {
   let el = document.head.querySelector(selector);
   if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el); }
@@ -918,6 +926,27 @@ export default function App() {
   // SEO: título, descripción, OG/Twitter, canonical y datos estructurados por página
   useEffect(() => {
     if (loading || typeof document === 'undefined') return;
+    // Sitio de ComerciApp: su propia marca (antes mostraba la de la tienda principal)
+    if (esRaizComerciApp() && (!user || user.es_owner)) {
+      const t = page === 'crear-tienda' ? 'Creá tu tienda gratis | ComerciApp' : 'ComerciApp — Tu tienda online y tu sistema de ventas';
+      const d = 'Tienda online, pedidos, punto de venta y control de stock en un solo lugar. Sin comisiones por venta. 15 días gratis, sin tarjeta.';
+      const o = window.location.origin;
+      document.title = t;
+      upsertMeta('meta[name="description"]', 'name', 'description', d);
+      upsertMeta('meta[property="og:title"]', 'property', 'og:title', t);
+      upsertMeta('meta[property="og:description"]', 'property', 'og:description', d);
+      upsertMeta('meta[property="og:type"]', 'property', 'og:type', 'website');
+      upsertMeta('meta[property="og:url"]', 'property', 'og:url', o + '/');
+      upsertMeta('meta[property="og:site_name"]', 'property', 'og:site_name', 'ComerciApp');
+      upsertMeta('meta[property="og:image"]', 'property', 'og:image', o + '/og-comerciapp.jpg');
+      upsertMeta('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary_large_image');
+      upsertMeta('meta[name="twitter:title"]', 'name', 'twitter:title', t);
+      upsertMeta('meta[name="twitter:description"]', 'name', 'twitter:description', d);
+      upsertMeta('meta[name="twitter:image"]', 'name', 'twitter:image', o + '/og-comerciapp.jpg');
+      setCanonical(o + '/');
+      setJsonLd(null);
+      return;
+    }
     if (page === 'categoria' || page === 'info') return; // esas páginas ponen su propio título al cargar
     const tienda = design.nombre_tienda || 'Tienda';
     const origin = window.location.origin;
@@ -979,7 +1008,7 @@ export default function App() {
     if (image) upsertMeta('meta[name="twitter:image"]', 'name', 'twitter:image', image);
     setCanonical(url);
     setJsonLd(ld);
-  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading, redesSociales, secciones, promosGlobal]);
+  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading, redesSociales, secciones, promosGlobal, user?.id, user?.es_owner]);
 
   // Favoritos (uno solo para toda la tienda: el corazón queda igual en todas las tarjetas)
   const [favIds, setFavIds] = useState(() => new Set());
