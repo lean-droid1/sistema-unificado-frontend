@@ -1566,14 +1566,14 @@ function Footer() {
             </div>
           )}
           {/* Info / páginas */}
-          {infoPags.length > 0 && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Información</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {infoPags.map(p => <a key={p.id} href={`/info/${slugPagina(p)}`} onClick={e => { e.preventDefault(); nav('info', slugPagina(p)); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
-              </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Información</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {infoPags.map(p => <a key={p.id} href={`/info/${slugPagina(p)}`} onClick={e => { e.preventDefault(); nav('info', slugPagina(p)); }} style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>{p.titulo}</a>)}
+              {/* Obligatorio (Res. 424/2020): el texto tiene que ser "Botón de arrepentimiento" */}
+              <a href="/arrepentimiento" onClick={e => { e.preventDefault(); nav('arrepentimiento'); }} className="link-arrepentimiento" style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600 }}>Botón de arrepentimiento</a>
             </div>
-          )}
+          </div>
           {/* Contacto */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Contacto</div>
@@ -1622,9 +1622,6 @@ function Footer() {
             {activas.map(r => <a key={r.id || r.tipo} href={urlSegura(r.url) || undefined} target="_blank" rel="noopener" style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><RedIcon tipo={redIconTipo(r.tipo)} s={16} /> <span>{RED_LABELS[r.tipo] || r.tipo.replace(/_/g, ' ')}</span></a>)}
           </div>
         )}
-        <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
-          <a href="/arrepentimiento" onClick={e => { e.preventDefault(); nav('arrepentimiento'); }} className="btn-arrepentimiento"><Undo2 size={15} /> Botón de arrepentimiento</a>
-        </div>
         <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>{design.footer_texto || `© ${new Date().getFullYear()} ${design.nombre_tienda || ''} — Todos los derechos reservados`}</p>
         {!miPlan?.features?.ocultar_marca && (
           <div style={{ textAlign: 'center', marginTop: 10 }}>
