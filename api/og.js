@@ -1,11 +1,12 @@
 // Vercel Serverless Function — OG meta tags para previews en redes (producto + sección)
 // Ubicación: /api/og.js  (raíz del repo, "api" en minúscula, NO dentro de src/)
 // El proyecto es "type": "module" → export default ESM.
+import { precioPublico, permiteTienda } from './_precio.js';
 
 const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 function resolveTenant(host, tienda) {
-  if (tienda) return tienda;
+  if (tienda && permiteTienda(host)) return tienda;
   if (host.includes('comerciapp.com.ar')) {
     const parts = host.split('.');
     if (parts.length >= 4 && parts[0] !== 'www') return parts[0];
@@ -54,7 +55,8 @@ ${price > 0 ? `<meta property="product:price:amount" content="${price}"><meta pr
 export default async function handler(req, res) {
   const producto = req.query.producto;
   const seccion = req.query.seccion;
-  const tienda = req.query.tienda;
+  const host0 = req.headers.host || req.headers['x-forwarded-host'] || '';
+  const tienda = permiteTienda(host0) ? req.query.tienda : '';
   const apiUrl = (process.env.VITE_API_URL || process.env.API_URL || '').replace(/\/$/, '');
   const host = req.headers.host || req.headers['x-forwarded-host'] || '';
   const tenant = resolveTenant(host, tienda);
@@ -67,22 +69,25 @@ export default async function handler(req, res) {
     const canonical = `https://${host}/?producto=${encodeURIComponent(producto)}${qTienda}`;
     if (!apiUrl) { res.statusCode = 302; res.setHeader('Location', canonical); res.end(); return; }
     try {
-      const [prodRes, designRes, configRes] = await Promise.all([
+      const [prodRes, designRes, configRes, promosRes] = await Promise.all([
         fetch(`${apiUrl}/api/productos/id/${encodeURIComponent(producto)}`, { headers }),
         fetch(`${apiUrl}/api/design`, { headers }),
-        fetch(`${apiUrl}/api/config`, { headers })
+        fetch(`${apiUrl}/api/config`, { headers }),
+        fetch(`${apiUrl}/api/promociones/activas`, { headers }).catch(() => null)
       ]);
       if (!prodRes.ok) { res.statusCode = 302; res.setHeader('Location', canonical); res.end(); return; }
       const prod = await prodRes.json();
       const design = await designRes.json().catch(() => ({}));
       const config = await configRes.json().catch(() => ({}));
-      const price = Number(prod.precio_oferta > 0 ? prod.precio_oferta : prod.precio_base) || 0;
+      const promos = promosRes && promosRes.ok ? await promosRes.json().catch(() => []) : [];
+      const ppo = precioPublico(prod, promos);
+      const price = (ppo.moneda && ppo.moneda !== 'ARS') ? 0 : ppo.precio;
       const priceStr = price > 0 ? `$${price.toLocaleString('es-AR')}` : 'Consultar precio';
       const storeName = design.nombre_tienda || '';
       const umbral = Number(config['envio_gratis_desde_' + prod.seccion_id]) || 0;
       const envioGratis = !prod.excluir_envio_gratis && (!!prod.envio_gratis || (umbral > 0 && price >= umbral));
       const partes = [priceStr];
-      if (envioGratis) partes.push('🚚 Envío gratis');
+      if (envioGratis) partes.push('Envío gratis');
       if (storeName) partes.push(storeName);
       render(res, { title: prod.nombre || prod.modelo || 'Producto', desc: partes.join(' · '), image: prod.imagen || design.og_image || design.logo_url || '', canonical, type: 'product', price, storeName });
     } catch (e) { res.statusCode = 302; res.setHeader('Location', canonical); res.end(); }

@@ -2,9 +2,10 @@
 //   /robots.txt              → ?tipo=robots  (apunta al sitemap del dominio que lo pide)
 //   /googleXXXXXXXX.html     → ?tipo=google  (verificación de Google Search Console; el nombre del
 //                               archivo lo carga cada tienda en Panel → Marketing → Analytics / Pixels)
+import { permiteTienda } from './_precio.js';
 
 function resolveTenant(host, tienda) {
-  if (tienda) return tienda;
+  if (tienda && permiteTienda(host)) return tienda;
   if (host.includes('comerciapp.com.ar')) {
     const parts = host.split('.');
     if (parts.length >= 4 && parts[0] !== 'www') return parts[0];

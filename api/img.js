@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     // Seguimos redirecciones a mano para revisar cada destino (que no lleven a una IP interna)
     let actual = u, r = null;
     for (let i = 0; i < 4; i++) {
-      r = await fetch(actual.toString(), { redirect: 'manual' });
+      r = await fetch(actual.toString(), { redirect: 'manual', signal: AbortSignal.timeout(8000) });
       if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
         const sig = new URL(r.headers.get('location'), actual);
         if (sig.protocol !== 'https:' || esHostPrivado(sig.hostname)) { res.statusCode = 400; res.end('URL no permitida'); return; }
@@ -39,9 +39,22 @@ export default async function handler(req, res) {
     if (!r || !r.ok) { res.statusCode = 502; res.end('No se pudo traer la imagen'); return; }
     const ct = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (!TIPOS_OK.includes(ct)) { res.statusCode = 415; res.end('No es una imagen'); return; }
+    const MAX = 8 * 1024 * 1024;
     const largo = Number(r.headers.get('content-length') || 0);
-    if (largo > 8 * 1024 * 1024) { res.statusCode = 413; res.end('Imagen muy grande'); return; }
-    const buf = Buffer.from(await r.arrayBuffer());
+    if (largo > MAX) { res.statusCode = 413; res.end('Imagen muy grande'); return; }
+    // Se lee de a pedazos y se corta en 8 MB (si el servidor no dice el tamaño, antes se bajaba todo a memoria)
+    const partes = []; let total = 0;
+    const lector = r.body && r.body.getReader ? r.body.getReader() : null;
+    if (lector) {
+      for (;;) {
+        const { done, value } = await lector.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX) { try { await lector.cancel(); } catch (e) {} res.statusCode = 413; res.end('Imagen muy grande'); return; }
+        partes.push(Buffer.from(value));
+      }
+    } else { const ab = Buffer.from(await r.arrayBuffer()); if (ab.length > MAX) { res.statusCode = 413; res.end('Imagen muy grande'); return; } partes.push(ab); }
+    const buf = Buffer.concat(partes);
     res.setHeader('Content-Type', ct);
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400');
     res.statusCode = 200;

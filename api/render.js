@@ -4,6 +4,7 @@
 // Se llega acá por el rewrite de vercel.json (todas las rutas de la tienda menos "/" y archivos).
 // Si algo falla, la tienda funciona igual: se sirve el index.html sin cambios o se redirige al inicio
 // con ?__r=<ruta> (main.jsx restaura la ruta).
+import { precioPublico, permiteTienda } from './_precio.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const stripHtml = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -25,7 +26,7 @@ const PRIVADAS = new Set(['buscar', 'carrito', 'favoritos', 'mi-cuenta', 'panel'
 let plantilla = null, plantillaHora = 0; // index.html de este deploy (se revalida cada 2 minutos)
 
 function resolveTenant(host, tienda) {
-  if (tienda) return tienda;
+  if (tienda && permiteTienda(host)) return tienda;
   if (host.includes('comerciapp.com.ar')) {
     const parts = host.split('.');
     if (parts.length >= 4 && parts[0] !== 'www') return parts[0];
@@ -97,8 +98,9 @@ function inyectar(html, m) {
     // Datos (no se ejecuta): la CSP no lo bloquea. Mismo id que usa App.jsx, así no se duplica.
     m.ld ? `<script type="application/ld+json" id="ld-json">${JSON.stringify(m.ld).replace(/</g, '\\u003c')}</script>` : '',
   ].filter(Boolean).join('\n');
-  h = h.replace(/<\/head>/i, `${t}\n</head>`);
-  if (m.cuerpo) h = h.replace(/(<div id="root"><\/div>)/, `$1\n<noscript>${m.cuerpo}</noscript>`);
+  // Con función (no con texto): un "$" en el nombre de un producto ya no rompe el HTML
+  h = h.replace(/<\/head>/i, () => `${t}\n</head>`);
+  if (m.cuerpo) h = h.replace(/(<div id="root"><\/div>)/, (x) => `${x}\n<noscript>${m.cuerpo}</noscript>`);
   return h;
 }
 
@@ -116,7 +118,7 @@ export default async function handler(req, res) {
   const extra = new URLSearchParams();
   for (const [k, v] of Object.entries(q)) if (k !== 'ruta' && typeof v === 'string') extra.set(k, v);
   const qs = extra.toString();
-  const tiendaQ = typeof q.tienda === 'string' ? q.tienda : '';
+  const tiendaQ = typeof q.tienda === 'string' && permiteTienda(host) ? q.tienda : '';
   const keep = tiendaQ ? `?tienda=${encodeURIComponent(tiendaQ)}` : '';
 
   let html;
@@ -151,13 +153,14 @@ export default async function handler(req, res) {
     const esInfo = a === 'info';
     const esCategoria = a === 'categoria' && parts[1];
 
-    const [dRes, cRes, pRes, sRes, iRes, kRes] = await Promise.all([
+    const [dRes, cRes, pRes, sRes, iRes, kRes, prRes] = await Promise.all([
       pedir(`${apiUrl}/api/design`, { headers }),
       pedir(`${apiUrl}/api/config`, { headers }),
       prodId ? pedir(`${apiUrl}/api/productos/id/${prodId}`, { headers }) : null,
       esSeccion ? pedir(`${apiUrl}/api/secciones`, { headers }) : null,
       esInfo ? pedir(`${apiUrl}/api/paginas`, { headers }) : null,
       (esCategoria || esProducto) ? pedir(`${apiUrl}/api/categorias-info`, { headers }) : null,
+      prodId ? pedir(`${apiUrl}/api/promociones/activas`, { headers }) : null,
     ]);
     const design = dRes.data || {};
     const config = cRes.data || {};
@@ -186,7 +189,8 @@ export default async function handler(req, res) {
         m.image = p.imagen || m.image;
         m.type = 'product';
         m.url = origin + productPath(p) + keep;
-        const precio = Number(p.precio_oferta > 0 ? p.precio_oferta : p.precio_base) || 0;
+        const pp = precioPublico(p, prRes && Array.isArray(prRes.data) ? prRes.data : []); // igual que la web
+        const precio = (pp.moneda && pp.moneda !== 'ARS') ? 0 : pp.precio; // variantes u otra moneda: sin precio único en pesos
         m.precio = precio;
         const ld = { '@context': 'https://schema.org', '@type': 'Product', name: nom, description: m.desc };
         if (m.image) ld.image = [m.image];
@@ -249,7 +253,10 @@ export default async function handler(req, res) {
       }
     } else if (a === 'contacto') {
       m.title = `Contacto | ${tienda}`;
+    } else if (parts.length >= 2 && a !== 'info') {
+      m.noindex = true; // ruta que no existe (ej. /algo/otra): que Google no la indexe
     }
+    if ((esProducto && !prodId) || ((a === 'producto' || a === 'categoria') && !parts[1])) m.noindex = true;
 
     enviar(status, inyectar(html, m), status === 200 ? 600 : 60);
   } catch (e) {

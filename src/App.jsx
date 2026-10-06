@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext, Fragment, Component, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
+import { precioPublico } from '../api/_precio.js';
 import { trackBusqueda } from './tracker';
 import { ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
 
@@ -131,7 +132,7 @@ function parsePath(pathname, search, secciones = []) {
   if (!parts.length) return { page: 'landing' };
   const a = parts[0];
   if (a === 'producto') return { page: 'product', prodId: parseProdId(parts[1]) };
-  if (a === 'buscar') return { page: 'search', search: decodeURIComponent(parts[1] || '') };
+  if (a === 'buscar') { let q = parts[1] || ''; try { q = decodeURIComponent(q); } catch { /* "%" suelto: se usa tal cual */ } return { page: 'search', search: q }; }
   if (a === 'carrito') return { page: 'cart' };
   if (a === 'favoritos') return { page: 'favoritos' };
   if (a === 'contacto') return { page: 'contacto' };
@@ -575,8 +576,11 @@ export default function App() {
   }, [design.nombre_tienda, design.favicon_url]);
   // Inyectar Google Analytics (GA4) y Facebook Pixel según config del negocio
   useEffect(() => {
-    const gaId = (config.ga_id || '').trim();
-    const pixelId = (config.fb_pixel_id || '').trim();
+    // Vista de una tienda desde la plataforma (?tienda=): no se cargan sus scripts de terceros (ahí vive la sesión del dueño)
+    if (api.esVistaPrestada()) return;
+    const gaRaw = (config.ga_id || '').trim();
+    const gaId = /^[A-Z]{1,3}-[A-Z0-9-]{4,30}$/i.test(gaRaw) ? gaRaw : '';
+    const pixelId = (config.fb_pixel_id || '').trim().replace(/[^0-9]/g, '');
     const clarityId = (config.clarity_id || '').trim().replace(/[^a-z0-9]/gi, '');
     // Microsoft Clarity (grabaciones de sesión y mapas de calor)
     if (clarityId && !window.__clarityLoaded) {
@@ -931,7 +935,9 @@ export default function App() {
       desc = resumenDesc(p.descripcion) || `${nom} — comprá en ${tienda}.`;
       image = p.imagen || image;
       type = 'product';
-      const precio = Number(p.precio_oferta > 0 ? p.precio_oferta : p.precio_base) || 0;
+      // Mismo precio público que el servidor (render.js) y el feed de Google: oferta, promociones y preventa
+      const pp = precioPublico(p, promosGlobal);
+      const precio = (pp.moneda && pp.moneda !== 'ARS') ? 0 : (Number(pp.precio) || 0);
       const prod = { '@type': 'Product', name: nom, description: desc };
       if (image) prod.image = [image];
       if (p.sku) prod.sku = p.sku;
@@ -973,7 +979,7 @@ export default function App() {
     if (image) upsertMeta('meta[name="twitter:image"]', 'name', 'twitter:image', image);
     setCanonical(url);
     setJsonLd(ld);
-  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading, redesSociales, secciones]);
+  }, [page, selectedProduct?.id, seccionActual?.id, globalSearch, design, config, loading, redesSociales, secciones, promosGlobal]);
 
   // Favoritos (uno solo para toda la tienda: el corazón queda igual en todas las tarjetas)
   const [favIds, setFavIds] = useState(() => new Set());
@@ -1006,7 +1012,8 @@ export default function App() {
       const items = [...(prev[realSec] || [])];
       // Un mismo producto con distinta variante son líneas separadas del carrito
       const existing = items.find(i => i.id === product.id && (i.variante_id || null) === (variante?.id || null));
-      const sinTope = product.es_digital || product._preventa || product.permitir_sin_stock;
+      const secS = secciones.find(x => String(x.id) === String(realSec));
+      const sinTope = !!(variante || product.es_digital || product._preventa || product.es_preventa || product.permitir_sin_stock || secS?.ignorar_stock || secS?.permitir_sin_stock);
       const stockMax = sinTope ? Infinity : Number(product.stock ?? Infinity);
       if (existing) {
         const nuevaQty = existing.qty + qty;
@@ -1031,8 +1038,9 @@ export default function App() {
     if (qty <= 0) return removeFromCart(secId, productId, varId);
     setCart(prev => ({ ...prev, [secId]: (prev[secId] || []).map(i => {
       if (!(i.id === productId && (i.variante_id || null) === varId)) return i;
-      // Tope de stock: no dejar pasar del disponible (salvo digital/preventa/sin-stock permitido)
-      const sinTope = i.es_digital || i._preventa || i.permitir_sin_stock;
+      // Tope de stock: no dejar pasar del disponible (salvo variante/digital/preventa/sin-stock permitido)
+      const secS = secciones.find(x => String(x.id) === String(secId));
+      const sinTope = !!(i.variante_id || i.es_digital || i._preventa || i.es_preventa || i.permitir_sin_stock || secS?.ignorar_stock || secS?.permitir_sin_stock);
       const stockMax = sinTope ? Infinity : Number(i.stock ?? Infinity);
       if (!sinTope && qty > stockMax) {
         toast(stockMax > 0 ? `Solo hay ${stockMax} en stock` : 'Sin stock disponible', 'warning');
@@ -1165,13 +1173,13 @@ export default function App() {
     <Ctx.Provider value={ctx}>
       {showComerciappSite ? (
         <div className={`app${effectiveDark ? ' dark' : ''}`}>
-          <Suspense fallback={<CargandoPanel />}>{esOwner
+          <ErrorBoundary key={page}><Suspense fallback={<CargandoPanel />}>{esOwner
             ? <PanelPlataforma onLogout={handleLogout} />
             : page === 'crear-tienda'
               ? <CrearTiendaPage onListo={() => nav('login')} onVolver={() => nav('landing')} />
               : (page === 'login' || page === 'forgot')
                 ? <ComerciappLoginPage forgot={page === 'forgot'} onVolver={() => nav('landing')} onForgot={() => nav('forgot')} onLogin={() => nav('login')} />
-                : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}</Suspense>
+                : <ComerciappLanding onLogin={() => nav('login')} onRegister={() => nav('crear-tienda')} />}</Suspense></ErrorBoundary>
           <ToastContainer />
         </div>
       ) : (
@@ -2099,7 +2107,8 @@ function TarjetaProducto({ p, secId, usd }) {
   const pr = precioTarjeta(p, ctx, sid);
   const stock = Number(p.stock) || 0;
   const sinStock = stock <= 0;
-  const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital;
+  const secT = (ctx.secciones || []).find(x => String(x.id) === String(sid));
+  const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital || p.usa_variantes || secT?.ignorar_stock || secT?.permitir_sin_stock;
   const agotado = sinStock && !puedeComprar && !p.es_preventa;
   const umbral = Number(config?.[`envio_gratis_desde_${sid}`]) || 0;
   const envioGratis = !p.es_digital && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
@@ -2200,8 +2209,10 @@ function VistaRapida({ producto, onClose }) {
   const sid = p.seccion_id;
   const pr = precioTarjeta(p, ctx, sid);
   const stock = Number(p.stock) || 0;
-  const tope = (p.permitir_sin_stock || p.es_digital) ? Infinity : stock;
-  const agotado = stock <= 0 && !p.permitir_sin_stock && !p.es_digital && !p.es_preventa;
+  const secV = (ctx.secciones || []).find(x => String(x.id) === String(sid));
+  const sinTopeV = !!(p.permitir_sin_stock || p.es_digital || p.es_preventa || p.usa_variantes || secV?.ignorar_stock || secV?.permitir_sin_stock);
+  const tope = sinTopeV ? Infinity : stock;
+  const agotado = stock <= 0 && !sinTopeV;
   const umbral = Number(config?.[`envio_gratis_desde_${sid}`]) || 0;
   const envioGratis = !p.es_digital && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
   const fmtP = (v) => (p.moneda && p.moneda !== 'ARS') ? fmtMon(v, p.moneda) : fmtARS(v);
@@ -2636,6 +2647,7 @@ function SectionPage() {
     return 50;
   });
   const [cargandoMas, setCargandoMas] = useState(false);
+  const cargaSeq = useRef(0);
   useEffect(() => { if (esCel && typeof porPagina === 'number') { try { sessionStorage.setItem(`gm_ver_${window.location.pathname}`, String(porPagina)); } catch {} } }, [porPagina, esCel]);
   const finListaRef = useRef(null);
   // Al cambiar de sección, tomar la página desde la URL (1 si no hay ?pag)
@@ -2667,6 +2679,7 @@ function SectionPage() {
 
   const loadData = async () => {
     if (!sec) return;
+    const seq = ++cargaSeq.current;
     try {
       const [prodData, cats, promoData, bdg, mp] = await Promise.all([
         api.getProductos({ seccion_id: sec.id, categoria: catFiltro, q: busqueda, page: pagina, limit: porPagina === 'todos' ? 100000 : porPagina }),
@@ -2675,13 +2688,14 @@ function SectionPage() {
         api.getBadges(sec.id).catch(() => []),
         api.getMetodosPago(sec.id).catch(() => [])
       ]);
+      if (seq !== cargaSeq.current) return; // llegó tarde: ya se pidió otra página/filtro
       setProductos(prodData.productos || []); setTotal(prodData.total || 0); setCargandoMas(false);
       setCategorias(cats || []); setPromos(promoData || []); setSecBadges(bdg || []);
       setMetodosPago(mp || []);
       if (esMayorista || mostrarUsdSec(config, sec)) {
         api.getDolarBlue().then(d => { if (d.venta) setDolarBlue(d.venta); }).catch(() => {});
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); if (seq === cargaSeq.current) setCargandoMas(false); }
   };
 
   useEffect(() => {
@@ -4163,6 +4177,7 @@ function ProductDetailPage() {
   const [prodBadges, setProdBadges] = useState([]);
   useEffect(() => { if (sec?.id) api.getBadges(sec.id).then(setProdBadges).catch(() => {}); }, [sec?.id]);
   const [qty, setQty] = useState(1);
+  const [qtyTxt, setQtyTxt] = useState(null); // lo que se está escribiendo en la cantidad
   const [metodosPago, setMetodosPago] = useState([]);
   const [gallery, setGallery] = useState([]);
   const [promos, setPromos] = useState([]);
@@ -4224,7 +4239,7 @@ function ProductDetailPage() {
   const matched = fullSel ? variantes.find(v => atributos.every(a => (v.combinacion || {})[a.nombre] === selOpts[a.nombre])) : null;
   const varMin = variantes.length ? variantes.reduce((m, v) => varPrecio(v) < varPrecio(m) ? v : m, variantes[0]) : null;
   const precioSinPromo = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : precioBase);
-  const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : 'ARS');
+  const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : (p.moneda && p.moneda !== 'ARS' ? p.moneda : 'ARS'));
   // Si venimos del listado con el precio ya calculado (promo/oferta/revendedor aplicados), lo respetamos tal cual
   // y NO volvemos a aplicar la promo (evita el doble descuento al abrir el producto).
   // El precio siempre se recalcula acá (antes se usaba el que traía el listado y podía no coincidir con el carrito)
@@ -4235,7 +4250,9 @@ function ProductDetailPage() {
   // Precio tachado: el más alto entre la lista del cliente y el precio antes de la promo (igual que en las tarjetas)
   const anclaSinVar = !tieneVariantes ? Math.max(precioLista(p), precioSinPromo) : 0;
   const precioOriginal = !tieneVariantes ? (anclaSinVar > precioFinal ? anclaSinVar : null) : (hayPromo ? precioSinPromo : null);
-  const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital;
+  const sinStock = !tieneVariantes && (!p.stock || p.stock <= 0) && !p.permitir_sin_stock && !p.es_digital && !sec?.ignorar_stock && !sec?.permitir_sin_stock;
+  // Tope de cantidad: el mismo criterio que el servidor (las variantes, preventas, digitales y tiendas que ignoran stock no tienen)
+  const topeQty = (tieneVariantes || p.permitir_sin_stock || p.es_digital || p.es_preventa || sec?.ignorar_stock || sec?.permitir_sin_stock) ? Infinity : Number(p.stock || 0);
   const agregarPdp = () => {
     if (tieneVariantes && !matched) { toast(fullSel ? 'Esa combinación no está disponible' : 'Elegí todas las opciones primero', 'error'); if (barraActiva) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     const label = atributos.map(a => selOpts[a.nombre]).join(' / ');
@@ -4441,17 +4458,16 @@ function ProductDetailPage() {
           ) : (
             <div className="pdp-buy" ref={setBuyEl}>
               <div className="pdp-qty">
-                <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-                <input type="number" min="1" value={qty} onChange={e => {
-                  const v = Math.max(1, parseInt(e.target.value) || 1);
-                  const tope = (p.permitir_sin_stock || p.es_digital || p.es_preventa) ? Infinity : Number(p.stock || 0);
-                  if (v > tope) { toast(tope > 0 ? `Solo hay ${tope} en stock` : 'Sin stock', 'warning'); setQty(Math.max(1, tope)); }
-                  else setQty(v);
-                }} style={{ width: 54, textAlign: 'center', border: 'none', background: 'transparent', fontWeight: 800, fontSize: 16, padding: '12px 4px' }} />
+                <button onClick={() => { setQtyTxt(null); setQty(Math.max(1, qty - 1)); }}>−</button>
+                <input type="number" min="1" value={qtyTxt ?? qty} onChange={e => {
+                  const txt = e.target.value; setQtyTxt(txt);
+                  const n = parseInt(txt, 10); if (!(n >= 1)) return; // vacío mientras escribe: se valida al salir
+                  if (n > topeQty) { toast(topeQty > 0 ? `Solo hay ${topeQty} en stock` : 'Sin stock', 'warning'); setQty(Math.max(1, topeQty)); setQtyTxt(null); }
+                  else setQty(n);
+                }} onBlur={() => setQtyTxt(null)} style={{ width: 54, textAlign: 'center', border: 'none', background: 'transparent', fontWeight: 800, fontSize: 16, padding: '12px 4px' }} />
                 <button onClick={() => {
-                  const tope = (p.permitir_sin_stock || p.es_digital || p.es_preventa) ? Infinity : Number(p.stock || 0);
-                  if (qty + 1 > tope) { toast(tope > 0 ? `Solo hay ${tope} en stock` : 'Sin stock', 'warning'); return; }
-                  setQty(qty + 1);
+                  if (qty + 1 > topeQty) { toast(topeQty > 0 ? `Solo hay ${topeQty} en stock` : 'Sin stock', 'warning'); return; }
+                  setQtyTxt(null); setQty(qty + 1);
                 }}>+</button>
               </div>
               <button className="btn pdp-add" disabled={tieneVariantes && !matched} style={tieneVariantes && !matched ? { opacity: 0.55, cursor: 'not-allowed' } : undefined} onClick={agregarPdp}>
@@ -4915,9 +4931,12 @@ function ItemProd({ id, nombre, imagen, sub, tam = 40 }) {
 // Carga los productos de un carrito compartido. Los que no se pueden ver (tienda con acceso, sin sesión) vuelven en `faltan`.
 async function cargarItemsCompartidos(payload, secs) {
   const cart = {}, faltan = []; let n = 0;
-  for (const it of (Array.isArray(payload) ? payload : [])) {
-    const prod = await api.getProducto(it.p).catch(() => null);
-    const secId = String(it.s || (prod && prod.seccion_id) || '');
+  for (const it of (Array.isArray(payload) ? payload : []).slice(0, 100)) {
+    const pid = parseInt(it && it.p, 10);
+    if (!(pid > 0)) continue; // el link solo puede traer ids de producto
+    it.q = Math.min(999, Math.max(1, parseInt(it.q, 10) || 1));
+    const prod = await api.getProducto(pid).catch(() => null);
+    const secId = String((prod && prod.seccion_id) || it.s || '');
     if (!prod || (secs && secId && !secs.some(x => String(x.id) === secId))) { faltan.push(it); continue; }
     if (!cart[secId]) cart[secId] = [];
     cart[secId].push({ ...prod, seccion_id: secId, qty: Number(it.q) || 1, precio_unitario: prod.precio_base });

@@ -114,10 +114,17 @@ function ComerciappLoginPage({ forgot, onVolver, onForgot, onLogin }) {
     try {
       // Si indicó una dirección de tienda, la usamos como tenant (override). Si no, entra a la principal.
       const slug = tienda.toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+      // Un ?tienda= que quedó en la dirección no tiene que pisar la tienda escrita acá
+      try { const u = new URL(window.location.href); if (u.searchParams.has('tienda')) { u.searchParams.delete('tienda'); window.history.replaceState({}, '', u.pathname + (u.search || '') + u.hash); } } catch {}
       try { if (slug) sessionStorage.setItem('tenant_override', slug); else sessionStorage.removeItem('tenant_override'); } catch {}
       const r = await handleLogin(usuario, password, code || undefined);
       if (r && r.requires_otp) { setOtpStep(true); toast('Código enviado a tu email'); }
-    } catch (e) { /* handleLogin ya avisa */ }
+      // Entró a una tienda: se recarga para que toda la página (diseño, secciones, config) sea de esa tienda
+      else if (r && slug && !(r.user && r.user.es_owner)) { window.location.href = (r.user && ['admin', 'subadmin'].includes(r.user.rol)) ? '/panel' : '/'; }
+    } catch (e) {
+      // handleLogin ya avisa. Si la dirección de tienda no existe, no se deja guardada (si no, la página quedaba apuntando a ella)
+      if (e && e.status === 404) { try { sessionStorage.removeItem('tenant_override'); } catch {} }
+    }
     setBusy(false);
   };
 

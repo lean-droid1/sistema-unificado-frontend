@@ -33,11 +33,15 @@ function getTenantSlug() {
     return '';
   } catch { return ''; }
 }
-const TENANT_SLUG = getTenantSlug();
+// Se calcula en cada pedido: el login de ComerciApp elige la tienda en el momento (antes quedaba fija al cargar la página)
+let TENANT_SLUG = getTenantSlug();
+// ¿Se está viendo una tienda "prestada" desde la plataforma o una prueba (?tienda=)? Ahí no se cargan scripts de terceros de la tienda.
+export function esVistaPrestada() { try { const h = window.location.hostname; return !!sessionStorage.getItem('tenant_override') && (h === 'comerciapp.com.ar' || h === 'www.comerciapp.com.ar'); } catch { return false; } }
 
 async function f(url, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  TENANT_SLUG = getTenantSlug();
   if (TENANT_SLUG) headers['X-Tenant'] = TENANT_SLUG;
   if (opts.body instanceof FormData) delete headers['Content-Type'];
   // Límite de espera: si el servidor no contesta, se corta y se muestra un error (antes la web quedaba cargando para siempre)
@@ -80,7 +84,16 @@ async function f(url, opts = {}) {
 export function setToken(t) { token = t; if (t) localStorage.setItem('gm_token', t); else localStorage.removeItem('gm_token'); }
 export function getToken() { return token; }
 export function isLoggedIn() { return !!token; }
-export async function logout() { await f('/api/logout', { method: 'POST' }).catch(() => {}); token = null; localStorage.removeItem('gm_token'); }
+export async function logout() {
+  const t = token; token = null; try { localStorage.removeItem('gm_token'); } catch {}
+  const slug = getTenantSlug();
+  // En ComerciApp se olvida la tienda elegida al salir (si no, la landing seguía hablando con esa tienda)
+  try { if (esVistaPrestada()) sessionStorage.removeItem('tenant_override'); } catch {}
+  if (!t) return;
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` };
+  if (slug) headers['X-Tenant'] = slug;
+  await fetch(`${BASE}/api/logout`, { method: 'POST', headers, keepalive: true }).catch(() => {});
+}
 export async function login(usuario, password, otp_code) { const data = await f('/api/login', { method: 'POST', body: JSON.stringify({ usuario, password, otp_code }) }); if (data.token) { token = data.token; localStorage.setItem('gm_token', data.token); } return data; }
 export async function register(datos) { return f('/api/register', { method: 'POST', body: JSON.stringify(datos) }); }
 export async function getMe() { return f('/api/me'); }
