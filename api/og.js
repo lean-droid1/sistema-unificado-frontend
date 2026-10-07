@@ -82,7 +82,7 @@ export default async function handler(req, res) {
       const promos = promosRes && promosRes.ok ? await promosRes.json().catch(() => []) : [];
       const ppo = precioPublico(prod, promos);
       const price = (ppo.moneda && ppo.moneda !== 'ARS') ? 0 : ppo.precio;
-      const priceStr = price > 0 ? `$${price.toLocaleString('es-AR')}` : 'Consultar precio';
+      const priceStr = price > 0 ? `${prod.usa_variantes ? 'Desde ' : ''}$${price.toLocaleString('es-AR')}` : 'Consultar precio';
       const storeName = design.nombre_tienda || '';
       const umbral = Number(config['envio_gratis_desde_' + prod.seccion_id]) || 0;
       const envioGratis = !prod.excluir_envio_gratis && (!!prod.envio_gratis || (umbral > 0 && price >= umbral));

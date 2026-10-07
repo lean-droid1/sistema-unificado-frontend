@@ -970,17 +970,20 @@ export default function App() {
       // Mismo precio público que el servidor (render.js) y el feed de Google: oferta, promociones y preventa
       const pp = precioPublico(p, promosGlobal);
       const precio = (pp.moneda && pp.moneda !== 'ARS') ? 0 : (Number(pp.precio) || 0);
-      const prod = { '@type': 'Product', name: nom, description: desc };
-      if (image) prod.image = [image];
-      if (p.sku) prod.sku = p.sku;
-      if (p.marca) prod.brand = { '@type': 'Brand', name: p.marca };
-      if (precio > 0) prod.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url };
+      // Sin precio en pesos no se declara como producto: Google marca error si un producto no tiene precio
+      const prod = precio > 0 ? { '@type': 'Product', name: nom, description: desc } : null;
+      if (prod) {
+        if (image) prod.image = [image];
+        if (p.sku) prod.sku = p.sku;
+        if (p.marca) prod.brand = { '@type': 'Brand', name: p.marca };
+        prod.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital || p.usa_variantes) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url };
+      }
       // Ruta Inicio > Categoría > Producto (Google la muestra en el resultado)
       const secP = secciones.find(s => String(s.id) === String(p.seccion_id));
       const migas = [{ '@type': 'ListItem', position: 1, name: tienda, item: origin + '/' }];
       if (p.categoria && slugify(p.categoria) && !secP?.requiere_aprobacion) migas.push({ '@type': 'ListItem', position: 2, name: p.categoria, item: `${origin}/categoria/${slugify(p.categoria)}` });
       migas.push({ '@type': 'ListItem', position: migas.length + 1, name: nom, item: url });
-      ld = { '@context': 'https://schema.org', '@graph': [prod, { '@type': 'BreadcrumbList', itemListElement: migas }] };
+      ld = { '@context': 'https://schema.org', '@graph': [...(prod ? [prod] : []), { '@type': 'BreadcrumbList', itemListElement: migas }] };
     } else if (page === 'landing') {
       // Datos del negocio para Google (nombre, logo, contacto, dirección y redes)
       const negocio = { '@type': 'Store', '@id': origin + '/#negocio', name: tienda, url: origin + '/' };
@@ -2055,6 +2058,13 @@ function precioTarjeta(p, ctx, secId) {
   const hay = !p.es_preventa && final > 0 && original > final;
   return { final, original: hay ? original : null, pct: hay ? Math.round((1 - final / original) * 100) : 0, ahorro: hay ? original - final : 0, promo: a && !a.esRevendedor ? a.nombre : '', hasta: a?.hasta || null, esRevendedor: !!a?.esRevendedor };
 }
+// "desde" de un producto con variantes en la tarjeta, con la promo aplicada (igual que la ficha y lo que lee Google)
+function desdeTarjeta(p, ctx, secId) {
+  const base = Number(p.precio_desde) || 0;
+  if (!(base > 0)) return 0;
+  const a = ctx.ajusteCliente(base, p, ctx.promos, p.seccion_id || secId, p.moneda_desde || 'ARS', true);
+  return a ? a.final : base;
+}
 // Milisegundos que faltan para que termine una promo (solo si termina dentro de 7 días)
 const finPromoMs = (hasta, dias = 7) => {
   if (!hasta) return null;
@@ -2185,7 +2195,7 @@ function TarjetaProducto({ p, secId, usd }) {
           {p.es_preventa ? (pctPv > 0
             ? <><span className="price-old">{fmtP(p.precio_base)}</span><span className="price-new con-desc">{fmtP(reserva)}</span></>
             : <span className="price-new">{fmtP(reserva)}</span>)
-          : p.usa_variantes && Number(p.precio_desde) > 0 ? <span className="price-new"><small>desde </small>{fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</span>
+          : p.usa_variantes && Number(p.precio_desde) > 0 ? <span className="price-new"><small>desde </small>{fmtMon(desdeTarjeta(p, ctx, sid), p.moneda_desde || 'ARS')}</span>
           : pr.final > 0 ? <>{pr.original && <span className="price-old">{fmtP(pr.original)}</span>}<span className={`price-new${pr.original ? ' con-desc' : ''}`}>{fmtP(pr.final)}</span></>
           : <span className="tp-consultar">Consultar precio</span>}
         </div>
@@ -2267,7 +2277,7 @@ function VistaRapida({ producto, onClose }) {
         <div className="vr-info">
           <div className="product-cat">{p.categoria}</div>
           <h3 className="vr-titulo">{p.nombre || p.modelo}</h3>
-          {p.usa_variantes ? <div className="vr-precio"><span className="price-new">{Number(p.precio_desde) > 0 ? <><small>desde </small>{fmtMon(p.precio_desde, p.moneda_desde || 'ARS')}</> : 'Varias opciones'}</span></div>
+          {p.usa_variantes ? <div className="vr-precio"><span className="price-new">{Number(p.precio_desde) > 0 ? <><small>desde </small>{fmtMon(desdeTarjeta(p, ctx, sid), p.moneda_desde || 'ARS')}</> : 'Varias opciones'}</span></div>
             : pr.final > 0 ? <div className="vr-precio">{pr.original && <span className="price-old">{fmtP(pr.original)}</span>}<span className={`price-new${pr.original ? ' con-desc' : ''}`}>{fmtP(pr.final)}</span></div>
             : <div className="vr-precio"><span className="tp-consultar">Consultar precio</span></div>}
           {pr.ahorro > 0 && <div className="vr-ahorro">Ahorrás {fmtP(pr.ahorro)}{pr.promo ? ` · ${pr.promo}` : ''}</div>}
@@ -4281,7 +4291,11 @@ function ProductDetailPage() {
   const tieneVariantes = usaVariantes && variantes.length > 0;
   const fullSel = tieneVariantes && atributos.length > 0 && atributos.every(a => selOpts[a.nombre]);
   const matched = fullSel ? variantes.find(v => atributos.every(a => (v.combinacion || {})[a.nombre] === selOpts[a.nombre])) : null;
-  const varMin = variantes.length ? variantes.reduce((m, v) => varPrecio(v) < varPrecio(m) ? v : m, variantes[0]) : null;
+  // "desde": la variante EN PESOS más barata (igual que el listado y lo que lee Google); si no hay ninguna en pesos, la más barata en otra moneda
+  const varConPrecio = variantes.filter(v => varPrecio(v) > 0);
+  const varEnPesos = varConPrecio.filter(v => (v.moneda || 'ARS') === 'ARS');
+  const varCandidatas = varEnPesos.length ? varEnPesos : (varConPrecio.length ? varConPrecio : variantes);
+  const varMin = varCandidatas.length ? varCandidatas.reduce((m, v) => varPrecio(v) < varPrecio(m) ? v : m, varCandidatas[0]) : null;
   const precioSinPromo = matched ? varPrecio(matched) : (tieneVariantes && varMin ? varPrecio(varMin) : precioBase);
   const monedaFinal = matched ? (matched.moneda || 'ARS') : (tieneVariantes && varMin ? (varMin.moneda || 'ARS') : (p.moneda && p.moneda !== 'ARS' ? p.moneda : 'ARS'));
   // Si venimos del listado con el precio ya calculado (promo/oferta/revendedor aplicados), lo respetamos tal cual

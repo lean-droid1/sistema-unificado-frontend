@@ -213,19 +213,21 @@ export default async function handler(req, res) {
         const pp = precioPublico(p, prRes && Array.isArray(prRes.data) ? prRes.data : []); // igual que la web
         const precio = (pp.moneda && pp.moneda !== 'ARS') ? 0 : pp.precio; // variantes u otra moneda: sin precio único en pesos
         m.precio = precio;
-        const ld = { '@context': 'https://schema.org', '@type': 'Product', name: nom, description: m.desc };
-        if (m.image) ld.image = [m.image];
-        if (p.sku) ld.sku = p.sku;
-        if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
-        if (precio > 0) ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url: m.url };
+        // Sin precio en pesos no se declara como producto (Google marca error si un producto no tiene precio)
+        const ld = precio > 0 ? { '@type': 'Product', name: nom, description: m.desc } : null;
+        if (ld) {
+          if (m.image) ld.image = [m.image];
+          if (p.sku) ld.sku = p.sku;
+          if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
+          ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital || p.usa_variantes) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url: m.url };
+        }
         // Ruta Inicio > Categoría > Producto (igual que App.jsx)
-        delete ld['@context'];
         const catP = kRes && Array.isArray(kRes.data) ? kRes.data.find(c => c.slug === slugify(p.categoria)) : null;
         const migas = [{ '@type': 'ListItem', position: 1, name: tienda, item: origin + '/' }];
         if (catP) migas.push({ '@type': 'ListItem', position: 2, name: p.categoria, item: `${origin}/categoria/${catP.slug}` });
         migas.push({ '@type': 'ListItem', position: migas.length + 1, name: nom, item: m.url });
-        m.ld = { '@context': 'https://schema.org', '@graph': [ld, { '@type': 'BreadcrumbList', itemListElement: migas }] };
-        m.cuerpo = `<h1>${esc(nom)}</h1>${dLarga ? `<p>${esc(dLarga)}</p>` : ''}${precio > 0 ? `<p>$ ${esc(precio.toLocaleString('es-AR'))}</p>` : ''}`;
+        m.ld = { '@context': 'https://schema.org', '@graph': [...(ld ? [ld] : []), { '@type': 'BreadcrumbList', itemListElement: migas }] };
+        m.cuerpo = `<h1>${esc(nom)}</h1>${dLarga ? `<p>${esc(dLarga)}</p>` : ''}${precio > 0 ? `<p>${p.usa_variantes ? 'desde ' : ''}$ ${esc(precio.toLocaleString('es-AR'))}</p>` : ''}`;
       } else if (pRes && pRes.status === 404) {
         status = 404; m.noindex = true; m.title = `Producto no disponible | ${tienda}`;
       }
