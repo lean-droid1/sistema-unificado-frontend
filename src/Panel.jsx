@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef, useMemo, useContext, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus } from 'lucide-react';
-import { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink } from './App.jsx';
+import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2 } from 'lucide-react';
+import { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtPedido, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink } from './App.jsx';
 
 // Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4222,7 +4222,11 @@ function AdminPedidos({ filtroTipo }) {
     return lista;
   })();
   const epDe = (p) => { const ep = (p.estado_pago && String(p.estado_pago).trim() && p.estado_pago !== 'pendiente') ? p.estado_pago : 'impago'; return ep; };
-  const resumenPed = pedidosFiltrados.reduce((r, p) => { const t = Number(p.total) || 0; r.total += t; if (epDe(p) === 'pagado') r.cobrado += t; else r.aCobrar += t - (epDe(p) === 'senado' ? Number(p.sena) || 0 : 0); return r; }, { total: 0, cobrado: 0, aCobrar: 0 });
+  // Pesos y USDT se suman por separado (nunca juntos)
+  const resumenDe = (lista) => lista.reduce((r, p) => { const t = Number(p.total) || 0; r.n++; r.total += t; if (epDe(p) === 'pagado') r.cobrado += t; else r.aCobrar += t - (epDe(p) === 'senado' ? Number(p.sena) || 0 : 0); return r; }, { n: 0, total: 0, cobrado: 0, aCobrar: 0 });
+  const resumenPed = resumenDe(pedidosFiltrados.filter(p => p.moneda !== 'USDT'));
+  const resumenUsdt = resumenDe(pedidosFiltrados.filter(p => p.moneda === 'USDT'));
+  const conUsdt = (k) => resumenUsdt.n > 0 ? <> + {fmtPedido(resumenUsdt[k], { moneda: 'USDT' })}</> : null;
 
   // Acciones rápidas desde la lista (sin abrir el pedido)
   const cambiarEstadoRapido = async (p, estado) => {
@@ -4240,7 +4244,7 @@ function AdminPedidos({ filtroTipo }) {
     setOcupado(null);
   };
   const marcarPagadoRapido = async (p) => {
-    if (!confirm(`¿Marcar ${numOrden(p)} como pagado (${fmtARS(p.total)})? Se registra el cobro en la caja.`)) return;
+    if (!confirm(`¿Marcar ${numOrden(p)} como pagado (${fmtPedido(p.total, p)})? Se registra el cobro en la caja.`)) return;
     setOcupado(p.id);
     try {
       await api.updatePedido(p.id, { estado_pago: 'pagado' });
@@ -4342,8 +4346,8 @@ function AdminPedidos({ filtroTipo }) {
       {pedidosFiltrados.length > 0 && (
         <div className="ped-resumen">
           <span><b>{pedidosFiltrados.length}</b> {ordTab === 'presupuestos' ? 'presupuesto' : 'pedido'}{pedidosFiltrados.length !== 1 ? 's' : ''}</span>
-          <span>Total <b>{fmtARS(resumenPed.total)}</b></span>
-          {ordTab !== 'presupuestos' && <><span className="ok">Cobrado <b>{fmtARS(resumenPed.cobrado)}</b></span><span className="warn">A cobrar <b>{fmtARS(resumenPed.aCobrar)}</b></span></>}
+          <span>Total <b>{fmtARS(resumenPed.total)}{conUsdt('total')}</b></span>
+          {ordTab !== 'presupuestos' && <><span className="ok">Cobrado <b>{fmtARS(resumenPed.cobrado)}{conUsdt('cobrado')}</b></span><span className="warn">A cobrar <b>{fmtARS(resumenPed.aCobrar)}{conUsdt('aCobrar')}</b></span></>}
         </div>
       )}
       {pedidosFiltrados.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No hay resultados</p>}
@@ -4372,15 +4376,17 @@ function AdminPedidos({ filtroTipo }) {
               <strong>{numOrden(p)}</strong> {p.is_test && <span style={{ background: 'var(--warning)', color: '#000', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}><FlaskConical size={15} style={{ verticalAlign: '-2px' }} /> TEST</span>}
               {p.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6 }}><Bookmark size={15} style={{ verticalAlign: '-2px' }} /> RESERVA</span>}
               {p.seccion_nombre && <span style={{ background: p.seccion_color || 'var(--primary)', color: '#fff', padding: '1px 8px', borderRadius: 4, fontSize: 10, fontWeight: 800, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{p.seccion_nombre}</span>}
+              {p.moneda === 'USDT' && <span className="ped-usdt">USDT</span>}
+              {p.pedido_vinculado && p.vinculado_moneda && <span className="ped-vinc" title="Misma compra, se cobra aparte"><Link2 size={11} /> con #{String(p.pedido_vinculado).padStart(4, '0')} en {p.vinculado_moneda === 'USDT' ? 'USDT' : 'pesos'}</span>}
               {' — '}{p.usuario_nombre || '(sin nombre)'} {p.nombre_fantasia && `(${p.nombre_fantasia})`}
               <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {p.tipo !== 'presupuesto' && (() => { let ep = (p.estado_pago && String(p.estado_pago).trim() && p.estado_pago !== 'pendiente') ? p.estado_pago : 'impago'; return <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: ep === 'pagado' ? 'var(--success)' : ep === 'senado' ? 'var(--accent)' : ep === 'debe' ? 'var(--danger)' : '#999', color: '#fff' }}>{ep}</span>; })()}
               <span style={{ background: colores[p.estado], color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{p.estado}</span>
-              <strong>{fmtARS(p.total)}</strong>
+              <strong>{fmtPedido(p.total, p)}</strong>
               {p.tipo !== 'presupuesto' && p.estado_pago === 'senado' && (Number(p.sena) > 0
-                ? <span className="ped-resta">resta {fmtARS(Math.max(0, Number(p.total) - Number(p.sena)))}</span>
+                ? <span className="ped-resta">resta {fmtPedido(Math.max(0, Number(p.total) - Number(p.sena)), p)}</span>
                 : <span className="ped-resta sin">falta monto de seña</span>)}
             </div>
           </div>
@@ -4429,7 +4435,8 @@ function TableroPedidos({ pedidos, colores, ocupado, epDe, onMover, onVer }) {
     <div className="kb">
       {TABLERO_COLS.map((col, ci) => {
         const lista = pedidos.filter(p => p.estado === col.k);
-        const suma = lista.reduce((a, p) => a + (Number(p.total) || 0), 0);
+        const suma = lista.filter(p => p.moneda !== 'USDT').reduce((a, p) => a + (Number(p.total) || 0), 0);
+        const sumaUsdt = lista.filter(p => p.moneda === 'USDT').reduce((a, p) => a + (Number(p.total) || 0), 0);
         const visibles = col.k === 'entregado' ? lista.slice(0, MAX_ENTREGADOS) : lista;
         const sig = TABLERO_COLS[ci + 1];
         return (
@@ -4441,7 +4448,7 @@ function TableroPedidos({ pedidos, colores, ocupado, epDe, onMover, onVer }) {
               <span className="kb-dot" />
               <span className="kb-titulo">{col.t}</span>
               <span className="kb-n">{lista.length}</span>
-              {lista.length > 0 && <span className="kb-sum">{fmtARS(suma)}</span>}
+              {lista.length > 0 && <span className="kb-sum">{sumaUsdt > 0 && suma === 0 ? fmtPedido(sumaUsdt, { moneda: 'USDT' }) : fmtARS(suma)}{sumaUsdt > 0 && suma > 0 ? ` + ${fmtPedido(sumaUsdt, { moneda: 'USDT' })}` : ''}</span>}
             </header>
             <div className="kb-list">
               {visibles.map(p => {
@@ -4451,7 +4458,7 @@ function TableroPedidos({ pedidos, colores, ocupado, epDe, onMover, onVer }) {
                     onDragStart={e => { arrastrando.current = p; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(p.id)); } catch {} }}
                     onDragEnd={() => { arrastrando.current = null; setSobre(null); }}
                     onClick={() => onVer(p)}>
-                    <div className="kb-card-top"><strong>{numOrden(p)}</strong><span className="kb-total">{fmtARS(p.total)}</span></div>
+                    <div className="kb-card-top"><strong>{numOrden(p)}</strong><span className="kb-total">{fmtPedido(p.total, p)}</span></div>
                     <div className="kb-cli">{p.usuario_nombre || '(sin nombre)'}{p.nombre_fantasia ? ` · ${p.nombre_fantasia}` : ''}</div>
                     <div className="kb-meta">
                       {p.seccion_nombre && <span className="kb-sec" style={{ background: p.seccion_color || 'var(--primary)' }}>{p.seccion_nombre}</span>}
@@ -4545,6 +4552,12 @@ function VisorProductoPanel() {
 function OrderDetailModal({ order: initOrder, onClose }) {
   const { toast, listas, getPrice, userLista, openWA, config, design } = useContext(Ctx);
   const [o, setO] = useState(initOrder);
+  // Todo el detalle va en la moneda del pedido (un pedido en USDT nunca muestra "$")
+  const enUsdt = o.moneda === 'USDT';
+  const fmtO = (n) => fmtPedido(n, o);
+  const monP = enUsdt ? 'USDT ' : '$';
+  const fmtN = (n) => enUsdt ? Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 }) : fmt(n);
+  const redondear = (n) => enUsdt ? Math.round(n * 100) / 100 : Math.round(n); // USDT conserva los centavos
   const [items, setItems] = useState([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -4559,7 +4572,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const [costoEnvioEd, setCostoEnvioEd] = useState(Number(initOrder.costo_envio) > 0 ? String(Number(initOrder.costo_envio)) : '');
   const cargarHistorial = async () => { try { const h = await api.getHistorialPedido(o.id); setHistorial(h || []); } catch {} };
   useEffect(() => { cargarHistorial(); }, [o.id]);
-  const [nuevoPago, setNuevoPago] = useState({ metodo: 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
+  const [nuevoPago, setNuevoPago] = useState({ metodo: enUsdt ? 'usdt' : 'efectivo', cuenta_como: '', ajuste_pct: 0, nota: '' });
   const searchTimer = useRef(null);
 
   // Parsear datos de envío/facturación (guardados como JSON en el checkout)
@@ -4575,7 +4588,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const totalPedido = totalItems > 0 ? (totalItems - Number(o.descuento || 0) + Number(o.costo_envio || 0)) : Number(o.total || 0);
   const saldoPedido = totalPedido - totalSaldado;
   const ajustesMetodo = parseJSON(config.ajustes_metodo) || {};
-  const previewRecibido = (() => { const cta = Number(nuevoPago.cuenta_como) || 0; const pct = Number(nuevoPago.ajuste_pct) || 0; return Math.round(cta * (1 + pct / 100)); })();
+  const previewRecibido = (() => { const cta = Number(nuevoPago.cuenta_como) || 0; const pct = Number(nuevoPago.ajuste_pct) || 0; return redondear(cta * (1 + pct / 100)); })();
   const cargarPagos = async () => { try { const p = await api.getPagos(o.id); setPagos(p || []); } catch {} };
   const quitarPago = async (pagoId) => {
     try { const r = await api.deletePago(o.id, pagoId); await cargarPagos(); setO({ ...o, estado_pago: r.estado }); } catch (e) { toast(e.message, 'error'); }
@@ -4601,13 +4614,13 @@ function OrderDetailModal({ order: initOrder, onClose }) {
   const textoResumen = (lista = pagos) => {
     const pag = marcadoPagado ? totalPedido : lista.reduce((s, p) => s + Number(p.cuenta_como || 0), 0) + (lista.length ? 0 : senaSinDetalle);
     const resta = Math.max(0, totalPedido - pag);
-    const lineas = lista.map(p => `• ${fechaCorta(p.created_at)}: ${fmtARS(p.cuenta_como)}${p.metodo ? ` (${p.metodo})` : ''}`);
+    const lineas = lista.map(p => `• ${fechaCorta(p.created_at)}: ${fmtO(p.cuenta_como)}${p.metodo ? ` (${p.metodo})` : ''}`);
     return [
       `Hola ${o.usuario_nombre || ''}! Te paso el resumen de tu pedido ${numOrden(o)}:`, '',
-      `Total: ${fmtARS(totalPedido)}`,
+      `Total: ${fmtO(totalPedido)}`,
       ...(lineas.length ? ['Pagos:', ...lineas] : []),
-      `Pagado: ${fmtARS(pag)}`,
-      resta > 0.01 ? `Resta abonar: ${fmtARS(resta)}` : 'Pedido pagado completo. ¡Gracias!',
+      `Pagado: ${fmtO(pag)}`,
+      resta > 0.01 ? `Resta abonar: ${fmtO(resta)}` : 'Pedido pagado completo. ¡Gracias!',
     ].join('\n');
   };
   const enviarResumen = async () => {
@@ -4620,7 +4633,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const cuentaComo = Number(montoForzado != null ? montoForzado : nuevoPago.cuenta_como);
     if (!(cuentaComo > 0)) { toast('Poné el monto que paga', 'error'); montoRef.current?.focus(); return; }
     const ajustePct = Number(nuevoPago.ajuste_pct) || 0;
-    const recibido = Math.round(cuentaComo * (1 + ajustePct / 100));
+    const recibido = redondear(cuentaComo * (1 + ajustePct / 100));
     setGuardandoPago(true);
     try {
       // Seña vieja sin detalle: primero la pasamos a la lista de pagos para no perderla
@@ -4680,7 +4693,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       // Aviso si quedaron pagos que no coinciden con el nuevo total (evita pagos fantasma)
       const sumPagos = (pagos || []).reduce((s, pg) => s + (Number(pg.cuenta_como) || Number(pg.monto) || 0), 0);
       if (sumPagos > 0.5 && Math.abs(sumPagos - editTotal) > 0.5) {
-        toast(`Atención: este pedido tiene pagos por ${fmtARS(sumPagos)} y el nuevo total es ${fmtARS(editTotal)}. Revisá y borrá los pagos que sobren.`, 'error');
+        toast(`Atención: este pedido tiene pagos por ${fmtO(sumPagos)} y el nuevo total es ${fmtO(editTotal)}. Revisá y borrá los pagos que sobren.`, 'error');
       }
       pedirAviso(`Hola ${o.usuario_nombre || ''}, actualizamos tu pedido #${o.id}. Cualquier duda escribinos.`);
     } catch (e) { toast(e.message, 'error'); }
@@ -4706,7 +4719,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const nuevo = Math.max(0, Number(costoEnvioEd) || 0); const viejo = Number(o.costo_envio) || 0;
     const total = totalItems > 0 ? totalItems - Number(o.descuento || 0) + nuevo : Number(o.total || 0) - viejo + nuevo;
     const metodo = String(o.metodo_envio || '').replace(/\s*\(envío a cotizar\)/i, '');
-    try { await api.updatePedido(o.id, { costo_envio: nuevo, total, metodo_envio: metodo }); setO({ ...o, costo_envio: nuevo, total, metodo_envio: metodo }); toast(nuevo > 0 ? `Envío de ${fmtARS(nuevo)} sumado al pedido` : 'Envío sin cargo'); } catch (e) { toast(e.message, 'error'); }
+    try { await api.updatePedido(o.id, { costo_envio: nuevo, total, metodo_envio: metodo }); setO({ ...o, costo_envio: nuevo, total, metodo_envio: metodo }); toast(nuevo > 0 ? `Envío de ${fmtO(nuevo)} sumado al pedido` : 'Envío sin cargo'); } catch (e) { toast(e.message, 'error'); }
   };
   const guardarTracking = async () => { try { await api.updatePedido(o.id, { codigo_seguimiento: tracking.trim() }); setO({ ...o, codigo_seguimiento: tracking.trim() }); toast('Seguimiento guardado'); } catch (e) { toast(e.message, 'error'); } };
   const enviarTrackingWA = async () => { const cod = tracking.trim(); if (!cod) return; if (cod !== (o.codigo_seguimiento || '')) await guardarTracking(); if (!telPedido()) { toast('Este pedido no tiene teléfono del cliente', 'error'); return; } pedirAviso(`¡Hola ${o.usuario_nombre || ''}! Tu pedido #${o.id} fue despachado 🚚. Código de seguimiento: ${cod}`); };
@@ -4754,9 +4767,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const totalRec = listaPagos.reduce((s, p) => s + Number(p.recibido || 0), 0);
     const saldoRem = Math.max(0, Number(editTotal) - totalSald);
     const pagosHTML = listaPagos.length ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
-      ${listaPagos.map(p => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${escHtml(p.metodo)}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: $${fmt(p.recibido)}${Math.abs(dif) > 0.01 ? ` <span style="color:#888">(${dif > 0 ? 'desc. $' + fmt(dif) : 'rec. $' + fmt(-dif)})</span>` : ''}</p>`; }).join('')}
-      <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagado: $${fmt(totalRec)}</p>
-      ${saldoRem > 0.01 ? `<p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(saldoRem)}</p>` : `<p style="margin:2px 0;font-weight:800;color:#16a34a;font-size:${isSmall ? '12px' : '15px'}">✓ PAGADO</p>`}
+      ${listaPagos.map(p => { const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '13px'}">${escHtml(p.metodo)}${Number(p.ajuste_pct) !== 0 ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}: ${monP}${fmtN(p.recibido)}${Math.abs(dif) > 0.01 ? ` <span style="color:#888">(${dif > 0 ? 'desc. ' + monP + fmtN(dif) : 'rec. ' + monP + fmtN(-dif)})</span>` : ''}</p>`; }).join('')}
+      <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagado: ${monP}${fmtN(totalRec)}</p>
+      ${saldoRem > 0.01 ? `<p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: ${monP}${fmtN(saldoRem)}</p>` : `<p style="margin:2px 0;font-weight:800;color:#16a34a;font-size:${isSmall ? '12px' : '15px'}">✓ PAGADO</p>`}
     </div>` : '';
     const estadoPagoLabel = o.estado_pago === 'pagado' ? 'PAGADO' : o.estado_pago === 'senado' ? 'SEÑADO' : o.estado_pago === 'debe' ? 'DEBE' : 'IMPAGO';
     const estadoPagoColor = o.estado_pago === 'pagado' ? '#16a34a' : o.estado_pago === 'senado' ? '#d97706' : '#dc2626';
@@ -4765,7 +4778,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
     const qrSize = isSmall ? 90 : 120;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(pedidoUrl)}`;
     const rows = items.map(i =>
-      `<tr><td style="padding:3px 4px;border-bottom:1px solid #eee">${escHtml(itemName(i))}</td><td style="text-align:center;border-bottom:1px solid #eee">${escHtml(i.qty)}</td><td style="text-align:right;border-bottom:1px solid #eee">$${fmt((i.precio_unitario || 0) * i.qty)}</td></tr>`
+      `<tr><td style="padding:3px 4px;border-bottom:1px solid #eee">${escHtml(itemName(i))}</td><td style="text-align:center;border-bottom:1px solid #eee">${escHtml(i.qty)}</td><td style="text-align:right;border-bottom:1px solid #eee">${monP}${fmtN((i.precio_unitario || 0) * i.qty)}</td></tr>`
     ).join('');
     const w = window.open('', '_blank');
     if (!w) { toast('Permití los pop-ups para imprimir', 'error'); return; }
@@ -4795,13 +4808,13 @@ function OrderDetailModal({ order: initOrder, onClose }) {
       ${factLinea ? `<p style="margin:2px 0;font-size:${isSmall ? '10px' : '12px'};color:#333">${escHtml(factLinea)}</p>` : ''}
       <p style="margin:6px 0">
         <span class="badge" style="background:${estadoPagoColor}">${estadoPagoLabel}</span>
-        <span style="margin-left:8px">Método: ${escHtml(o.metodo_pago || '-')}</span>
+        <span style="margin-left:8px">Método: ${escHtml(o.metodo_pago || '-')}</span>${enUsdt ? '<span style="margin-left:8px;font-weight:800">Moneda: USDT</span>' : ''}
       </p>
       <table><thead><tr><th>Producto</th><th style="text-align:center">Cant</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
-      <p style="text-align:right;font-weight:800;font-size:${isSmall ? '14px' : '19px'};margin-top:10px">TOTAL: $${fmt(editTotal)}</p>
+      <p style="text-align:right;font-weight:800;font-size:${isSmall ? '14px' : '19px'};margin-top:10px">TOTAL: ${monP}${fmtN(editTotal)}</p>
       ${listaPagos.length ? pagosHTML : (tieneSena ? `<div style="text-align:right;margin-top:4px;border-top:2px solid #333;padding-top:6px">
-        <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagó (seña): $${fmt(senaMonto)}</p>
-        <p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: $${fmt(restaAbonar)}</p>
+        <p style="margin:2px 0;color:#16a34a;font-size:${isSmall ? '11px' : '14px'}">Pagó (seña): ${monP}${fmtN(senaMonto)}</p>
+        <p style="margin:2px 0;font-weight:800;color:#dc2626;font-size:${isSmall ? '13px' : '17px'}">RESTA ABONAR: ${monP}${fmtN(restaAbonar)}</p>
       </div>` : '')}
       ${o.notas ? `<p style="color:#666;font-size:${isSmall ? '9px' : '11px'};border-top:1px dashed #ccc;padding-top:6px;white-space:pre-line">Notas: ${escHtml(o.notas)}</p>` : ''}
     </body></html>`);
@@ -4830,7 +4843,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
         </div>
       )}
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}><Bookmark size={15} style={{ verticalAlign: '-2px' }} /> RESERVA / PREVENTA</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}><Bookmark size={15} style={{ verticalAlign: '-2px' }} /> RESERVA / PREVENTA</span>}{enUsdt && <span className="ped-usdt" style={{ fontSize: 11, padding: '2px 10px', marginLeft: 10 }}>USDT</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {/* Client info */}
           <div className="card" style={{ padding: 12, marginBottom: 12 }}>
@@ -4842,13 +4855,16 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             </div>
           </div>
 
+          {o.pedido_vinculado && o.vinculado_moneda && (
+            <div className="ped-vinc-box"><Link2 size={16} /><span>Misma compra que el pedido <strong>#{String(o.pedido_vinculado).padStart(4, '0')}</strong>, que va <strong>en {o.vinculado_moneda === 'USDT' ? 'USDT' : 'pesos'}</strong> ({fmtPedido(o.vinculado_total, { moneda: o.vinculado_moneda })}). Cada uno se cobra por separado{enUsdt ? '; este es el de USDT' : '; este es el de pesos'}.</span></div>
+          )}
           {/* SEÑA: resumen arriba solo cuando el pedido está señado (pagó una parte) */}
           {!loadingItems && totalPedido > 0 && cantPagos > 0 && restaCta > 0.01 && (
             <div className="cta-ped">
               <div className="cta-ped-nums">
-                <div><small>Total</small><strong>{fmtARS(totalPedido)}</strong></div>
-                <div><small>Señado</small><strong className="ok">{fmtARS(pagadoCta)}</strong></div>
-                <div><small>Resta</small><strong className="debe">{fmtARS(restaCta)}</strong></div>
+                <div><small>Total</small><strong>{fmtO(totalPedido)}</strong></div>
+                <div><small>Señado</small><strong className="ok">{fmtO(pagadoCta)}</strong></div>
+                <div><small>Resta</small><strong className="debe">{fmtO(restaCta)}</strong></div>
               </div>
               <div className="cta-ped-barra" title={`${pctCta}% pagado`}><span style={{ width: `${pctCta}%` }} /></div>
               <div className="cta-ped-acciones">
@@ -4895,8 +4911,8 @@ function OrderDetailModal({ order: initOrder, onClose }) {
                   <tr key={idx}>
                     <td><ItemProd id={i.producto_id || i.id} nombre={itemName(i)} imagen={i.imagen} sub={i.variante_combinacion || null} /></td>
                     <td>{editing ? <input type="number" value={i.qty} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, qty: Number(e.target.value) } : it))} style={{ width: 50 }} /> : i.qty}</td>
-                    <td>{editing ? <input type="number" value={i.precio_unitario} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, precio_unitario: Number(e.target.value) } : it))} style={{ width: 70 }} /> : (Number(i.precio_base) > Number(i.precio_unitario) ? <div><span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 12 }}>{fmtARS(i.precio_base)}</span> <span style={{ fontWeight: 700 }}>{fmtARS(i.precio_unitario)}</span><div style={{ fontSize: 11, color: 'var(--success)' }}>-{Math.round((1 - Number(i.precio_unitario) / Number(i.precio_base)) * 100)}% aplicado</div></div> : fmtARS(i.precio_unitario))}</td>
-                    <td>{fmtARS((i.precio_unitario || 0) * (i.qty || 0))}</td>
+                    <td>{editing ? <input type="number" value={i.precio_unitario} onChange={e => setItems(items.map((it, j) => j === idx ? { ...it, precio_unitario: Number(e.target.value) } : it))} style={{ width: 70 }} /> : (Number(i.precio_base) > Number(i.precio_unitario) ? <div><span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', fontSize: 12 }}>{fmtO(i.precio_base)}</span> <span style={{ fontWeight: 700 }}>{fmtO(i.precio_unitario)}</span><div style={{ fontSize: 11, color: 'var(--success)' }}>-{Math.round((1 - Number(i.precio_unitario) / Number(i.precio_base)) * 100)}% aplicado</div></div> : fmtO(i.precio_unitario))}</td>
+                    <td>{fmtO((i.precio_unitario || 0) * (i.qty || 0))}</td>
                     {editing && <td><button className="btn btn-danger btn-sm" onClick={() => setItems(items.filter((_, j) => j !== idx))} style={{ padding: '2px 6px' }}>✕</button></td>}
                   </tr>
                 ))}
@@ -4925,10 +4941,10 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           )}
 
           <div style={{ textAlign: 'right', marginBottom: 12 }}>
-            {editing && ajuste !== 0 && <div style={{ fontSize: 12, color: ajuste < 0 ? 'var(--success)' : 'var(--accent)' }}>{ajuste < 0 ? `Descuento: -${fmtARS(Math.abs(ajuste))}` : `Recargo: +${fmtARS(ajuste)}`}</div>}
-            {!editing && Number(o.descuento) > 0 && <div style={{ fontSize: 12, color: 'var(--success)' }}>Descuento: -{fmtARS(Number(o.descuento))}</div>}
-            {envioPed > 0 ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Envío: +{fmtARS(envioPed)}</div> : envioACotizar ? <div style={{ fontSize: 12, color: 'var(--warning, #f59e0b)', fontWeight: 700 }}>Envío: a cotizar</div> : null}
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtARS(editing ? editTotal : totalPedido)}</div>
+            {editing && ajuste !== 0 && <div style={{ fontSize: 12, color: ajuste < 0 ? 'var(--success)' : 'var(--accent)' }}>{ajuste < 0 ? `Descuento: -${fmtO(Math.abs(ajuste))}` : `Recargo: +${fmtO(ajuste)}`}</div>}
+            {!editing && Number(o.descuento) > 0 && <div style={{ fontSize: 12, color: 'var(--success)' }}>Descuento: -{fmtO(Number(o.descuento))}</div>}
+            {envioPed > 0 ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Envío: +{fmtO(envioPed)}</div> : envioACotizar ? <div style={{ fontSize: 12, color: 'var(--warning, #f59e0b)', fontWeight: 700 }}>Envío: a cotizar</div> : null}
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Total: {fmtO(editing ? editTotal : totalPedido)}</div>
           </div>
 
           {/* PAGO: un solo lugar — estado, pagos cargados, cargar seña / pago / cobrar todo */}
@@ -4940,21 +4956,21 @@ function OrderDetailModal({ order: initOrder, onClose }) {
             {cantPagos > 0 && (
               <>
                 <ol className="cta-ped-lista">
-                  {senaSinDetalle > 0 && <li><span>Seña</span><span>sin fecha</span><strong>{fmtARS(senaSinDetalle)}</strong><i /></li>}
+                  {senaSinDetalle > 0 && <li><span>Seña</span><span>sin fecha</span><strong>{fmtO(senaSinDetalle)}</strong><i /></li>}
                   {pagos.map((p, i) => { const n = i + (senaSinDetalle > 0 ? 1 : 0); const dif = Number(p.cuenta_como || 0) - Number(p.recibido || 0); return (
                     <li key={p.id}>
                       <span>{n === 0 ? (restaCta > 0.01 || cantPagos > 1 ? 'Seña' : 'Pago') : `Pago ${n + 1}`}</span>
                       <span>{fechaCorta(p.created_at)}{p.metodo ? ` · ${p.metodo}` : ''}{Number(p.ajuste_pct) ? ` (${Number(p.ajuste_pct) > 0 ? '+' : ''}${p.ajuste_pct}%)` : ''}{p.nota ? ` · ${p.nota}` : ''}</span>
-                      <strong>{fmtARS(p.recibido)}{Math.abs(dif) > 0.01 && <small>salda {fmtARS(p.cuenta_como)}</small>}</strong>
+                      <strong>{fmtO(p.recibido)}{Math.abs(dif) > 0.01 && <small>salda {fmtO(p.cuenta_como)}</small>}</strong>
                       <button className="pago-quitar" onClick={() => quitarPago(p.id)} aria-label="Quitar pago" title="Quitar pago"><X size={14} /></button>
                     </li>); })}
                 </ol>
                 <div className="pago-tot">
-                  <span>Pagado <strong className="ok">{fmtARS(pagadoCta)}</strong></span>
-                  {restaCta > 0.01 ? <span>Resta <strong className="debe">{fmtARS(restaCta)}</strong></span> : <strong className="ok">Pagado completo</strong>}
+                  <span>Pagado <strong className="ok">{fmtO(pagadoCta)}</strong></span>
+                  {restaCta > 0.01 ? <span>Resta <strong className="debe">{fmtO(restaCta)}</strong></span> : <strong className="ok">Pagado completo</strong>}
                 </div>
                 <div className="cta-ped-barra"><span style={{ width: `${pctCta}%` }} /></div>
-                {Math.abs(totalRecibido - totalSaldado) > 0.01 && <small className="cta-ped-nota">Plata recibida: {fmtARS(totalRecibido)} (con recargos/descuentos).</small>}
+                {Math.abs(totalRecibido - totalSaldado) > 0.01 && <small className="cta-ped-nota">Plata recibida: {fmtO(totalRecibido)} (con recargos/descuentos).</small>}
               </>
             )}
             {marcadoPagado && <div className="cta-ped-nota">Marcado como pagado sin registrar el cobro. <button className="pago-link" onClick={() => cambiarEstadoPagoManual('impago')}>Volver a impago</button></div>}
@@ -4963,17 +4979,19 @@ function OrderDetailModal({ order: initOrder, onClose }) {
               <>
                 <div className="pago-form">
                   <select value={nuevoPago.metodo} onChange={e => onMetodoPago(e.target.value)} aria-label="Método de pago">
-                    <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="débito">Débito</option><option value="crédito">Crédito</option><option value="mercadopago">MercadoPago</option><option value="otro">Otro</option>
+                    {enUsdt
+                      ? <><option value="usdt">USDT</option><option value="otro">Otro</option></>
+                      : <><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="débito">Débito</option><option value="crédito">Crédito</option><option value="mercadopago">MercadoPago</option><option value="otro">Otro</option></>}
                   </select>
-                  <input ref={montoRef} type="number" inputMode="numeric" min="0" placeholder={cantPagos ? 'Monto de hoy' : 'Monto'} value={nuevoPago.cuenta_como} onChange={e => setNuevoPago({ ...nuevoPago, cuenta_como: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') registrarPago(); }} />
+                  <input ref={montoRef} type="number" inputMode={enUsdt ? 'decimal' : 'numeric'} step={enUsdt ? '0.01' : undefined} min="0" placeholder={cantPagos ? 'Monto de hoy' : 'Monto'} value={nuevoPago.cuenta_como} onChange={e => setNuevoPago({ ...nuevoPago, cuenta_como: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') registrarPago(); }} />
                   <input className="pago-ajuste" type="number" value={nuevoPago.ajuste_pct || ''} onChange={e => setNuevoPago({ ...nuevoPago, ajuste_pct: e.target.value })} placeholder="Ajuste %" title="Ajuste %: negativo = descuento, positivo = recargo" />
                   <button className="btn btn-primary btn-sm" onClick={() => registrarPago()} disabled={guardandoPago}><Plus size={14} style={{ verticalAlign: '-2px' }} /> {guardandoPago ? 'Guardando...' : (cantPagos ? 'Sumar pago' : 'Cargar pago')}</button>
                 </div>
                 {Number(nuevoPago.cuenta_como) > 0 && previewRecibido !== Number(nuevoPago.cuenta_como) && (
-                  <div className="cta-ped-nota">Cobrale <strong>{fmtARS(previewRecibido)}</strong> en {nuevoPago.metodo} (salda {fmtARS(Number(nuevoPago.cuenta_como))} del pedido).</div>
+                  <div className="cta-ped-nota">Cobrale <strong>{fmtO(previewRecibido)}</strong> en {nuevoPago.metodo} (salda {fmtO(Number(nuevoPago.cuenta_como))} del pedido).</div>
                 )}
                 <div className="cta-ped-acciones">
-                  <button className="btn btn-outline btn-sm" onClick={() => registrarPago(Math.round(restaCta * 100) / 100)} disabled={guardandoPago}>Cobrar todo ({fmtARS(restaCta)})</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => registrarPago(Math.round(restaCta * 100) / 100)} disabled={guardandoPago}>Cobrar todo ({fmtO(restaCta)})</button>
                   {o.estado_pago !== 'debe' && cantPagos === 0 && <button className="btn btn-outline btn-sm" onClick={() => cambiarEstadoPagoManual('debe')}>Dejar como "Debe" (fiado)</button>}
                   {cantPagos > 0 && <button className="btn btn-outline btn-sm" onClick={enviarResumen}><MessageCircle size={14} style={{ verticalAlign: '-2px' }} /> Enviar resumen</button>}
                 </div>

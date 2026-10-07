@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import * as api from './api';
 import { precioPublico } from '../api/_precio.js';
 import { trackBusqueda } from './tracker';
-import { ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2 } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2, Link2 } from 'lucide-react';
 
 // Cloudinary: pide cada imagen al tamaño en que se muestra, en WebP/AVIF y con calidad automática.
 // Una foto de 2 MB pasa a pesar ~40 KB en la grilla. Las URLs que no son de Cloudinary quedan igual.
@@ -23,6 +23,8 @@ const imgSet = (url, w) => (CLD_RE.test(String(url || '')) ? `${imgOpt(url, w)} 
 
 const fmt = n => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtARS = n => `$${fmt(n)}`;
+// Monto de un pedido en su moneda: un pedido en USDT nunca se muestra con "$" (y conserva los centavos)
+const fmtPedido = (n, o) => (o && o.moneda === 'USDT') ? `USDT ${Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}` : fmtARS(n);
 
 // Solo deja pasar links http(s), rutas propias, mailto/tel/wa: nunca "javascript:" ni "data:"
 const urlSegura = (u) => {
@@ -34,7 +36,8 @@ const urlSegura = (u) => {
 };
 
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
-const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmt(n)}` : moneda === 'USD' ? `US$ ${fmt(n)}` : `$${fmt(n)}`;
+const fmtDol = (n) => Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 }); // USDT/USD con centavos
+const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmtDol(n)}` : moneda === 'USD' ? `US$ ${fmtDol(n)}` : `$${fmt(n)}`;
 // --- Blindaje de precios/totales (evita totales x100 por data vieja o corrupta) ---
 const puItem = (i) => {
   const base = Number(i?.precio_base) || 0;
@@ -3354,13 +3357,14 @@ function CheckoutModal({ user, cot: cotCarrito, entregaTipo, cp, metodos, config
                     {s.descuento_pago > 0 && <div className="resumen-linea ok"><span>Descuento pagando con {s.metodo_pago} ({s.descuento_pago_pct}%)</span><span>-{fmtARS(s.descuento_pago)}</span></div>}
                   </div>
                 ))}
-                <div className="resumen-total"><span>Total</span><span>{fmtARS(totales.total)}</span></div>
+                {!(totales.total_usdt > 0 && !(totales.total > 0)) && <div className="resumen-total"><span>{totales.total_usdt > 0 ? 'Total en pesos' : 'Total'}</span><span>{fmtARS(totales.total)}</span></div>}
                 {esEnvio && totales.envio_a_cotizar && <div className="resumen-nota"><Info size={14} /> El envío no está incluido: te lo cotizamos por WhatsApp según el peso y el destino.</div>}
-                {totales.total_usdt > 0 && <div className="resumen-total usdt"><span>Total USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
+                {totales.total_usdt > 0 && <div className="resumen-total usdt"><span>Total en USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
               </div>
               {totales.total_usdt > 0 && (
                 <div className="usdt-box">
                   <div className="usdt-box-t">Pago en USDT: {fmtMon(totales.total_usdt, 'USDT')}</div>
+                  {totales.total > 0 && <div className="usdt-box-i">Lo que es en USDT sale en un pedido aparte, vinculado al de pesos. Son dos pagos separados.</div>}
                   {config.usdt_red && <div><strong>Red:</strong> {config.usdt_red}</div>}
                   {config.usdt_wallet && <div style={{ wordBreak: 'break-all' }}><strong>Wallet:</strong> {config.usdt_wallet}</div>}
                   {config.usdt_alias && <div><strong>Alias / Binance:</strong> {config.usdt_alias}</div>}
@@ -3441,7 +3445,13 @@ function PedidoExitoModal({ exito, config, onClose }) {
   const wa = waIntl(config?.whatsapp_flotante || config?.whatsapp || config?.whatsapp_numero || '');
   const nombre = exito.contacto?.nombre || '';
   const totalTxt = `${fmtARS(exito.total)}${exito.total_usdt > 0 ? ` + ${fmtMon(exito.total_usdt, 'USDT')}` : ''}`;
-  const msg = `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${totalTxt}. Quiero coordinar el pago y la entrega.`;
+  // Compra con parte en pesos y parte en USDT: son pedidos separados, cada uno con su total y su moneda
+  const peds = exito.pedidos || [];
+  const mixta = peds.some(p => p.moneda === 'USDT') && peds.some(p => p.moneda !== 'USDT');
+  const detalleMixto = peds.map(p => `#${String(p.id).padStart(4, '0')} (${p.moneda === 'USDT' ? 'en USDT' : 'en pesos'}): ${fmtPedido(p.total, p)}`).join(' y ');
+  const msg = mixta
+    ? `¡Hola! Soy ${nombre}. Acabo de hacer una compra con los pedidos ${detalleMixto}. Quiero coordinar el pago y la entrega.`
+    : `¡Hola! Soy ${nombre}. Acabo de hacer el pedido ${numStr} por ${totalTxt}. Quiero coordinar el pago y la entrega.`;
   const waUrl = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}` : '';
   return (
     <div className="modal-overlay" style={{ zIndex: 3500 }}>
@@ -3453,7 +3463,12 @@ function PedidoExitoModal({ exito, config, onClose }) {
           <div style={{ background: 'var(--bg-card)', borderRadius: 14, padding: '16px 20px', marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{nums.length > 1 ? 'Pedidos' : 'Pedido'}</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--primary)' }}>{numStr}</div>
-            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>Total: {totalTxt}</div>
+            {mixta ? (
+              <div className="exito-mixto">
+                {peds.map(p => <div key={p.id}><span>Pedido #{String(p.id).padStart(4, '0')} · {p.moneda === 'USDT' ? 'en USDT' : 'en pesos'}</span><strong>{fmtPedido(p.total, p)}</strong></div>)}
+                <small>Son dos pagos separados: uno en pesos y otro en USDT.</small>
+              </div>
+            ) : <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>Total: {totalTxt}</div>}
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>Enviános el pedido por WhatsApp y coordinamos el pago y la entrega al toque.</p>
           {waUrl ? <a className="btn btn-success" href={waUrl} target="_blank" rel="noopener noreferrer" style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 800, marginBottom: 10, display: 'block' }}>Enviar pedido por WhatsApp</a> : null}
@@ -3646,7 +3661,7 @@ function CartPage() {
       seccionesConItems.forEach(sec => clearCart(sec.id));
       try { localStorage.removeItem('gm_cupon_pend'); } catch {}
       setShowCheckout(false);
-      setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {},
+      setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), pedidos: (r?.pedidos || []).filter(p => p && p.id).map(p => ({ id: p.id, moneda: p.moneda, total: p.total })), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {},
         // Para la encuesta de Reseñas de Clientes en Google
         email: (dc.contacto && dc.contacto.email) || user?.email || '', entrega: entregaTipo, test: !!testMode,
         mayorista: seccionesConItems.some(sec => sec.requiere_aprobacion),
@@ -3821,7 +3836,7 @@ function CartPage() {
         <div className="cart-tot-sep" />
         <div className="cart-tot-total"><span>Total</span><span>{cotizando && !cot ? '…' : fmtARS(totales.total)}</span></div>
         {totales.total_usdt > 0 && <div className="cart-tot-total usdt"><span>Total USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
-        {totales.total_usdt > 0 && <p className="cart-tot-nota">Los productos en USDT se pagan aparte (los datos aparecen en el checkout).</p>}
+        {totales.total_usdt > 0 && <p className="cart-tot-nota">Los productos en USDT van en un pedido aparte y se pagan aparte (los datos aparecen en el checkout).</p>}
       </div>
 
       {(cotError || errores.length > 0 || necesitaCp) && (
@@ -4768,10 +4783,11 @@ function AccountPanel() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{numOrden(o)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(o.created_at).toLocaleDateString('es-AR')} • {o.seccion_nombre}</div>
+                {o.pedido_vinculado && o.vinculado_moneda && <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}><Link2 size={12} /> Va con el #{String(o.pedido_vinculado).padStart(4, '0')} en {o.vinculado_moneda === 'USDT' ? 'USDT' : 'pesos'}</div>}
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(o.total)}</div>
-                {Number(o.sena) > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe') && <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700 }}>Resta {fmtARS(Math.max(0, Number(o.total) - Number(o.sena || 0)))}</div>}
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtPedido(o.total, o)}</div>
+                {Number(o.sena) > 0 && (o.estado_pago === 'senado' || o.estado_pago === 'debe') && <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700 }}>Resta {fmtPedido(Math.max(0, Number(o.total) - Number(o.sena || 0)), o)}</div>}
                 <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: estadoColor[o.estado] || '#999', color: '#fff', padding: '2px 8px', borderRadius: 6 }}>{o.estado}</span>
               </div>
             </div>
@@ -4788,7 +4804,7 @@ function AccountPanel() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(o.created_at).toLocaleDateString('es-AR')} • {o.seccion_nombre}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtARS(o.total)}</div>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{fmtPedido(o.total, o)}</div>
                 <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: o.estado === 'pendiente' ? 'var(--accent)' : 'var(--success)', color: '#fff', padding: '2px 8px', borderRadius: 6 }}>{o.tipo === 'presupuesto' ? 'presupuesto' : o.estado}</span>
               </div>
             </div>
@@ -4810,19 +4826,26 @@ function AccountPanel() {
               {(viewDetail.items || []).map((it, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
                   <ItemProd id={it.producto_id} nombre={it.nombre_producto} imagen={it.imagen} sub={`x${it.cantidad}`} tam={36} />
-                  <span style={{ fontWeight: 700 }}>{fmtARS(it.precio_unitario * it.cantidad)}</span>
+                  <span style={{ fontWeight: 700 }}>{fmtPedido(it.precio_unitario * it.cantidad, viewDetail)}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontWeight: 900, fontSize: 18 }}>
-                <span>Total</span><span>{fmtARS(viewDetail.total)}</span>
+                <span>Total{viewDetail.moneda === 'USDT' ? ' en USDT' : ''}</span><span>{fmtPedido(viewDetail.total, viewDetail)}</span>
               </div>
               {Number(viewDetail.sena) > 0 && (viewDetail.estado_pago === 'senado' || viewDetail.estado_pago === 'debe') && (
                 <div style={{ marginTop: 10, background: 'var(--border-light)', borderRadius: 10, padding: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--success)', marginBottom: 4 }}><span>Seña pagada</span><span style={{ fontWeight: 700 }}>{fmtARS(viewDetail.sena)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: 'var(--danger)' }}><span>Resta abonar</span><span>{fmtARS(Math.max(0, Number(viewDetail.total) - Number(viewDetail.sena || 0)))}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--success)', marginBottom: 4 }}><span>Seña pagada</span><span style={{ fontWeight: 700 }}>{fmtPedido(viewDetail.sena, viewDetail)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: 'var(--danger)' }}><span>Resta abonar</span><span>{fmtPedido(Math.max(0, Number(viewDetail.total) - Number(viewDetail.sena || 0)), viewDetail)}</span></div>
                 </div>
               )}
-              {viewDetail.estado_pago === 'pagado' && <div style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 700, background: 'var(--border-light)', padding: 8, borderRadius: 8 }}>✓ Pagado completo</div>}
+              {viewDetail.estado_pago === 'pagado' && <div style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 700, background: 'var(--border-light)', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Check size={15} /> Pagado completo</div>}
+              {viewDetail.pedido_vinculado && viewDetail.vinculado_moneda && (
+                <button type="button" className="cuenta-vinc" onClick={() => loadDetail(viewDetail.pedido_vinculado)}>
+                  <Link2 size={16} />
+                  <span>Esta compra tiene otra parte <strong>en {viewDetail.vinculado_moneda === 'USDT' ? 'USDT' : 'pesos'}</strong>: pedido #{String(viewDetail.pedido_vinculado).padStart(4, '0')} por {fmtPedido(viewDetail.vinculado_total, { moneda: viewDetail.vinculado_moneda })}. Se paga por separado.</span>
+                  <ChevronRight size={16} />
+                </button>
+              )}
               {viewDetail.notas && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', background: 'var(--border-light)', padding: 10, borderRadius: 8 }}><FileText size={15} style={{ verticalAlign: '-2px' }} /> {viewDetail.notas}</div>}
             </div>
           </div>
@@ -5150,4 +5173,4 @@ function FavoritosPage() {
 
 
 // Compartido con el panel (src/Panel.jsx)
-export { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink };
+export { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtPedido, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink };
