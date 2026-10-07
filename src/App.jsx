@@ -2932,7 +2932,7 @@ function MayoristaBloqueado({ sec }) {
   const wa = waIntl(config?.whatsapp || design?.whatsapp_numero || '');
   const pedir = async () => {
     setEnviando(true);
-    try { await api.solicitarMayorista(); setEnviado(true); setUser({ ...user, mayorista_solicitado_at: new Date().toISOString() }); toast('Pedido enviado. Te avisamos cuando esté aprobado.'); }
+    try { await api.solicitarMayorista(); setEnviado(true); setUser({ ...user, mayorista_solicitado_at: new Date().toISOString() }); toast('Pedido enviado. Avisanos por WhatsApp así te escribimos cuando esté aprobado.'); }
     catch (e) { toast(e.message, 'error'); }
     setEnviando(false);
   };
@@ -2952,11 +2952,18 @@ function MayoristaBloqueado({ sec }) {
             <small>Después de ingresar, pedí el acceso desde esta misma página.</small>
           </>
         ) : enviado ? (
-          <div className="may-lock-ok"><CheckCircle size={18} /> Ya pediste el acceso. Te avisamos cuando esté aprobado.</div>
+          <>
+            <div className="may-lock-ok"><CheckCircle size={18} /> Ya pediste el acceso. Te avisamos cuando esté aprobado.</div>
+            {/* El cliente nos escribe desde su WhatsApp: así queda su número real para avisarle la aprobación */}
+            {wa && <>
+              <a className="btn btn-success may-lock-wa" href={waLink(wa, `Hola, soy ${user.nombre || user.usuario} (usuario: ${user.usuario}). Solicité acceso a la lista ${sec.nombre} y espero la aprobación.`)} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} /> Avisar por WhatsApp</a>
+              <small>Mandanos el aviso desde tu WhatsApp: así te escribimos ahí cuando esté aprobado.</small>
+            </>}
+          </>
         ) : (
           <button className="btn btn-primary" onClick={pedir} disabled={enviando}>{enviando ? 'Enviando…' : 'Solicitar acceso mayorista'}</button>
         )}
-        {wa && <a className="btn btn-outline may-lock-wa" href={waLink(wa, `Hola, quiero acceso a la lista ${sec.nombre}${user ? ` (mi usuario es ${user.usuario})` : ''}.`)} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} /> Consultar por WhatsApp</a>}
+        {wa && !(user && enviado) && <a className="btn btn-outline may-lock-wa" href={waLink(wa, `Hola, quiero acceso a la lista ${sec.nombre}${user ? ` (mi usuario es ${user.usuario})` : ''}.`)} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} /> Consultar por WhatsApp</a>}
         <button className="link-btn" onClick={() => nav('landing')}>← Volver al inicio</button>
       </div>
     </div>

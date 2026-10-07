@@ -5083,11 +5083,39 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 }
 
 // ─── ADMIN: Usuarios (full modal: edit, approve with lista, subadmin perms) ───
+// Aviso por WhatsApp al cliente cuando se le aprueba el acceso mayorista (mensaje editable, o copiarlo si no hay teléfono)
+function AvisoMayorista({ u, onClose }) {
+  const { toast, design, secciones } = useContext(Ctx);
+  const tienda = design?.nombre_tienda || 'la tienda';
+  const secMay = (secciones || []).find(s => s.requiere_aprobacion) || null;
+  const link = `${window.location.origin}/${secMay ? (secMay.slug || 's-' + secMay.id) : ''}`;
+  const [msg, setMsg] = useState(`Hola ${u.nombre || u.usuario}, ya tenés aprobado tu acceso a la lista mayorista de ${tienda}. Entrá con tu usuario ${u.usuario} y vas a ver los precios: ${link}`);
+  const tel = waIntl(u.telefono);
+  const copiar = async () => { try { await navigator.clipboard.writeText(msg); toast('Mensaje copiado'); } catch { toast('No se pudo copiar', 'error'); } };
+  return (
+    <div className="modal-overlay" style={{ zIndex: 3000 }} onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span className="modal-title">¿Avisarle a {u.nombre || u.usuario}?</span><button className="modal-close" onClick={onClose} aria-label="Cerrar">✕</button></div>
+        <div className="modal-body">
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>{tel ? <>Se abre WhatsApp con el número que dejó (<b>{u.telefono}</b>). Si te escribió desde otro número, copiá el mensaje y mandáselo por ese chat.</> : 'No dejó teléfono: copiá el mensaje y mandáselo por el chat donde te escribió.'}</p>
+          <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={5} style={{ width: '100%', fontSize: 14 }} aria-label="Mensaje" />
+        </div>
+        <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
+          <button className="btn btn-outline" onClick={onClose}>No, gracias</button>
+          <button className="btn btn-outline" onClick={copiar}>Copiar mensaje</button>
+          {tel && <button className="btn btn-primary" onClick={() => { window.open(waLink(tel, msg), '_blank'); onClose(); }}><MessageCircle size={15} style={{ verticalAlign: '-2px' }} /> Abrir WhatsApp</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminUsuarios() {
   const { toast, listas, config, setConfig, design } = useContext(Ctx);
   const [users, setUsers] = useState([]);
   const [busq, setBusq] = useState('');
   const [editUser, setEditUser] = useState(null);
+  const [avisoMay, setAvisoMay] = useState(null); // cliente al que se le acaba de aprobar el mayorista
   const [filtroCli, setFiltroCli] = useState('todos');
   const [ordenCli, setOrdenCli] = useState('recientes');
   const aprobReq = config.registro_requiere_aprobacion === 'true';
@@ -5201,7 +5229,7 @@ function AdminUsuarios() {
                   {u.lista_precio_id && nombreLista(u.lista_precio_id) && <span className="cli-tag lista" style={{ '--c': listas.find(l => l.id === u.lista_precio_id)?.color || 'var(--primary)' }}>{nombreLista(u.lista_precio_id)}</span>}
                   {u.es_revendedor && <span className="cli-tag lista">Revendedor {Number(u.descuento_revendedor) > 0 ? `-${Number(u.descuento_revendedor)}%` : ''}</span>}
                   {u.mayorista && <span className="cli-tag may">Mayorista</span>}
-                  {!u.mayorista && u.mayorista_solicitado_at && !esEquipo(u) && <button type="button" className="cli-tag pide" onClick={async e => { e.stopPropagation(); try { await api.updateUsuario(u.id, { mayorista: true }); toast(`${u.nombre || u.usuario} ya puede ver la lista mayorista`); refresh(); } catch (er) { toast(er.message, 'error'); } }} title="Autorizar">Pide mayorista · Autorizar</button>}
+                  {!u.mayorista && u.mayorista_solicitado_at && !esEquipo(u) && <button type="button" className="cli-tag pide" onClick={async e => { e.stopPropagation(); try { await api.updateUsuario(u.id, { mayorista: true }); toast(`${u.nombre || u.usuario} ya puede ver la lista mayorista`); refresh(); setAvisoMay(u); } catch (er) { toast(er.message, 'error'); } }} title="Autorizar">Pide mayorista · Autorizar</button>}
                 </div>
               </div>
             </div>
@@ -5216,13 +5244,14 @@ function AdminUsuarios() {
           </div>
         );
       })}
-      {editUser && <UserModal u={editUser} onClose={() => { setEditUser(null); refresh(); }} />}
+      {editUser && <UserModal u={editUser} onClose={() => { setEditUser(null); refresh(); }} onMayoristaAprobado={setAvisoMay} />}
+      {avisoMay && <AvisoMayorista u={avisoMay} onClose={() => setAvisoMay(null)} />}
     </div>
   );
 }
 
 // ─── USER MODAL (full: edit all fields, approve, subadmin perms, WA) ───
-function UserModal({ u, onClose }) {
+function UserModal({ u, onClose, onMayoristaAprobado }) {
   const { toast, listas, openWA } = useContext(Ctx);
   const isNew = u._isNew;
   const isPending = !isNew && u.aprobado === false;
@@ -5254,7 +5283,9 @@ function UserModal({ u, onClose }) {
       const datos = { ...f }; if (!datos.password) delete datos.password;
       if (isNew) { await api.register(datos); await api.getUsuarios().then(users => { const newU = users.find(x => x.usuario === datos.usuario); if (newU && datos.activo) { api.updateUsuario(newU.id, datos); } }); }
       else await api.updateUsuario(u.id, datos);
-      toast(isNew ? 'Usuario creado' : 'Usuario actualizado'); onClose();
+      toast(isNew ? 'Usuario creado' : 'Usuario actualizado');
+      if (!isNew && !u.mayorista && datos.mayorista && onMayoristaAprobado) onMayoristaAprobado({ ...u, ...datos });
+      onClose();
     } catch (e) { toast(e.message, 'error'); }
     setSv(false);
   };
@@ -5278,7 +5309,7 @@ function UserModal({ u, onClose }) {
           {/* Pending approval */}
           {isPending && (
             <div className="card" style={{ padding: 12, marginBottom: 12, background: 'var(--warning-light)' }}>
-              <p style={{ fontWeight: 600, marginBottom: 8 }}>⏳ Pendiente de aprobación</p>
+              <p style={{ fontWeight: 600, marginBottom: 8 }}><Clock size={15} style={{ verticalAlign: '-2px' }} /> Pendiente de aprobación</p>
               <p style={{ fontSize: 13, marginBottom: 8 }}>Aprobar con lista de precios:</p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {listas.map(l => <button key={l.id} className="btn btn-sm" style={{ borderColor: l.color, color: l.color }} onClick={() => aprobar(l.id)} disabled={sv}>{l.nombre}</button>)}
