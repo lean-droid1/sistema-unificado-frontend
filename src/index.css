@@ -1518,6 +1518,10 @@ body.con-barra-compra .wa-widget { bottom: 86px !important; }
 .cli-tag.may { background: color-mix(in srgb, #10b981 18%, transparent); color: #10b981; border-color: transparent; }
 .cli-tag.pide { background: color-mix(in srgb, var(--accent, #f59e0b) 18%, transparent); color: var(--accent, #f59e0b); border-color: transparent; cursor: pointer; font-family: inherit; }
 button.cli-tag.pide:hover { background: var(--accent, #f59e0b); color: #111; }
+.cli-tag.rechazar { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); cursor: pointer; font-family: inherit; }
+button.cli-tag.rechazar:hover { background: var(--danger); color: #fff; }
+.may-lock-no { display: flex; align-items: flex-start; gap: 8px; color: var(--text-secondary); font-weight: 600; font-size: 14px; text-align: left; line-height: 1.45; }
+.may-lock-no svg { flex-shrink: 0; margin-top: 2px; }
 
 /* ── Mayorista: acceso bloqueado ── */
 .may-lock { min-height: 60vh; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }

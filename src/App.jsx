@@ -2928,12 +2928,13 @@ function VistaMayToggle({ vista, onVista }) {
 function MayoristaBloqueado({ sec }) {
   const { user, setUser, nav, toast, config, design } = useContext(Ctx);
   const [enviado, setEnviado] = useState(!!(user && user.mayorista_solicitado_at));
+  const rechazado = !!(user && !user.mayorista && user.mayorista_rechazado_at && !user.mayorista_solicitado_at);
   const [enviando, setEnviando] = useState(false);
   const wa = waIntl(config?.whatsapp || design?.whatsapp_numero || '');
   const pedir = async () => {
     setEnviando(true);
     try { await api.solicitarMayorista(); setEnviado(true); setUser({ ...user, mayorista_solicitado_at: new Date().toISOString() }); toast('Pedido enviado. Avisanos por WhatsApp así te escribimos cuando esté aprobado.'); }
-    catch (e) { toast(e.message, 'error'); }
+    catch (e) { toast(e.message, 'error'); if (/revisado/i.test(e.message || '')) setUser({ ...user, mayorista_rechazado_at: new Date().toISOString() }); }
     setEnviando(false);
   };
   return (
@@ -2951,6 +2952,8 @@ function MayoristaBloqueado({ sec }) {
             </div>
             <small>Después de ingresar, pedí el acceso desde esta misma página.</small>
           </>
+        ) : rechazado ? (
+          <div className="may-lock-no"><Info size={18} /> Tu pedido de acceso mayorista no fue aprobado. Igual podés comprar en la tienda, y si querés consultanos por WhatsApp.</div>
         ) : enviado ? (
           <>
             <div className="may-lock-ok"><CheckCircle size={18} /> Ya pediste el acceso. Te avisamos cuando esté aprobado.</div>

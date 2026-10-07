@@ -5083,13 +5083,15 @@ function OrderDetailModal({ order: initOrder, onClose }) {
 }
 
 // ─── ADMIN: Usuarios (full modal: edit, approve with lista, subadmin perms) ───
-// Aviso por WhatsApp al cliente cuando se le aprueba el acceso mayorista (mensaje editable, o copiarlo si no hay teléfono)
+// Aviso por WhatsApp al cliente cuando se le aprueba (o rechaza) el acceso mayorista (mensaje editable, o copiarlo si no hay teléfono)
 function AvisoMayorista({ u, onClose }) {
   const { toast, design, secciones } = useContext(Ctx);
   const tienda = design?.nombre_tienda || 'la tienda';
   const secMay = (secciones || []).find(s => s.requiere_aprobacion) || null;
   const link = `${window.location.origin}/${secMay ? (secMay.slug || 's-' + secMay.id) : ''}`;
-  const [msg, setMsg] = useState(`Hola ${u.nombre || u.usuario}, ya tenés aprobado tu acceso a la lista mayorista de ${tienda}. Entrá con tu usuario ${u.usuario} y vas a ver los precios: ${link}`);
+  const [msg, setMsg] = useState(u._tipo === 'rechazado'
+    ? `Hola ${u.nombre || u.usuario}, gracias por tu interés. Por ahora no podemos habilitarte el acceso a la lista mayorista de ${tienda}. Igual podés comprar en la tienda: ${window.location.origin}. Cualquier consulta, escribinos por acá.`
+    : `Hola ${u.nombre || u.usuario}, ya tenés aprobado tu acceso a la lista mayorista de ${tienda}. Entrá con tu usuario ${u.usuario} y vas a ver los precios: ${link}`);
   const tel = waIntl(u.telefono);
   const copiar = async () => { try { await navigator.clipboard.writeText(msg); toast('Mensaje copiado'); } catch { toast('No se pudo copiar', 'error'); } };
   return (
@@ -5129,6 +5131,12 @@ function AdminUsuarios() {
   const refresh = () => api.getUsuarios(busq).then(setUsers);
 
   const esEquipo = (u) => u.rol === 'admin' || u.rol === 'subadmin';
+  // Rechazar el pedido de mayorista: la cuenta sigue activa para la tienda común; después se le puede avisar por WhatsApp
+  const rechazarMay = async (u) => {
+    if (!confirm(`¿Rechazar el pedido de mayorista de ${u.nombre || u.usuario}? Va a poder seguir comprando en la tienda común.`)) return;
+    try { await api.rechazarMayorista(u.id); toast('Pedido de mayorista rechazado'); refresh(); setAvisoMay({ ...u, _tipo: 'rechazado' }); }
+    catch (er) { toast(er.message, 'error'); }
+  };
   const estadoDe = (u) => u.aprobado === false ? 'pendiente' : (u.activo ? 'activo' : 'suspendido');
   const nombreLista = (id) => listas.find(l => l.id === id)?.nombre || '';
   const conteo = {
@@ -5230,6 +5238,8 @@ function AdminUsuarios() {
                   {u.es_revendedor && <span className="cli-tag lista">Revendedor {Number(u.descuento_revendedor) > 0 ? `-${Number(u.descuento_revendedor)}%` : ''}</span>}
                   {u.mayorista && <span className="cli-tag may">Mayorista</span>}
                   {!u.mayorista && u.mayorista_solicitado_at && !esEquipo(u) && <button type="button" className="cli-tag pide" onClick={async e => { e.stopPropagation(); try { await api.updateUsuario(u.id, { mayorista: true }); toast(`${u.nombre || u.usuario} ya puede ver la lista mayorista`); refresh(); setAvisoMay(u); } catch (er) { toast(er.message, 'error'); } }} title="Autorizar">Pide mayorista · Autorizar</button>}
+                  {!u.mayorista && u.mayorista_solicitado_at && !esEquipo(u) && <button type="button" className="cli-tag rechazar" onClick={e => { e.stopPropagation(); rechazarMay(u); }} title="Rechazar el pedido de mayorista">Rechazar</button>}
+                  {!u.mayorista && !u.mayorista_solicitado_at && u.mayorista_rechazado_at && !esEquipo(u) && <span className="cli-tag suspendido">Mayorista rechazado</span>}
                 </div>
               </div>
             </div>
@@ -5244,14 +5254,14 @@ function AdminUsuarios() {
           </div>
         );
       })}
-      {editUser && <UserModal u={editUser} onClose={() => { setEditUser(null); refresh(); }} onMayoristaAprobado={setAvisoMay} />}
+      {editUser && <UserModal u={editUser} onClose={() => { setEditUser(null); refresh(); }} onMayoristaAprobado={setAvisoMay} onRechazarMayorista={x => { setEditUser(null); rechazarMay(x); }} />}
       {avisoMay && <AvisoMayorista u={avisoMay} onClose={() => setAvisoMay(null)} />}
     </div>
   );
 }
 
 // ─── USER MODAL (full: edit all fields, approve, subadmin perms, WA) ───
-function UserModal({ u, onClose, onMayoristaAprobado }) {
+function UserModal({ u, onClose, onMayoristaAprobado, onRechazarMayorista }) {
   const { toast, listas, openWA } = useContext(Ctx);
   const isNew = u._isNew;
   const isPending = !isNew && u.aprobado === false;
@@ -5350,6 +5360,7 @@ function UserModal({ u, onClose, onMayoristaAprobado }) {
           {/* Revendedor */}
           <div className="form-row" style={{ marginTop: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={!!f.mayorista} onChange={e => setF({ ...f, mayorista: e.target.checked })} /> Cliente mayorista (ve y compra la lista mayorista){!f.mayorista && u.mayorista_solicitado_at ? <span className="cli-tag pide" style={{ marginLeft: 6 }}>Lo pidió</span> : null}</label>
+            {!isNew && !f.mayorista && u.mayorista_solicitado_at && onRechazarMayorista && <button type="button" className="btn btn-outline btn-sm" onClick={() => onRechazarMayorista(u)}>Rechazar pedido de mayorista</button>}
           </div>
           <div className="form-row" style={{ marginTop: 8 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={f.es_revendedor} onChange={e => setF({ ...f, es_revendedor: e.target.checked })} /> Es revendedor</label>
