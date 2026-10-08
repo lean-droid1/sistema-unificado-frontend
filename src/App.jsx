@@ -59,10 +59,23 @@ const unirCarritos = (local, cuenta) => {
   }
   return out;
 };
-// Huella del carrito: dice si este dispositivo cambió el carrito desde la última vez que coincidió con la cuenta
-const huellaCarrito = (cart) => { const t = JSON.stringify(compactarCarrito(cart)); let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return String(h); };
-const leerSyncCarrito = () => { try { return JSON.parse(localStorage.getItem('gm_cart_sync') || 'null') || {}; } catch { return {}; } };
-const guardarSyncCarrito = (uid, cart) => { try { localStorage.setItem('gm_cart_sync', JSON.stringify({ uid: String(uid), h: huellaCarrito(cart) })); } catch {} };
+// Un solo carrito por cuenta: se combina "lo que cambió en este dispositivo desde la última vez que coincidió con la cuenta"
+// con lo que tiene la cuenta. Lo que no se tocó acá queda como en la cuenta (si se sacó o compró en otro lado, no vuelve);
+// lo que se agregó o cambió acá (incluso sin sesión) se suma a la cuenta.
+const tresVias = (base, local, cuenta) => {
+  const mapa = (c) => { const m = new Map(); for (const [sec, items] of Object.entries(c || {})) if (Array.isArray(items)) for (const it of items) if (it && it.id != null) m.set(`${sec}#${it.id}|${it.variante_id || 0}`, it); return m; };
+  const B = mapa(base), L = mapa(local), R = mapa(cuenta);
+  const out = {};
+  for (const k of new Set([...R.keys(), ...L.keys(), ...B.keys()])) {
+    const qb = Number(B.get(k)?.qty) || 0, ql = Number(L.get(k)?.qty) || 0;
+    const it = ql !== qb ? L.get(k) : R.get(k);
+    if (it && Number(it.qty) > 0) { const sec = k.slice(0, k.indexOf('#')); (out[sec] = out[sec] || []).push(it); }
+  }
+  return out;
+};
+// Último carrito que este dispositivo vio igual a la cuenta
+const leerBaseCarrito = () => { try { const b = JSON.parse(localStorage.getItem('gm_cart_base') || 'null'); return b && typeof b === 'object' ? b : {}; } catch { return {}; } };
+const guardarBaseCarrito = (items) => { try { localStorage.setItem('gm_cart_base', JSON.stringify(compactarCarrito(items))); } catch {} };
 // Formatea según moneda de la variante: USDT/USD muestran su prefijo, ARS usa $
 const fmtDol = (n) => Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 }); // USDT/USD con centavos
 const fmtMon = (n, moneda) => moneda === 'USDT' ? `USDT ${fmtDol(n)}` : moneda === 'USD' ? `US$ ${fmtDol(n)}` : `$${fmt(n)}`;
@@ -727,36 +740,35 @@ export default function App() {
     });
   }, []);
 
-  // Carrito guardado en la cuenta: al ingresar se recupera; cada cambio se guarda. Reglas para no perder nada:
-  //  · si este dispositivo no cambió el carrito desde la última vez que coincidió con la cuenta → se usa el de la cuenta
-  //    (así lo que compraste o sacaste en otro dispositivo no vuelve a aparecer)
-  //  · si este dispositivo tiene cambios propios (ej. agregó sin sesión) → se suman los dos (misma línea: la cantidad mayor)
-  //  · cada guardado lleva la versión leída: si otro dispositivo o pestaña guardó antes, se juntan y se vuelve a guardar
+  // Carrito guardado en la cuenta: un solo carrito por cuenta, igual en todos los dispositivos.
+  //  · al abrir la web o volver a la pestaña con la sesión abierta → se trae el de la cuenta
+  //  · lo agregado sin sesión (o cambios de este dispositivo que no llegaron a guardarse) → se suma al ingresar
+  //  · si otro dispositivo guardó justo antes, se combinan los cambios de los dos (sin duplicar)
   const cartSync = useRef({ uid: null, listo: false, timer: null, version: 0 });
   const cartRef = useRef(cart); cartRef.current = cart;
-  const aplicarCuenta = (prev, cuenta) => {
-    const sync = leerSyncCarrito();
-    return (sync.uid && sync.h === huellaCarrito(prev)) ? unirCarritos({}, cuenta) : unirCarritos(prev, cuenta);
-  };
   const leerCuenta = (uid) => api.getCarritoGuardado().then(r => {
     if (cartSync.current.uid !== uid) return;
     const cuenta = (r && r.items && typeof r.items === 'object' && !Array.isArray(r.items)) ? r.items : {};
     const v = Number(r && r.version) || 0;
     if (cartSync.current.listo && v === cartSync.current.version) return; // nada nuevo en la cuenta
     cartSync.current.version = v;
-    setCart(prev => aplicarCuenta(prev, cuenta));
+    const base = leerBaseCarrito();
+    setCart(prev => tresVias(base, prev, cuenta));
+    guardarBaseCarrito(cuenta);
     cartSync.current.listo = true;
   });
   const guardarCuenta = (uid, snap) => api.guardarCarrito(compactarCarrito(snap), cartSync.current.version).then(r => {
     if (cartSync.current.uid !== uid) return;
     cartSync.current.version = Number(r && r.version) || cartSync.current.version;
-    guardarSyncCarrito(uid, snap);
+    guardarBaseCarrito(snap);
   }).catch(e => {
-    // Otro dispositivo guardó antes: se juntan los dos (no se pierde nada) y el cambio de carrito vuelve a guardar
+    // Otro dispositivo guardó justo antes: se combinan los cambios de los dos y se vuelve a guardar
     if (e && e.status === 409 && e.data && cartSync.current.uid === uid) {
       cartSync.current.version = Number(e.data.version) || 0;
       const cuenta = (e.data.items && typeof e.data.items === 'object' && !Array.isArray(e.data.items)) ? e.data.items : {};
-      setCart(prev => unirCarritos(prev, cuenta));
+      const base = leerBaseCarrito();
+      setCart(prev => tresVias(base, prev, cuenta));
+      guardarBaseCarrito(cuenta);
     }
   });
   useEffect(() => {
@@ -776,6 +788,8 @@ export default function App() {
     if (!uid || !cartSync.current.listo) return;
     clearTimeout(cartSync.current.timer);
     const snap = cart;
+    let base = null; try { base = localStorage.getItem('gm_cart_base'); } catch {}
+    if (base === JSON.stringify(compactarCarrito(snap))) return; // igual a lo que ya tiene la cuenta: no hace falta guardar
     cartSync.current.timer = setTimeout(() => { cartSync.current.timer = null; guardarCuenta(uid, snap); }, 1200);
   }, [cart, user?.id]);
   // Sesión: se renueva sola al entrar y cada tanto mientras la web esté abierta
@@ -3651,10 +3665,24 @@ function CartPage() {
           else { toast(r.cupon.error || 'Cupón no válido', 'error'); if (esPend) { try { localStorage.removeItem('gm_cupon_pend'); } catch {} } }
           setCupon('');
         }
-        // El servidor avisa productos que hoy no se pueden comprar (o no toda la cantidad): el carrito NO se toca.
-        // Quedan guardados y marcados; si hay menos stock, se pide lo disponible y el resto sigue en el carrito.
-        if (r.avisos && r.avisos.length) {
-          setAvisos(prev => Array.from(new Set([...prev, ...r.avisos.filter(a => a.tipo !== 'requiere_acceso').map(a => a.mensaje)])));
+        // El servidor avisa productos que ya no están o sin stock: corregir el carrito y avisar el motivo.
+        // Excepción: lo mayorista con la sesión cerrada NO se saca (vuelve a estar disponible al ingresar).
+        const avisosCorregir = (r.avisos || []).filter(a => !(a.tipo === 'requiere_acceso' && !user));
+        if (avisosCorregir.length) {
+          setAvisos(prev => Array.from(new Set([...prev, ...avisosCorregir.map(a => a.mensaje)])));
+          setCart(prev => {
+            const n = { ...prev };
+            for (const k of Object.keys(n)) {
+              if (!Array.isArray(n[k])) continue;
+              n[k] = n[k].flatMap(it => {
+                const a = avisosCorregir.find(x => x.producto_id === it.id && (x.variante_id || null) === (it.variante_id || null));
+                if (!a) return [it];
+                if (a.tipo === 'stock' && a.disponible > 0) return [{ ...it, qty: a.disponible }];
+                return [];
+              });
+            }
+            return n;
+          });
         }
         // Elegir solo la opción de envío cuando hay una sola; limpiar elecciones que ya no existen
         setEnvioSel(prev => {
@@ -3698,36 +3726,16 @@ function CartPage() {
     );
   }
 
-  // Productos que hoy no se pueden comprar (sin stock, ya no están, mayorista sin sesión): quedan en el carrito, marcados
-  const noDisp = new Map(), parcial = new Map();
-  for (const a of (cot?.avisos || [])) {
-    if (a.tipo === 'stock' && a.disponible > 0) parcial.set(lineKey(a.producto_id, a.variante_id), a.disponible);
-    else noDisp.set(lineKey(a.producto_id, a.variante_id), a);
-  }
-  // Lo que se compra ahora: sin los no disponibles y, si hay menos stock, solo lo disponible (el resto queda en el carrito)
-  const comprables = allItems.filter(i => !noDisp.has(lineKey(i.id, i.variante_id)))
-    .map(i => { const d = parcial.get(lineKey(i.id, i.variante_id)); return d != null && d < i.qty ? { ...i, qty: d } : i; });
-  const faltaIngresar = !user && [...noDisp.values()].some(a => a.tipo === 'requiere_acceso');
-  // Después de comprar (o guardar el presupuesto) se descuenta SOLO lo que se compró: si se pidieron menos por stock, el resto queda
-  const quitarComprados = (lista) => {
-    const cant = new Map(lista.map(i => [`${i.seccion_id}|${lineKey(i.id, i.variante_id)}`, Number(i.qty) || 0]));
-    setCart(prev => {
-      const n = { ...prev };
-      for (const k of Object.keys(n)) if (Array.isArray(n[k])) n[k] = n[k].flatMap(i => {
-        const c = cant.get(`${k}|${lineKey(i.id, i.variante_id)}`);
-        if (c == null) return [i];
-        const resta = (Number(i.qty) || 0) - c;
-        return resta > 0 ? [{ ...i, qty: resta }] : [];
-      });
-      return n;
-    });
-  };
+  // Productos mayoristas con la sesión cerrada: quedan guardados en el carrito (marcados) hasta que ingrese
+  const sinSesion = new Map();
+  if (!user) for (const a of (cot?.avisos || [])) if (a.tipo === 'requiere_acceso') sinSesion.set(lineKey(a.producto_id, a.variante_id), a);
+  const faltaIngresar = sinSesion.size > 0;
   const srvSec = (secId) => cot?.secciones?.find(s => String(s.seccion_id) === String(secId));
   const srvItem = (secId, it) => srvSec(secId)?.items.find(x => x.producto_id === it.id && (x.variante_id || null) === (it.variante_id || null));
   const totales = cot?.totales || { subtotal: 0, envio: 0, descuento: 0, total: 0, total_usdt: 0 };
   const necesitaCp = entregaTipo === 'envio' && (cot?.secciones || []).some(s => s.requiere_envio && s.envio.opciones.length > 0) && !cp;
   const errores = cot?.errores || [];
-  const puedeSeguir = !!cot && !cotizando && !cotError && !errores.length && !necesitaCp && comprables.length > 0;
+  const puedeSeguir = !!cot && !cotizando && !cotError && !errores.length && !necesitaCp;
   const ahorro = (cot?.secciones || []).reduce((a, s) => a + s.items.filter(i => i.moneda === 'ARS').reduce((b, i) => b + Math.max(0, i.precio_base - i.precio_unitario) * i.cantidad, 0), 0);
 
   const aplicarCp = () => {
@@ -3738,13 +3746,12 @@ function CartPage() {
 
   const guardarPresupuesto = async () => {
     if (!user) { toast('Necesitás iniciar sesión para guardar un presupuesto', 'warning'); nav('login'); return; }
-    if (!comprables.length) { toast('Ninguno de los productos del carrito se puede pedir ahora', 'warning'); return; }
     try {
       for (const sec of seccionesConItems) {
-        const items = comprables.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty }));
+        const items = allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty }));
         if (items.length) await api.createPedido({ seccion_id: sec.id, tipo: 'presupuesto', items });
       }
-      quitarComprados(comprables);
+      seccionesConItems.forEach(sec => clearCart(sec.id));
       toast('¡Presupuesto guardado! Te avisamos cuando lo revisemos.');
       nav('account');
     } catch (e) { toast(e.message, 'error'); }
@@ -3782,14 +3789,13 @@ function CartPage() {
     const pedidos = seccionesConItems.map(sec => ({
       seccion_id: sec.id, envio_id: envioSel[sec.id] || null, metodo_pago: dc.metodoPago, notas: dc.notas || '',
       datos_envio: datosEnvioJSON, datos_facturacion: datosFactJSON,
-      items: comprables.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty, nombre_producto: i.nombre || i.modelo })),
+      items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty, nombre_producto: i.nombre || i.modelo })),
     })).filter(p => p.items.length);
-    const comprados = comprables;
     try {
       const r = await api.createPedidosMulti(pedidos, testMode, { entrega: { tipo: entregaTipo, cp }, cupon });
       const tot = r?.totales || totales;
       trackEvent('purchase', 'Purchase', { value: tot.total, currency: 'ARS', num_items: allItems.length });
-      quitarComprados(comprados);
+      seccionesConItems.forEach(sec => clearCart(sec.id));
       try { localStorage.removeItem('gm_cupon_pend'); } catch {}
       setShowCheckout(false);
       setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), pedidos: (r?.pedidos || []).filter(p => p && p.id).map(p => ({ id: p.id, moneda: p.moneda, total: p.total })), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {},
@@ -3842,8 +3848,7 @@ function CartPage() {
       )}
       {avisos.length > 0 && (
         <div className="cart-aviso">
-          <div className="cart-aviso-t"><AlertCircle size={15} /> Algunos productos no se pueden comprar ahora</div>
-          <div className="cart-aviso-l">Quedan guardados en tu carrito (marcados). Si no los querés, sacalos con el tacho.</div>
+          <div className="cart-aviso-t"><AlertCircle size={15} /> El carrito se actualizó</div>
           {avisos.map((a, i) => <div key={i} className="cart-aviso-l">• {a}</div>)}
           <button onClick={() => setAvisos([])} className="link-btn">Entendido</button>
         </div>
@@ -3904,23 +3909,22 @@ function CartPage() {
               const pu = si ? si.precio_unitario : puItem(i);
               const mon = si ? si.moneda : monedaItem(i);
               const base = si ? si.precio_base : Number(i.precio_base) || 0;
-              const nd = noDisp.get(lineKey(i.id, i.variante_id));
+              const nd = sinSesion.get(lineKey(i.id, i.variante_id));
               return (
                 <div key={lineKey(i.id, i.variante_id)} className={`cart-line${nd ? ' no-disp' : ''}`}>
                   {i.imagen ? <img src={imgOpt(i.imagen, 160)} alt="" className="cart-line-img" /> : <div className="cart-line-img ph"><Smartphone size={20} /></div>}
                   <div className="cart-line-info">
                     <div className="cart-line-name">{i.nombre || i.modelo}</div>
                     {i.variante_label && <div className="cart-line-var">{i.variante_label}</div>}
-                    {nd ? <div className="cart-line-nd"><AlertCircle size={13} /> {nd.tipo === 'requiere_acceso' ? (user ? 'Solo para clientes mayoristas autorizados' : 'Ingresá con tu cuenta mayorista para comprarlo') : nd.tipo === 'sin_stock' ? 'Sin stock por ahora' : nd.tipo === 'elegir_opcion' ? 'Elegí las opciones del producto' : 'No disponible por ahora'}</div>
+                    {nd ? <div className="cart-line-nd"><AlertCircle size={13} /> Ingresá con tu cuenta mayorista para comprarlo</div>
                       : <div className="cart-line-pu">{mon === 'ARS' && base > pu ? <><s>{fmtARS(base)}</s> <b>{fmtARS(pu)}</b></> : fmtMon(pu, mon)} c/u</div>}
-                    {!nd && parcial.has(lineKey(i.id, i.variante_id)) && parcial.get(lineKey(i.id, i.variante_id)) < i.qty && <div className="cart-line-nd"><AlertCircle size={13} /> Hay {parcial.get(lineKey(i.id, i.variante_id))} disponibles: se piden esos y el resto queda en el carrito</div>}
                   </div>
                   <div className="qty-ctl">
                     <button onClick={() => updateCartQty(sec.id, i.id, i.qty - 1, i.variante_id)} aria-label="Restar uno">−</button>
                     <input type="number" min="1" value={i.qty} onChange={e => { const v = parseInt(e.target.value) || 1; updateCartQty(sec.id, i.id, Math.max(1, v), i.variante_id); }} aria-label="Cantidad" />
                     <button onClick={() => updateCartQty(sec.id, i.id, i.qty + 1, i.variante_id)} aria-label="Sumar uno">+</button>
                   </div>
-                  <span className="cart-line-total">{nd ? '—' : si ? fmtMon(pu * si.cantidad, mon) : '…'}</span>
+                  <span className="cart-line-total">{nd ? '—' : si ? fmtMon(pu * i.qty, mon) : '…'}</span>
                   <button onClick={() => removeFromCart(sec.id, i.id, i.variante_id)} className="cart-line-del" aria-label="Quitar del carrito"><Trash2 size={15} /></button>
                 </div>
               );
