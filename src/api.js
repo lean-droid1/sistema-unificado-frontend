@@ -76,6 +76,7 @@ async function f(url, opts = {}) {
     const err = await r.json().catch(() => ({ error: r.statusText }));
     const e = new Error(r.status === 429 ? 'Demasiados pedidos seguidos. Esperá unos segundos y probá de nuevo.' : (err.error || r.statusText));
     e.status = r.status; // para distinguir "sesión vencida" (401) de un error de conexión
+    e.data = err; // el cuerpo del error (ej. el carrito de la cuenta cuando otro dispositivo guardó antes)
     throw e;
   }
   return r.json();
@@ -323,6 +324,21 @@ export async function getFavoritos() { return f('/api/favoritos'); }
 export async function addFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'POST' }); }
 export async function removeFavorito(productoId) { return f(`/api/favoritos/${productoId}`, { method: 'DELETE' }); }
 
+// Carrito guardado en la cuenta (se recupera al ingresar desde cualquier dispositivo)
+export async function getCarritoGuardado() { return f('/api/me/carrito'); }
+export async function guardarCarrito(items, version) { return f('/api/me/carrito', { method: 'PUT', body: JSON.stringify({ items, version }) }); }
+// Otra pestaña renovó la sesión del mismo usuario: se usa el token nuevo sin recargar
+export function adoptarToken(t) { if (t) token = t; }
+// Renueva la sesión si el token tiene más de 12 horas: mientras el cliente siga entrando, no se le cierra
+export async function renovarSesion() {
+  if (!token) return;
+  try {
+    const p = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (p && p.iat && Date.now() / 1000 - p.iat < 12 * 3600) return;
+  } catch { return; }
+  const t0 = token;
+  try { const d = await f('/api/refresh-token', { method: 'POST' }); if (d && d.token && token === t0) { token = d.token; localStorage.setItem('gm_token', d.token); } } catch {} // si mientras tanto cambió (otro ingreso, cambio de clave) no se pisa
+}
 export async function refreshToken() { return f('/api/refresh-token', { method: 'POST' }); }
 export async function toggleOTP(activo) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo }) }); }
 export async function notificarStock(productoId, { email, telefono, canal } = {}) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email, telefono, canal }) }); }
