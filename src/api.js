@@ -53,8 +53,19 @@ async function f(url, opts = {}) {
       .catch(e => { if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Probá de nuevo.'); throw e; })
       .finally(() => { if (t) clearTimeout(t); });
   };
+  const usado = token;
   const r = await fetchConLimite(`${BASE}${url}`, { ...opts, headers });
-  if (r.status === 401 && token && !url.includes('/login') && !url.includes('/refresh-token')) {
+  if (r.status === 401 && usado && token && !url.includes('/login') && !url.includes('/refresh-token')) {
+    // Otra pestaña (u otro pedido de esta) ya renovó la sesión: se usa ese token en vez de cerrarla
+    let actual = token; try { const ls = localStorage.getItem('gm_token'); if (ls) actual = ls; } catch {}
+    if (actual && actual !== usado) {
+      token = actual;
+      headers['Authorization'] = `Bearer ${actual}`;
+      const r2 = await fetchConLimite(`${BASE}${url}`, { ...opts, headers });
+      if (r2.ok) return r2.json();
+      const err = await r2.json().catch(() => ({ error: r2.statusText }));
+      const e2 = new Error(err.error || r2.statusText); e2.status = r2.status; e2.data = err; throw e2;
+    }
     // try refresh once
     if (!refreshPromise) {
       refreshPromise = fetch(`${BASE}/api/refresh-token`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }).then(async rr=>{

@@ -781,7 +781,9 @@ export default function App() {
     // Al volver a esta pestaña o app: puede haber cambios hechos en otro dispositivo
     const alVolver = () => { if (document.visibilityState === 'visible' && cartSync.current.listo && !cartSync.current.timer) leerCuenta(uid).catch(() => {}); };
     document.addEventListener('visibilitychange', alVolver);
-    return () => { vivo = false; document.removeEventListener('visibilitychange', alVolver); };
+    // Con la web abierta en dos equipos a la vez, lo cargado en uno aparece en el otro sin tocar nada
+    const cada = setInterval(alVolver, 30000);
+    return () => { vivo = false; clearInterval(cada); document.removeEventListener('visibilitychange', alVolver); };
   }, [user?.id]);
   useEffect(() => {
     const uid = user?.id;
