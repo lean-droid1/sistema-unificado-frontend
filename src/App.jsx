@@ -8,14 +8,19 @@ import { GraduationCap, CalendarDays, ChevronDown, SlidersHorizontal, Check, Sto
 // Cloudinary: pide cada imagen al tamaño en que se muestra, en WebP/AVIF y con calidad automática.
 // Una foto de 2 MB pasa a pesar ~40 KB en la grilla. Las URLs que no son de Cloudinary quedan igual.
 const CLD_RE = /^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/i;
+// Solo 4 tamaños por foto (antes había más de 12): cada tamaño nuevo es una "transformación" que gasta
+// el cupo mensual de Cloudinary. Se pide el tamaño fijo más chico que alcanza para lo que se muestra.
+const CLD_TAMANOS = [160, 400, 900, 1600];
+const tamFijo = (w) => CLD_TAMANOS.find(t => t >= w) || CLD_TAMANOS[CLD_TAMANOS.length - 1];
 function imgOpt(url, w) {
   const u = String(url || '');
   const m = u.match(CLD_RE);
   if (!m || !w) return u;
   if (/^[a-z]{1,3}_[^/]*\//i.test(m[2])) return u; // ya trae transformaciones propias
-  return `${m[1]}f_auto,q_auto,c_limit,w_${Math.round(w)}/${m[2]}`;
+  return `${m[1]}f_auto,q_auto,c_limit,w_${tamFijo(Math.round(w))}/${m[2]}`;
 }
-const imgSet = (url, w) => (CLD_RE.test(String(url || '')) ? `${imgOpt(url, w)} 1x, ${imgOpt(url, w * 2)} 2x` : undefined);
+// 2x para pantallas de celular; si cae en el mismo tamaño fijo no se pide dos veces
+const imgSet = (url, w) => (CLD_RE.test(String(url || '')) && tamFijo(w * 2) !== tamFijo(w) ? `${imgOpt(url, w)} 1x, ${imgOpt(url, w * 2)} 2x` : undefined);
 
 // ═══════════════════════════════════════════════════════════
 // App.jsx — Sistema Unificado v4 (COMPLETO)
