@@ -18,6 +18,28 @@ const resumenDesc = (s, max = 160) => {
 };
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-+$/, '');
 const slugPagina = (p) => slugify(p.slug || p.titulo) || String(p.id);
+// Igual que waIntl en App.jsx: número de WhatsApp en formato internacional (549...)
+const waIntl = (num) => {
+  const orig = String(num || '').replace(/\D/g, '');
+  let t = orig;
+  if (t.startsWith('00')) { t = t.slice(2); if (!t.startsWith('54')) return t; }
+  if (t.startsWith('54')) { t = t.slice(2); if (t.startsWith('9')) t = t.slice(1); }
+  t = t.replace(/^0/, '');
+  if (t.length === 12) { const la = t.startsWith('11') ? 2 : t.slice(3, 5) === '15' ? 3 : 4; if (t.slice(la, la + 2) === '15') t = t.slice(0, la) + t.slice(la + 2); }
+  if (/^15\d{8}$/.test(t)) t = '11' + t.slice(2);
+  return t.length === 10 ? '549' + t : orig.replace(/^00/, '');
+};
+// Datos del negocio para Google (mismo @id que arma la web en el inicio y que usa la academia como "parte de")
+function negocioLd(origin, tienda, design, redes) {
+  const n = { '@type': 'Store', '@id': origin + '/#negocio', name: tienda, url: origin + '/' };
+  if (design.logo_url) { n.logo = design.logo_url; n.image = design.logo_url; }
+  const tel = waIntl(design.whatsapp_numero); if (tel) n.telephone = '+' + tel;
+  if (design.email_contacto) n.email = design.email_contacto;
+  if (design.direccion) n.address = { '@type': 'PostalAddress', streetAddress: design.direccion, addressCountry: 'AR' };
+  const sa = (Array.isArray(redes) ? redes : []).filter(r => r && r.activo && /^https?:\/\//.test(r.url || '')).map(r => r.url);
+  if (sa.length) n.sameAs = sa;
+  return n;
+}
 const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'producto') || 'producto'}-${p.id}`;
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
 const RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda', 'arrepentimiento']);
@@ -173,7 +195,7 @@ export default async function handler(req, res) {
     const esInfo = a === 'info';
     const esCategoria = a === 'categoria' && parts[1];
 
-    const [dRes, cRes, pRes, sRes, iRes, kRes, prRes] = await Promise.all([
+    const [dRes, cRes, pRes, sRes, iRes, kRes, prRes, rRes] = await Promise.all([
       pedir(`${apiUrl}/api/design`, { headers }),
       pedir(`${apiUrl}/api/config`, { headers }),
       prodId ? pedir(`${apiUrl}/api/productos/id/${prodId}`, { headers }) : null,
@@ -181,6 +203,7 @@ export default async function handler(req, res) {
       esInfo ? pedir(`${apiUrl}/api/paginas`, { headers }) : null,
       (esCategoria || esProducto) ? pedir(`${apiUrl}/api/categorias-info`, { headers }) : null,
       prodId ? pedir(`${apiUrl}/api/promociones/activas`, { headers }) : null,
+      a === '' ? pedir(`${apiUrl}/api/redes-sociales`, { headers }) : null,
     ]);
     const design = dRes.data || {};
     const config = cRes.data || {};
@@ -219,7 +242,7 @@ export default async function handler(req, res) {
           if (m.image) ld.image = [m.image];
           if (p.sku) ld.sku = p.sku;
           if (p.marca) ld.brand = { '@type': 'Brand', name: p.marca };
-          ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital || p.usa_variantes) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url: m.url };
+          ld.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital || p.usa_variantes) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url: m.url, seller: { '@type': 'Organization', '@id': origin + '/#negocio', name: tienda } };
         }
         // Ruta Inicio > Categoría > Producto (igual que App.jsx)
         const catP = kRes && Array.isArray(kRes.data) ? kRes.data.find(c => c.slug === slugify(p.categoria)) : null;
@@ -274,6 +297,8 @@ export default async function handler(req, res) {
       } else if (cats) {
         status = 404; m.noindex = true;
       }
+    } else if (a === '') {
+      m.ld = { '@context': 'https://schema.org', '@graph': [negocioLd(origin, tienda, design, rRes && rRes.data), { '@type': 'WebSite', '@id': origin + '/#web', url: origin + '/', name: tienda, publisher: { '@id': origin + '/#negocio' } }] };
     } else if (a === 'contacto') {
       m.title = `Contacto | ${tienda}`;
     } else if (parts.length >= 2 && a !== 'info') {

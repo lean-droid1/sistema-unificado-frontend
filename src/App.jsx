@@ -1084,7 +1084,7 @@ export default function App() {
         if (image) prod.image = [image];
         if (p.sku) prod.sku = p.sku;
         if (p.marca) prod.brand = { '@type': 'Brand', name: p.marca };
-        prod.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital || p.usa_variantes) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url };
+        prod.offers = { '@type': 'Offer', price: precio, priceCurrency: 'ARS', availability: (p.stock > 0 || p.permitir_sin_stock || p.es_digital || p.usa_variantes) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', '@id': origin + '/#negocio', name: tienda }, url };
       }
       // Ruta Inicio > Categoría > Producto (Google la muestra en el resultado)
       const secP = secciones.find(s => String(s.id) === String(p.seccion_id));
