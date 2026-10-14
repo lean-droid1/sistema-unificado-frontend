@@ -3574,7 +3574,7 @@ function ProductModal({ product, onClose }) {
     seccion_id: adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id,
     categoria: '', modelo: '', nombre: '', precio_base: 0, precio_original: 0, stock: 0, stock_minimo: 0,
     imagen: '', descripcion: '', sku: '', codigo_barras: '', tipo: 'fisico', moneda: 'ARS', precio_oferta: 0,
-    envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
+    envio_gratis: false, excluir_envio_gratis: false, visible: true, notas: '', compatibilidad: '', marca: '',
     es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false, preventa_descuento_pct: 0, preventa_cupo: 0,
     peso: 0, alto: 0, ancho: 0, largo: 0
   });
@@ -3706,7 +3706,8 @@ function ProductModal({ product, onClose }) {
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '8px 0 12px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock || false} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir compra sin stock</label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.es_digital || false} onChange={e => setF({ ...f, es_digital: e.target.checked })} /> Es digital (sin envío)</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked })} /> Envío gratis</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.envio_gratis || false} onChange={e => setF({ ...f, envio_gratis: e.target.checked, ...(e.target.checked ? { excluir_envio_gratis: false } : {}) })} /> Envío gratis</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }} title="Para productos pesados: aunque la compra pase el monto de envío gratis, el envío se cobra"><input type="checkbox" checked={f.excluir_envio_gratis || false} onChange={e => setF({ ...f, excluir_envio_gratis: e.target.checked, ...(e.target.checked ? { envio_gratis: false } : {}) })} /> Excluir del envío gratis (pesados)</label>
                 </div>
               </section>
               <section className="pm-card">
@@ -4162,15 +4163,18 @@ function PresupuestoModal({ onClose }) {
 function AdminPedidos({ filtroTipo }) {
   const { adminSeccion, toast, testMode } = useContext(Ctx);
   const [pedidos, setPedidos] = useState([]);
-  const [ordTab, setOrdTab] = useState(filtroTipo === 'presupuestos' ? 'presupuestos' : 'pedidos');
+  // Al recargar vuelve a la misma vista (pestaña, tienda y fechas)
+  const [vistaIni] = useState(() => { try { return JSON.parse(localStorage.getItem('gm_ped_vista') || '{}') || {}; } catch { return {}; } });
+  const [ordTab, setOrdTab] = useState(filtroTipo === 'presupuestos' ? 'presupuestos' : (['pedidos', 'presupuestos', 'cancelados', 'archivados'].includes(vistaIni.tab) ? vistaIni.tab : 'pedidos'));
   const [viewOrder, setViewOrder] = useState(null);
   const [showPresupuesto, setShowPresupuesto] = useState(false);
   const [busqPed, setBusqPed] = useState('');
   const [pagoFiltro, setPagoFiltro] = useState('todos');
   const { secciones } = useContext(Ctx);
-  const [secPed, setSecPed] = useState('all');
-  const [rangoPed, setRangoPed] = useState('todo'); // todo | hoy | 7 | 30 | mes | custom
-  const [desdePed, setDesdePed] = useState(''); const [hastaPed, setHastaPed] = useState('');
+  const [secPed, setSecPed] = useState(vistaIni.sec || 'all');
+  const [rangoPed, setRangoPed] = useState(vistaIni.rango || 'todo'); // todo | hoy | 7 | 30 | mes | custom
+  const [desdePed, setDesdePed] = useState(vistaIni.desde || ''); const [hastaPed, setHastaPed] = useState(vistaIni.hasta || '');
+  useEffect(() => { try { localStorage.setItem('gm_ped_vista', JSON.stringify({ tab: ordTab, sec: secPed, rango: rangoPed, desde: desdePed, hasta: hastaPed })); } catch {} }, [ordTab, secPed, rangoPed, desdePed, hastaPed]);
   const [avisoPed, setAvisoPed] = useState(null); // { mensaje, telefono } → ¿avisar al cliente?
   const [ocupado, setOcupado] = useState(null); // id del pedido que se está guardando
   const [vista, setVista] = useState(() => { try { return localStorage.getItem('gm_ped_vista') || 'lista'; } catch { return 'lista'; } });

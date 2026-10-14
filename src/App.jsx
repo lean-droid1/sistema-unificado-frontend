@@ -2266,7 +2266,7 @@ function TarjetaProducto({ p, secId, usd }) {
   const puedeComprar = !sinStock || p.permitir_sin_stock || p.es_digital || p.usa_variantes || secT?.ignorar_stock || secT?.permitir_sin_stock;
   const agotado = sinStock && !puedeComprar && !p.es_preventa;
   const umbral = Number(config?.[`envio_gratis_desde_${sid}`]) || 0;
-  const envioGratis = !p.es_digital && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
+  const envioGratis = !p.es_digital && !p.excluir_envio_gratis && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
   const esNuevo = p.created_at && (Date.now() - new Date(p.created_at).getTime()) < 15 * 86400000;
   const linea = (!p.usa_variantes && !p.es_preventa) ? ((cart && cart[sid]) || []).find(i => i.id === p.id && !i.variante_id && !i._preventa) : null;
   const fmtP = (v) => (p.moneda && p.moneda !== 'ARS') ? fmtMon(v, p.moneda) : fmtARS(v);
@@ -2369,7 +2369,7 @@ function VistaRapida({ producto, onClose }) {
   const tope = sinTopeV ? Infinity : stock;
   const agotado = stock <= 0 && !sinTopeV;
   const umbral = Number(config?.[`envio_gratis_desde_${sid}`]) || 0;
-  const envioGratis = !p.es_digital && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
+  const envioGratis = !p.es_digital && !p.excluir_envio_gratis && (p.envio_gratis || (umbral > 0 && pr.final >= umbral));
   const fmtP = (v) => (p.moneda && p.moneda !== 'ARS') ? fmtMon(v, p.moneda) : fmtARS(v);
   const verFicha = () => { onClose(); window.__secId = sid; nav('product', p); };
   const agregar = () => { volarAlCarrito(imgRef.current); addToCart(sid, p, qty, pr.final); onClose(); };
@@ -2451,7 +2451,8 @@ function VisorFotos({ fotos, inicio = 0, titulo, onClose }) {
 // ─── Carrito: aviso al agregar + mini-carrito lateral con envío gratis por tienda ───
 function progresoEnvioGratis(items, umbral) {
   const sub = (items || []).filter(i => !i.variante_moneda || i.variante_moneda === 'ARS').reduce((a, i) => a + puItem(i) * (Number(i.qty) || 0), 0);
-  if (!(umbral > 0)) return { sub, umbral: 0 };
+  // Un producto excluido del envío gratis (pesados) hace que esa tienda no tenga envío gratis por monto
+  if (!(umbral > 0) || (items || []).some(i => i.excluir_envio_gratis && !i.es_digital)) return { sub, umbral: 0 };
   return { sub, umbral, falta: Math.max(0, umbral - sub), pct: Math.min(100, Math.round(sub / umbral * 100)) };
 }
 function BarraEnvioGratis({ items, secId, nombreTienda }) {
@@ -3905,6 +3906,9 @@ function CartPage() {
                 </div>
               </div>
             )}
+            {s?.envio?.excluido_gratis && entregaTipo === 'envio' && (
+              <div className="meta-msg" style={{ margin: '0 0 10px' }}>Este carrito tiene un producto que no entra en el envío gratis: el envío se cobra.</div>
+            )}
 
             {secItems.map(i => {
               const si = srvItem(sec.id, i);
@@ -4516,7 +4520,7 @@ function ProductDetailPage() {
         {/* Image gallery */}
         <div className="pdp-gallery">
           <div className="pdp-main-img">
-            {p.envio_gratis && <span className="pdp-free-badge">ENVÍO GRATIS</span>}
+            {envioGratisProd && !p.es_digital && <span className="pdp-free-badge">ENVÍO GRATIS</span>}
             <button className={`card-fav pdp-fav${isFav ? ' active' : ''}`} onClick={toggleFav}><Ico n="heart" s={18} fill={isFav} /></button>
             {mainImg ? (
               <div className={`pdp-zoom${zoom ? ' activo' : ''}`}
