@@ -778,6 +778,7 @@ function AdminAnalytics() {
   const [clarityId, setClarityId] = useState(config.clarity_id || '');
   const [gscArchivo, setGscArchivo] = useState(config.gsc_archivo || '');
   const [merchantId, setMerchantId] = useState(config.google_merchant_id || '');
+  const [academiaUrl, setAcademiaUrl] = useState(config.academia_url || '');
   const [saving, setSaving] = useState(false);
 
   const guardar = async () => {
@@ -785,7 +786,9 @@ function AdminAnalytics() {
     try {
       // Search Console: aceptamos el nombre del archivo, el link entero o solo "googleXXXX"
       const mg = gscArchivo.trim().toLowerCase().match(/google[a-z0-9]{6,64}/);
-      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, ''), gsc_archivo: mg ? mg[0] + '.html' : '', google_merchant_id: merchantId.replace(/\D/g, '') };
+      const acad = academiaUrl.trim().replace(/\/+$/, '');
+      if (acad && !/^https:\/\/[^\s]+$/.test(acad)) { toast('El link de la academia tiene que empezar con https://', 'error'); setSaving(false); return; }
+      const upd = { ga_id: gaId.trim(), fb_pixel_id: pixelId.trim(), clarity_id: clarityId.trim().replace(/[^a-z0-9]/gi, ''), gsc_archivo: mg ? mg[0] + '.html' : '', google_merchant_id: merchantId.replace(/\D/g, ''), academia_url: acad };
       await api.updateConfig(upd);
       setConfig({ ...config, ...upd });
       setGscArchivo(upd.gsc_archivo);
@@ -836,6 +839,14 @@ function AdminAnalytics() {
           <label className="form-label">Reseñas de Clientes en Google — ID de comerciante</label>
           <input value={merchantId} onChange={e => setMerchantId(e.target.value)} placeholder="1234567890" inputMode="numeric" />
           <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>El número de tu cuenta de Merchant Center. Al terminar una compra, Google le ofrece al cliente una encuesta para calificar tu tienda (llega por mail después de la fecha de entrega). En los pedidos de prueba no aparece.</small>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Academia de cursos — link</label>
+          <input value={academiaUrl} onChange={e => setAcademiaUrl(e.target.value)} placeholder="https://cursos.tudominio.com" inputMode="url" />
+          <small style={{ color: 'var(--text-muted)', fontSize: 12 }}>Si tenés una academia con nuestro sistema de cursos, pegá su link: los cursos publicados aparecen solos en el inicio de la tienda, y en la ficha de las herramientas que se usan en cada curso. Vacío: no se muestra nada.</small>
         </div>
       </div>
 

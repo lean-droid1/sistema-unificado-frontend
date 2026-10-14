@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import * as api from './api';
 import { precioPublico } from '../api/_precio.js';
 import { trackBusqueda } from './tracker';
-import { ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2, Link2 } from 'lucide-react';
+import { GraduationCap, CalendarDays, ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2, Link2 } from 'lucide-react';
 
 // Cloudinary: pide cada imagen al tamaño en que se muestra, en WebP/AVIF y con calidad automática.
 // Una foto de 2 MB pasa a pesar ~40 KB en la grilla. Las URLs que no son de Cloudinary quedan igual.
@@ -2213,6 +2213,70 @@ function volarAlCarrito(imgEl) {
   } catch {}
 }
 // Carrusel horizontal: flechas en compu, arrastre con el mouse, deslizar en celu y bordes que indican que hay más.
+// ─── Academia de cursos vinculada (config.academia_url): sus cursos publicados salen solos en la tienda ───
+let cursosAcadCache = null; // { url, p } — se piden una vez por visita
+function useCursosAcademia() {
+  const { config } = useContext(Ctx);
+  const url = /^https:\/\/[^\s]+$/.test(String(config?.academia_url || '').trim()) ? String(config.academia_url).trim().replace(/\/+$/, '') : '';
+  const [cursos, setCursos] = useState([]);
+  useEffect(() => {
+    if (!url) { setCursos([]); return; }
+    if (!cursosAcadCache || cursosAcadCache.url !== url) {
+      const p = fetch(url + '/api/cursos').then(r => (r.ok ? r.json() : null)).then(d => (d && Array.isArray(d.cursos) ? d.cursos : [])).catch(() => []);
+      cursosAcadCache = { url, p };
+    }
+    let vivo = true;
+    cursosAcadCache.p.then(c => { if (vivo) setCursos(c); });
+    return () => { vivo = false; };
+  }, [url]);
+  return cursos;
+}
+const fechaCurso = (iso) => { try { return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }); } catch { return ''; } };
+const cuandoCurso = (c) => {
+  const nx = (c.proximas || [])[0];
+  if (nx) return `Próxima fecha: ${fechaCurso(nx.fecha)}`;
+  return c.venta_online ? 'Online: empezás cuando quieras' : 'Fechas a confirmar';
+};
+// Curso relacionado con un producto: el que lo usa como herramienta o el de su categoría
+const cursoDeProducto = (cursos, p) => (p && (cursos.find(c => (c.productos || []).includes(Number(p.id))) || cursos.find(c => c.categoria_tienda && c.categoria_tienda === p.categoria))) || null;
+
+function CursosAcademia() {
+  const cursos = useCursosAcademia();
+  if (!cursos.length) return null;
+  return (
+    <div className="landing-block cursos-block" style={{ maxWidth: 1600, margin: '24px auto 0', padding: '0 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ background: 'var(--primary)', color: 'var(--on-primary, #fff)', padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 800 }}>CURSOS</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>Aprendé con nosotros</span>
+        </h2>
+      </div>
+      <Carrusel>
+        {cursos.map(c => {
+          const nx = (c.proximas || [])[0];
+          return (
+            <div className="carousel-item" key={`curso-${c.id}`}>
+              <a className="curso-card" href={c.url} target="_blank" rel="noopener">
+                <div className="curso-pic">
+                  {c.imagen ? <img src={c.imagen} alt="" loading="lazy" /> : <GraduationCap size={34} />}
+                  <span className="curso-tag">{c.modalidad === 'virtual' ? 'Virtual' : 'Presencial'}</span>
+                </div>
+                <div className="curso-body">
+                  <b className="curso-titulo">{c.titulo}</b>
+                  <span className="curso-meta"><CalendarDays size={14} /> {cuandoCurso(c)}</span>
+                  {nx && nx.ultimos_lugares && nx.cupos_libres > 0 && <span className="curso-pocos">Quedan {nx.cupos_libres} {nx.cupos_libres === 1 ? 'lugar' : 'lugares'}</span>}
+                  {nx && !nx.reservable && nx.cupos_libres === 0 && <span className="curso-pocos">Cupo completo</span>}
+                  <span className="curso-pie">{c.precio > 0 ? <span className="curso-precio">{fmtARS(c.precio)}</span> : <span />}<span className="curso-ver">Ver curso</span></span>
+                </div>
+              </a>
+            </div>
+          );
+        })}
+      </Carrusel>
+    </div>
+  );
+}
+
 function Carrusel({ children, className = '' }) {
   const ref = useRef(null);
   const drag = useRef(null);
@@ -2709,6 +2773,9 @@ function Landing() {
           </Carrusel>
         </div>
       )}
+
+      {/* ── CURSOS de la academia vinculada ── */}
+      {!globalResults && <CursosAcademia />}
 
       {/* ── PRODUCTS PER SECTION ── carruseles horizontales */}
       {!globalResults && secciones.filter(s => !s.requiere_aprobacion).map(s => {
@@ -4370,6 +4437,8 @@ function ProductDetailPage() {
   const { selectedProduct: p, seccionActual: navSec, secciones, nav, toast, addToCart, config, user, design, precioLista, precioEfectivo, ajusteCliente, precioFinalCliente } = useContext(Ctx);
   // Sección REAL del producto (no la de navegación) — evita mostrar Local cuando el producto es de Deposito
   const sec = (p?.seccion_id && secciones.find(s => String(s.id) === String(p.seccion_id))) || navSec;
+  const cursosAcad = useCursosAcademia();
+  const cursoRel = cursoDeProducto(cursosAcad, p);
   const [prodBadges, setProdBadges] = useState([]);
   useEffect(() => { if (sec?.id) api.getBadges(sec.id).then(setProdBadges).catch(() => {}); }, [sec?.id]);
   const [qty, setQty] = useState(1);
@@ -4709,6 +4778,13 @@ function ProductDetailPage() {
                 <div key={b.id} className="pdp-badge"><RenderIcon value={b.icono} size={16} /><span>{b.texto}</span></div>
               ))}
             </div>
+          )}
+          {/* Curso de la academia relacionado con este producto */}
+          {cursoRel && (
+            <a className="pdp-curso" href={cursoRel.url} target="_blank" rel="noopener">
+              <GraduationCap size={20} />
+              <span><b>Aprendé en nuestro curso: {cursoRel.titulo}</b><small>{cuandoCurso(cursoRel)}</small></span>
+            </a>
           )}
           {/* Calculador de envío por código postal (misma cotización que el carrito) */}
           <EnvioCalculadorProducto producto={{ ...p, seccion_id: p.seccion_id || sec?.id }} varianteId={matched?.id} qty={qty} />

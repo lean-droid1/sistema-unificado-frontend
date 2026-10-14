@@ -1884,3 +1884,25 @@ h1, h2, .sec-title, .pdp-title, .cat-h1, .cart-title, .hero-slide-title, .landin
   .pedido-items td:nth-child(2)::before { content: 'x'; color: var(--text-muted); }
   .pedido-items td:nth-child(4) { text-align: right; font-weight: 800; }
 }
+
+/* ── Cursos de la academia vinculada ── */
+.cursos-block .carousel-item { flex: 0 0 270px; }
+@media (max-width: 600px) { .cursos-block .carousel-item { flex: 0 0 240px; } }
+.curso-card { display: flex; flex-direction: column; height: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-card, 14px); overflow: hidden; color: var(--text); text-decoration: none; transition: border-color .15s, transform .15s; }
+.curso-card:hover { border-color: var(--primary); }
+.curso-card:active { transform: scale(.99); }
+.curso-pic { position: relative; aspect-ratio: 16 / 10; background: var(--bg); display: grid; place-items: center; color: var(--text-muted); overflow: hidden; }
+.curso-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.curso-tag { position: absolute; left: 10px; top: 10px; background: var(--bg-card); color: var(--text); font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: var(--radius-pill, 999px); }
+.curso-body { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; flex: 1; }
+.curso-titulo { font-size: 15px; line-height: 1.25; }
+.curso-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.curso-pocos { font-size: 12px; font-weight: 700; color: var(--accent, var(--primary)); }
+.curso-pie { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; }
+.curso-precio { font-weight: 800; font-size: 16px; }
+.curso-ver { font-size: 13px; font-weight: 700; color: var(--primary); }
+.pdp-curso { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--text); text-decoration: none; }
+.pdp-curso:hover { border-color: var(--primary); }
+.pdp-curso svg { color: var(--primary); flex-shrink: 0; }
+.pdp-curso span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.pdp-curso small { color: var(--text-muted); font-size: 12px; }
