@@ -30,6 +30,17 @@ if (typeof document !== 'undefined' && !window.__respaldoFotos) {
     const el = e.target;
     if (!el || el.tagName !== 'IMG' || el.dataset.respaldo) return;
     const src = el.currentSrc || el.src || '';
+    // Fotos de rxz (artículos nuevos del depósito): rxz bloquea fotos pedidas desde otra web.
+    // Se vuelven a pedir sin decir de qué página vienen, que es como sí las deja ver.
+    if (/^https?:\/\/([a-z0-9-]+\.)*rxzweb\.com\//i.test(src)) {
+      if (el.dataset.rxzSinRef) return;
+      el.dataset.rxzSinRef = '1';
+      if (el.parentElement && el.parentElement.tagName === 'PICTURE') el.parentElement.querySelectorAll('source').forEach(x => x.remove());
+      el.removeAttribute('srcset');
+      el.referrerPolicy = 'no-referrer';
+      el.src = src;
+      return;
+    }
     if (!src.startsWith(PROXY_FOTOS)) return;
     try {
       const orig = new URL(src).searchParams.get('url');
