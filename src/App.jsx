@@ -12,12 +12,34 @@ const CLD_RE = /^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/
 // el cupo mensual de Cloudinary. Se pide el tamaño fijo más chico que alcanza para lo que se muestra.
 const CLD_TAMANOS = [160, 400, 900, 1600];
 const tamFijo = (w) => CLD_TAMANOS.find(t => t >= w) || CLD_TAMANOS[CLD_TAMANOS.length - 1];
+// Las fotos de Cloudinary se piden a wsrv.nl (servicio gratuito): achica la foto ORIGINAL y guarda la copia
+// en su CDN. Así Cloudinary no genera tamaños ni entrega cada foto: su cupo mensual casi no se toca.
+// Si wsrv.nl no responde, el navegador vuelve solo a la foto de Cloudinary (ver respaldoFotos más abajo).
+const PROXY_FOTOS = 'https://wsrv.nl/';
 function imgOpt(url, w) {
   const u = String(url || '');
   const m = u.match(CLD_RE);
   if (!m || !w) return u;
-  if (/^[a-z]{1,3}_[^/]*\//i.test(m[2])) return u; // ya trae transformaciones propias
-  return `${m[1]}f_auto,q_auto,c_limit,w_${tamFijo(Math.round(w))}/${m[2]}`;
+  const o = encodeURIComponent(u);
+  return `${PROXY_FOTOS}?url=${o}&w=${tamFijo(Math.round(w))}&we&output=webp&q=80&default=${o}`;
+}
+// Respaldo: si una foto que pasa por wsrv.nl falla, se muestra directo desde Cloudinary
+if (typeof document !== 'undefined' && !window.__respaldoFotos) {
+  window.__respaldoFotos = true;
+  document.addEventListener('error', (e) => {
+    const el = e.target;
+    if (!el || el.tagName !== 'IMG' || el.dataset.respaldo) return;
+    const src = el.currentSrc || el.src || '';
+    if (!src.startsWith(PROXY_FOTOS)) return;
+    try {
+      const orig = new URL(src).searchParams.get('url');
+      if (!orig) return;
+      el.dataset.respaldo = '1';
+      if (el.parentElement && el.parentElement.tagName === 'PICTURE') el.parentElement.querySelectorAll('source').forEach(x => x.remove());
+      el.removeAttribute('srcset');
+      el.src = orig;
+    } catch { /* nada */ }
+  }, true);
 }
 // 2x para pantallas de celular; si cae en el mismo tamaño fijo no se pide dos veces
 const imgSet = (url, w) => (CLD_RE.test(String(url || '')) && tamFijo(w * 2) !== tamFijo(w) ? `${imgOpt(url, w)} 1x, ${imgOpt(url, w * 2)} 2x` : undefined);
