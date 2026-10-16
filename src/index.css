@@ -457,6 +457,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .secnav-item { background: none; border: none; padding: 7px 14px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 700; color: var(--header-text); opacity: 0.75; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; }
 .secnav-item:hover { color: var(--sec-color, var(--primary)); opacity: 1; background: var(--border-light); }
 .secnav-item.active { color: var(--primary); opacity: 1; }
+.secnav-cursos { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 @media (max-width: 768px) { .header-secnav { padding: 6px 10px; } }
 @keyframes marquee-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-33.333%); } }
 

@@ -1544,7 +1544,11 @@ function TextBar({ barra }) {
 }
 
 function Header() {
-  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch, seccionActual, setCarritoAbierto } = useContext(Ctx);
+  const { user, nav, page, dark, setDark, cartCount, isAdmin, handleLogout, design, menuItems, testMode, setTestMode, badges, barras, secciones, globalSearch, setGlobalSearch, doGlobalSearch, seccionActual, setCarritoAbierto, config } = useContext(Ctx);
+  // Academia de cursos vinculada (Marketing → link de la academia): botón "Cursos" en el menú
+  const academiaUrl = /^https:\/\/[^\s]+$/.test(String(config?.academia_url || '').trim()) ? String(config.academia_url).trim().replace(/\/+$/, '') : '';
+  const linkCursos = academiaUrl ? `${academiaUrl}/?src=tienda` : '';
+  const menuYaTieneCursos = !!academiaUrl && (menuItems || []).some(m => { try { return new URL(m.url).host === new URL(academiaUrl).host; } catch { return false; } });
   // El ícono del carrito salta cada vez que se suma un producto
   const cartPrev = useRef(cartCount); const [cartSalta, setCartSalta] = useState(false);
   useEffect(() => { if (cartCount > cartPrev.current) { setCartSalta(false); requestAnimationFrame(() => setCartSalta(true)); const t = setTimeout(() => setCartSalta(false), 650); cartPrev.current = cartCount; return () => clearTimeout(t); } cartPrev.current = cartCount; }, [cartCount]);
@@ -1610,6 +1614,7 @@ function Header() {
               {s.nombre}{s.requiere_aprobacion && !(user && (user.mayorista || isAdmin)) ? <Lock size={12} style={{ marginLeft: 4, verticalAlign: '-1px' }} /> : null}
             </button>
           ))}
+          {linkCursos && <a className="secnav-item secnav-cursos" href={linkCursos}><GraduationCap size={14} aria-hidden="true" />Cursos</a>}
         </nav>
         </div>
       )}
@@ -1633,6 +1638,7 @@ function Header() {
           {!design.modo_tema && !THEME_PRESETS.find(t => t.id === design.plantilla) && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setDark(!dark)}>{dark ? <Ico n="sun" s={18} /> : <Ico n="moon" s={18} />} {dark ? 'Modo claro' : 'Modo oscuro'}</button>}
           {user && <button style={{ color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setMobMenu(false); nav('favoritos'); }}><span style={{ color: 'var(--danger)', display: 'inline-flex' }}><Ico n="heart" s={18} fill /></span> Favoritos</button>}
           <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+          {linkCursos && !menuYaTieneCursos && <a href={linkCursos} style={{ color: 'var(--text)', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 8 }} onClick={() => setMobMenu(false)}><GraduationCap size={16} aria-hidden="true" />Cursos</a>}
           {menuItems.map(m => <a key={m.id} href={urlSegura(m.url) || '#'} style={{ color: 'var(--text)', fontWeight: 600, textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.04em' }} onClick={() => setMobMenu(false)}>{m.titulo}</a>)}
           <a href="#" style={{ color: 'var(--text)', fontWeight: 600, fontSize: 14 }} onClick={e => { e.preventDefault(); setMobMenu(false); nav('contacto'); }}>Contacto</a>
           <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
