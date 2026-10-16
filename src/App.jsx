@@ -2278,6 +2278,7 @@ function useCursosAcademia() {
 const fechaCurso = (iso) => { try { return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }); } catch { return ''; } };
 const cuandoCurso = (c) => {
   const nx = (c.proximas || [])[0];
+  if (nx && c.por_clases && c.clases > 1) return `${c.clases} clases, desde el ${fechaCurso(nx.fecha)}`;
   if (nx) return `Próxima fecha: ${fechaCurso(nx.fecha)}`;
   return c.venta_online ? 'Online: empezás cuando quieras' : 'Fechas a confirmar';
 };
@@ -2310,7 +2311,7 @@ function CursosAcademia() {
                   <span className="curso-meta"><CalendarDays size={14} /> {cuandoCurso(c)}</span>
                   {nx && nx.ultimos_lugares && nx.cupos_libres > 0 && <span className="curso-pocos">Quedan {nx.cupos_libres} {nx.cupos_libres === 1 ? 'lugar' : 'lugares'}</span>}
                   {nx && !nx.reservable && nx.cupos_libres === 0 && <span className="curso-pocos">Cupo completo</span>}
-                  <span className="curso-pie">{c.precio > 0 ? <span className="curso-precio">{fmtARS(c.precio)}</span> : <span />}<span className="curso-ver">Ver curso</span></span>
+                  <span className="curso-pie">{c.precio > 0 ? <span className="curso-precio">{c.precio_anterior > c.precio ? <s>{fmtARS(c.precio_anterior)}</s> : null}{fmtARS(c.precio)}{c.por_clases ? <small> por clase</small> : null}</span> : <span />}<span className="curso-ver">Ver curso</span></span>
                 </div>
               </a>
             </div>

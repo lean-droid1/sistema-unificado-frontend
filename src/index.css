@@ -1903,7 +1903,9 @@ h1, h2, .sec-title, .pdp-title, .cat-h1, .cart-title, .hero-slide-title, .landin
 .curso-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
 .curso-pocos { font-size: 12px; font-weight: 700; color: var(--accent, var(--primary)); }
 .curso-pie { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; }
-.curso-precio { font-weight: 800; font-size: 16px; }
+.curso-precio { font-weight: 800; font-size: 16px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.curso-precio s { color: var(--text-muted); font-weight: 500; font-size: 13px; }
+.curso-precio small { color: var(--text-muted); font-weight: 600; font-size: 12px; }
 .curso-ver { font-size: 13px; font-weight: 700; color: var(--primary); }
 .pdp-curso { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--text); text-decoration: none; }
 .pdp-curso:hover { border-color: var(--primary); }
