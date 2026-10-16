@@ -2302,7 +2302,7 @@ function CursosAcademia() {
             <div className="carousel-item" key={`curso-${c.id}`}>
               <a className="curso-card" href={c.url} target="_blank" rel="noopener">
                 <div className="curso-pic">
-                  {c.imagen ? <img src={c.imagen} alt="" loading="lazy" /> : <GraduationCap size={34} />}
+                  {c.imagen ? <><img className="curso-pic-bg" src={c.imagen} alt="" aria-hidden="true" loading="lazy" /><img className="curso-pic-main" src={c.imagen} alt="" loading="lazy" /></> : <GraduationCap size={34} />}
                   <span className="curso-tag">{c.modalidad === 'virtual' ? 'Virtual' : 'Presencial'}</span>
                 </div>
                 <div className="curso-body">
