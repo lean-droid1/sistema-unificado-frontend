@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useContext, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2 } from 'lucide-react';
+import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download } from 'lucide-react';
 import { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtPedido, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink } from './App.jsx';
 
 // Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
@@ -3021,12 +3021,60 @@ function AdminProductos() {
   );
 
   // Filtro de stock en frontend sobre la página cargada
-  const productosVista = productos.filter(p => {
+  const pasaStock = (p) => {
     if (stockFiltro === 'con') return (p.stock > 0) || p.permitir_sin_stock || p.es_digital;
     if (stockFiltro === 'sin') return !(p.stock > 0) && !p.permitir_sin_stock && !p.es_digital;
     if (stockFiltro === 'bajo') return p.stock_minimo > 0 && p.stock <= p.stock_minimo;
     return true;
-  });
+  };
+  const productosVista = productos.filter(pasaStock);
+
+  // Descargar a Excel los tildados, o todo lo que se está viendo (sección, categoría, búsqueda y stock, todas las páginas).
+  // Sale con las columnas que lee "Importar" + el ID: se edita y se vuelve a subir.
+  const [bajando, setBajando] = useState(false);
+  const descargarExcel = async (ids) => {
+    if (bajando) return;
+    setBajando(true);
+    try {
+      let lista;
+      if (ids && ids.length) lista = productos.filter(p => ids.includes(p.id));
+      else {
+        const secId = secFiltro !== 'all' ? secFiltro : undefined;
+        const d = await api.getProductos({ seccion_id: secId, q: busq, categoria: catFiltro, page: 1, limit: 10000, incluir_ocultos: 1, orden: 'lista' });
+        lista = (d.productos || []).filter(pasaStock);
+      }
+      if (!lista.length) { toast('No hay productos para descargar', 'warning'); return; }
+      const XLSX = await import('xlsx');
+      const nomSec = (id) => secciones.find(x => x.id === id)?.nombre || '';
+      const n = (v) => (Number(v) > 0 ? Number(v) : '');
+      const filas = lista.map(p => ({
+        'ID': p.id, 'Nombre': p.nombre || p.modelo || '', 'SKU': p.sku || '', 'Categoría': p.categoria || '',
+        'Precio': Number(p.precio_base) || 0, 'Precio oferta': n(p.precio_oferta), 'Stock': Number(p.stock) || 0,
+        'Visible': p.visible === false ? 'No' : 'Sí', 'Descripción': p.descripcion || '',
+        'Peso (kg)': n(p.peso), 'Alto (cm)': n(p.alto), 'Ancho (cm)': n(p.ancho), 'Largo (cm)': n(p.largo),
+        'Sección': nomSec(p.seccion_id), 'Variantes': p.usa_variantes ? 'Sí: se editan en el panel' : '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(filas);
+      ws['!cols'] = [8, 46, 16, 22, 12, 12, 8, 8, 50, 9, 9, 9, 9, 16, 22].map(w => ({ wch: w }));
+      ws['!autofilter'] = { ref: `A1:O${filas.length + 1}` };
+      const ayuda = XLSX.utils.aoa_to_sheet([
+        ['Cómo usar este archivo'], [''],
+        ['1. Editá lo que quieras en la hoja "Productos": nombre, SKU, categoría, precio, oferta, stock, visible (Sí/No), descripción y medidas.'],
+        ['2. Para agregar productos nuevos, sumá filas con la columna ID vacía.'],
+        ['3. No cambies ni borres la columna ID: es la que dice qué producto es cada fila.'],
+        ['4. En el panel: Productos → Importar → elegí este archivo. Las filas con ID se actualizan y las que no tienen ID se crean en la sección que elijas.'],
+        ['Las columnas Sección y Variantes son solo informativas. Las variantes se siguen editando en el panel.'],
+      ]);
+      ayuda['!cols'] = [{ wch: 120 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+      XLSX.utils.book_append_sheet(wb, ayuda, 'Cómo usarlo');
+      const que = ids && ids.length ? 'seleccion' : (catFiltro || (secFiltro !== 'all' ? nomSec(Number(secFiltro)) : '') || 'todos');
+      XLSX.writeFile(wb, `productos_${slugify(que) || 'lista'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast(`${lista.length} producto${lista.length === 1 ? '' : 's'} descargado${lista.length === 1 ? '' : 's'}`);
+    } catch (e) { toast('No se pudo descargar: ' + e.message, 'error'); }
+    finally { setBajando(false); }
+  };
 
   // Selección múltiple
   const toggleSel = (id) => { const s = new Set(seleccion); s.has(id) ? s.delete(id) : s.add(id); setSeleccion(s); };
@@ -3118,6 +3166,7 @@ function AdminProductos() {
         <div className="prod-toolbar">
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Nuevo</button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)}><Archive size={15} style={{ verticalAlign: '-2px' }} /> Importar</button>
+          <button className="btn btn-outline btn-sm" onClick={() => descargarExcel()} disabled={bajando} title="Baja a Excel todo lo que estás viendo (sección, categoría, búsqueda y stock), de todas las páginas"><Download size={15} style={{ verticalAlign: '-2px' }} /> {bajando ? 'Descargando…' : 'Descargar Excel'}</button>
           <div className="mas-wrap">
             <button className="btn btn-outline btn-sm" onClick={() => setMenuMas(v => !v)} aria-expanded={menuMas}>Más <ChevronDown size={14} /></button>
             {menuMas && <div className="mas-backdrop" onClick={() => setMenuMas(false)} />}
@@ -3157,6 +3206,7 @@ function AdminProductos() {
           <strong style={{ fontSize: 13, color: 'var(--primary)' }}>{seleccion.size} seleccionado{seleccion.size !== 1 ? 's' : ''}</strong>
           <button className="btn btn-primary btn-sm" onClick={() => setShowMasa(true)}>Acciones en masa</button>
           <button className="btn btn-outline btn-sm" onClick={() => printEtiquetasMasa([...seleccion])}><Tag size={15} style={{ verticalAlign: '-2px' }} /> Imprimir etiquetas</button>
+          <button className="btn btn-outline btn-sm" onClick={() => descargarExcel([...seleccion])} disabled={bajando}><Download size={15} style={{ verticalAlign: '-2px' }} /> Descargar Excel</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSeleccion(new Set())}>Deseleccionar</button>
         </div>
       )}
@@ -3867,6 +3917,9 @@ function ImportModal({ onClose }) {
         const kProd = key(/^producto$/i), kModelo = key(/^modelo$/i), kPrecio = key(/^precio$/i);
         const esProveedor = !!(kProd && kModelo && kPrecio) && !key(/^nombre/i);
         const kStock = key(/^stock$/i);
+        // Excel bajado con "Descargar Excel": trae el ID de cada producto (se actualiza ese producto, tal cual)
+        const kId = key(/^id$/i), kVis = key(/^visible/i);
+        const esExport = !!kId && !esProveedor;
         const parseCat = (raw) => {
           const t = txtCelda(raw);
           if (!t || t.toLowerCase() === 'none' || t === '-') return 'Sin categoría';
@@ -3889,19 +3942,24 @@ function ImportModal({ onClose }) {
             if (!nombre) return;
             const precio = numCelda(pick(r, /^precio$|price/i));
             const oferta = numCelda(pick(r, /oferta|precio oferta/i));
+            const desc = pick(r, /descrip/i);
             prods.push({
               categoria: parseCat(pick(r, /categor|subcategor/i)), modelo: nombre, nombre,
               costo: precio, oferta: oferta < precio ? oferta : 0,
               stock: kStock ? Math.trunc(numCelda(pick(r, /^stock$/i))) : null,
               sku: txtCelda(pick(r, /^sku$|codigo|código/i)),
-              descripcion: txtCelda(pick(r, /descrip/i)),
+              // En el Excel de la tienda la descripción vuelve con sus saltos de línea
+              descripcion: esExport ? String(desc ?? '').replace(/\r\n/g, '\n').trim() : txtCelda(desc),
               peso: numCelda(pick(r, /peso|weight|kg/i)), alto: numCelda(pick(r, /alto|height/i)), ancho: numCelda(pick(r, /ancho|width/i)), largo: numCelda(pick(r, /profund|largo|length/i)),
-              posicion: idx + 1,
+              ...(esExport
+                ? { id: Math.trunc(numCelda(r[kId])) || null, ...(kVis ? { visible: !/^(no|n|0|false|oculto)$/i.test(txtCelda(r[kVis])) } : {}) }
+                : { posicion: idx + 1 }),
             });
           }
         });
         const cats = [...new Set(prods.map(p => p.categoria))];
-        setData({ productos: prods, total: prods.length, conSku: prods.filter(p => p.sku).length, esProveedor, categorias: cats.length, nombreArchivo: f.name });
+        setData({ productos: prods, total: prods.length, conSku: prods.filter(p => p.sku).length, esProveedor, esExport, conId: prods.filter(p => p.id).length, categorias: cats.length, nombreArchivo: f.name });
+        if (esExport) { setModo('crear_actualizar'); setFaltantes('no_tocar'); }
       } catch (err) { toast('No pude leer el archivo: ' + err.message, 'error'); }
     };
     reader.readAsArrayBuffer(f);
@@ -3910,6 +3968,12 @@ function ImportModal({ onClose }) {
   const pctN = Math.max(0, Number(pct) || 0);
   // Precio final que se carga: costo + % (redondeado). En la lista del proveedor el costo queda guardado para ver la ganancia.
   const preparar = (p) => {
+    // Excel de la tienda: el precio va tal cual (sin % ni redondeo)
+    if (data && data.esExport) {
+      const out = { ...p, seccion_id: importSecId, precio_base: p.costo, precio_oferta: p.oferta || 0, precio_original: 0 };
+      delete out.costo; delete out.oferta;
+      return out;
+    }
     const venta = redondearA(p.costo * (1 + pctN / 100), paso);
     const conCosto = data && (data.esProveedor || pctN > 0);
     const out = { ...p, seccion_id: importSecId, precio_base: venta, precio_oferta: p.oferta ? redondearA(p.oferta * (1 + pctN / 100), paso) : 0, precio_original: conCosto ? p.costo : 0 };
@@ -3920,7 +3984,8 @@ function ImportModal({ onClose }) {
   const doUpload = async () => {
     if (!data?.productos?.length || uploading) return;
     if (modo === 'reemplazar' && !confirm(`Se van a BORRAR todos los productos de "${secciones.find(s => s.id === importSecId)?.nombre}" y cargar estos ${data.total}. Los pedidos viejos no se tocan. ¿Seguimos?`)) return;
-    const borraFaltantes = faltantes === 'borrar' && modo !== 'reemplazar' && modo !== 'solo_categorias';
+    const falt = data.esExport ? 'no_tocar' : faltantes; // el Excel de la tienda puede ser solo una parte: los demás no se tocan
+    const borraFaltantes = falt === 'borrar' && modo !== 'reemplazar' && modo !== 'solo_categorias';
     if (borraFaltantes && !confirm(`Los productos de "${secciones.find(s => s.id === importSecId)?.nombre}" que NO están en este Excel se van a BORRAR. Los pedidos viejos no se tocan. ¿Seguimos?`)) return;
     try { localStorage.setItem(clavePct, String(pct)); localStorage.setItem('gm_import_redondeo', String(paso)); } catch {}
     setUploading(true); setResult(null);
@@ -3934,7 +3999,7 @@ function ImportModal({ onClose }) {
         tot.insertados += r.insertados || 0; tot.actualizados += r.actualizados || 0; tot.saltados += r.saltados || 0; tot.errores += r.errores || 0;
         if (!tot.primer_error && r.primer_error) tot.primer_error = r.primer_error;
       }
-      if (faltantes !== 'no_tocar' && modo !== 'reemplazar' && modo !== 'solo_categorias') {
+      if (falt !== 'no_tocar' && modo !== 'reemplazar' && modo !== 'solo_categorias') {
         const r = await api.bulkProductos([], { modo: 'marcar_faltantes', seccion_id: importSecId, accion: faltantes, presentes: lista.map(p => ({ sku: p.sku, nombre: p.nombre })) });
         tot.marcados = r.marcados || 0;
       }
@@ -3967,7 +4032,7 @@ function ImportModal({ onClose }) {
             </div>
           </div>
           <div className="form-group"><label className="form-label">Productos de la sección que NO están en el Excel</label>
-            <select value={faltantes} onChange={e => setFaltantes(e.target.value)} disabled={modo === 'reemplazar' || modo === 'solo_categorias' || uploading}>
+            <select value={faltantes} onChange={e => setFaltantes(e.target.value)} disabled={modo === 'reemplazar' || modo === 'solo_categorias' || uploading || data?.esExport}>
               <option value="no_tocar">No tocar (dejarlos como están)</option>
               <option value="sin_stock">Poner sin stock (el proveedor los sacó de la lista)</option>
               <option value="ocultar">Ocultarlos de la tienda</option>
@@ -3984,9 +4049,10 @@ function ImportModal({ onClose }) {
               <div className="imp-resumen">
                 <span><b>{data.total}</b> productos</span>
                 <span><b>{data.categorias}</b> categorías</span>
-                <span>{data.esProveedor ? 'Lista de proveedor' : 'Exportación de tienda'}</span>
+                <span>{data.esExport ? 'Excel descargado de esta tienda' : data.esProveedor ? 'Lista de proveedor' : 'Exportación de tienda'}</span>
               </div>
-              {modo !== 'solo_categorias' && (
+              {data.esExport && <p className="form-hint" style={{ margin: '4px 0 10px' }}>{data.conId} se actualizan por su ID (nombre, precio, oferta, stock, categoría, visible, descripción y medidas){data.total - data.conId ? ` y ${data.total - data.conId} sin ID se cargan como productos nuevos en la sección elegida` : ''}. Los productos que no están en el archivo no se tocan.</p>}
+              {modo !== 'solo_categorias' && !data.esExport && (
                 <div className="imp-precio">
                   <div className="form-group"><label className="form-label">{data.esProveedor ? 'Ganancia sobre el precio del Excel (%)' : 'Sumar % al precio del Excel (opcional)'}</label>
                     <input type="number" inputMode="decimal" min="0" value={pct} onChange={e => setPct(e.target.value)} placeholder={data.esProveedor ? 'Ej: 30' : '0'} disabled={uploading} />
@@ -3998,7 +4064,7 @@ function ImportModal({ onClose }) {
                   </div>
                 </div>
               )}
-              {(data.esProveedor || pctN > 0) && modo !== 'solo_categorias' && <small className="form-hint">El precio del Excel queda guardado como costo: en el dashboard vas a ver la ganancia real.</small>}
+              {!data.esExport && (data.esProveedor || pctN > 0) && modo !== 'solo_categorias' && <small className="form-hint">El precio del Excel queda guardado como costo: en el dashboard vas a ver la ganancia real.</small>}
               <div className="imp-tabla">
                 <div className="imp-fila imp-cab"><span>Categoría</span><span>Producto</span><span>Excel</span><span>Se carga a</span></div>
                 {muestra.map((p, k) => { const x = preparar(p); return (
@@ -4007,7 +4073,7 @@ function ImportModal({ onClose }) {
                 {data.total > muestra.length && <div className="imp-mas">y {data.total - muestra.length} más…</div>}
               </div>
               {data.esProveedor && <small className="form-hint">Como el Excel no trae stock, se pueden comprar siempre. Cada fila queda con un código propio para que la próxima lista actualice los mismos productos.</small>}
-              {!data.esProveedor && data.conSku < data.total && <p className="form-hint" style={{ color: 'var(--warning)' }}><AlertTriangle size={14} style={{ verticalAlign: '-2px' }} /> {data.total - data.conSku} sin SKU: se buscan por nombre dentro de la sección.</p>}
+              {!data.esProveedor && !data.esExport && data.conSku < data.total && <p className="form-hint" style={{ color: 'var(--warning)' }}><AlertTriangle size={14} style={{ verticalAlign: '-2px' }} /> {data.total - data.conSku} sin SKU: se buscan por nombre dentro de la sección.</p>}
               {data.esProveedor && pct === '' && modo !== 'solo_categorias' && <p className="form-hint" style={{ color: 'var(--warning)' }}>Poné el % de ganancia antes de importar (si querés el precio tal cual, poné 0).</p>}
               <button className="btn btn-primary" onClick={doUpload} disabled={uploading || (data.esProveedor && pct === '' && modo !== 'solo_categorias')} style={{ marginTop: 12, width: '100%' }}>
                 {uploading ? `Importando… ${progreso ? `${Math.min(progreso.hecho + 250, progreso.total)} de ${progreso.total}` : ''}` : `Importar ${data.total} productos`}
