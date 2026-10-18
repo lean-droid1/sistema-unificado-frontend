@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import * as api from './api';
 import { precioPublico } from '../api/_precio.js';
 import { trackBusqueda } from './tracker';
-import { GraduationCap, CalendarDays, ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2, Link2 } from 'lucide-react';
+import { GraduationCap, CalendarDays, ChevronDown, SlidersHorizontal, Check, Store, Search, Undo2, Trash2, ClipboardList, Share2, FlaskConical, Truck, Shield, CreditCard, Clock, Star, Lock, Zap, Package, Heart, ThumbsUp, CheckCircle, Gift, Headphones, Phone, Mail, MapPin, Globe, Award, BadgeCheck, ShoppingCart, Tag, Percent, RefreshCw, Send, Eye, Users, Wrench, Wifi, Battery, Cpu, Monitor, Smartphone, Camera, Bookmark, Bell, MessageCircle, HelpCircle, Info, AlertCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Minus, Plus, Maximize2, Link2, Layers } from 'lucide-react';
 
 // Cloudinary: pide cada imagen al tamaño en que se muestra, en WebP/AVIF y con calidad automática.
 // Una foto de 2 MB pasa a pesar ~40 KB en la grilla. Las URLs que no son de Cloudinary quedan igual.
@@ -2100,6 +2100,7 @@ function ContactoPage() {
 // ─── PÁGINA DE CATEGORÍA (/categoria/<slug>): para que Google encuentre "microscopios", "estaciones de soldado"... ───
 function CategoriaPage() {
   const { nav, catSlug, design } = useContext(Ctx);
+  const minimos = useMinimosCat();
   const [cats, setCats] = useState(null);
   const [prods, setProds] = useState(null);
   const cat = cats ? cats.find(c => c.slug === catSlug) : null;
@@ -2147,6 +2148,9 @@ function CategoriaPage() {
       </nav>
       <h1 className="cat-h1">{cat ? cat.titulo : ''}</h1>
       {cat?.descripcion && <p className="cat-intro">{cat.descripcion}</p>}
+      {(() => { const m = cat && cat.nombres.map(n => minimoDe(minimos, n)).find(Boolean); return m ? (
+        <div className="min-cat"><span className="min-cat-ico"><Layers size={18} /></span><div className="min-cat-txt"><b>Compra mínima: {m.minimo} {m.unidad}</b><span>Podés combinar los modelos que quieras: se suman todos los de esta categoría.</span></div></div>
+      ) : null; })()}
       {!prods ? <div className="spinner" /> : prods.length === 0 ? (
         <div className="empty-state"><h3>Sin productos por ahora</h3></div>
       ) : (
@@ -2363,8 +2367,42 @@ function Carrusel({ children, className = '' }) {
   );
 }
 
+// ─── Compra mínima por categoría (ej. "mínimo 10 packs, se pueden combinar modelos") ───
+const claveCat = (c) => String(c || '').trim().replace(/\s+/g, ' ').toLowerCase();
+function useMinimosCat() {
+  const [m, setM] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    api.getMinimosCategoria().then(rows => { if (!vivo) return; const map = {}; (rows || []).forEach(r => { map[claveCat(r.categoria)] = r; }); setM(map); });
+    return () => { vivo = false; };
+  }, []);
+  return m || {};
+}
+const minimoDe = (map, categoria) => (categoria && map[claveCat(categoria)]) || null;
+
+// Aviso en la ficha del producto: cuánto es el mínimo y cuánto lleva en el carrito de esa categoría
+function AvisoMinimoCategoria({ p }) {
+  const { cart, nav } = useContext(Ctx);
+  const minC = minimoDe(useMinimosCat(), p?.categoria);
+  if (!minC) return null;
+  const k = claveCat(p.categoria);
+  const llevas = Object.values(cart || {}).flatMap(x => Array.isArray(x) ? x : []).filter(i => claveCat(i.categoria) === k).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+  const listo = llevas >= minC.minimo;
+  return (
+    <div className={`min-cat${listo ? ' ok' : ''}`}>
+      <span className="min-cat-ico">{listo ? <Check size={18} /> : <Layers size={18} />}</span>
+      <div className="min-cat-txt">
+        <b>Compra mínima: {minC.minimo} {minC.unidad}</b>
+        <span>Podés combinar los modelos que quieras de esta categoría.{llevas > 0 ? (listo ? ' Ya llegaste al mínimo.' : ` Llevás ${llevas}, sumá ${minC.minimo - llevas} más.`) : ''}</span>
+        <a href={`/categoria/${slugify(p.categoria)}`} onClick={e => { e.preventDefault(); nav('categoria', slugify(p.categoria)); }}>Ver todos los modelos</a>
+      </div>
+    </div>
+  );
+}
+
 function TarjetaProducto({ p, secId, usd }) {
   const ctx = useContext(Ctx);
+  const minC = minimoDe(useMinimosCat(), p.categoria);
   const { nav, addToCart, updateCartQty, cart, config, setNotifyProduct, favIds, toggleFav, setVistaRapida } = ctx;
   const imgRef = useRef(null);
   const sid = p.seccion_id || secId;
@@ -2421,8 +2459,9 @@ function TarjetaProducto({ p, secId, usd }) {
           : pr.final > 0 ? <>{pr.original && <span className="price-old">{fmtP(pr.original)}</span>}<span className={`price-new${pr.original ? ' con-desc' : ''}`}>{fmtP(pr.final)}</span></>
           : <span className="tp-consultar">Consultar precio</span>}
         </div>
-        {(pr.ahorro > 0 || restante || ultimas || (usd && pr.final > 0) || (p.es_preventa && p.preventa_mostrar_fecha && p.preventa_fecha)) && (
+        {(pr.ahorro > 0 || restante || ultimas || minC || (usd && pr.final > 0) || (p.es_preventa && p.preventa_mostrar_fecha && p.preventa_fecha)) && (
           <div className="tp-extra">
+            {minC && <span className="tp-minimo"><Layers size={11} /> Mín. {minC.minimo} {minC.unidad} · combinables</span>}
             {pr.ahorro > 0 && <span className="tp-ahorro">{pr.esRevendedor ? 'Revendedor · ' : ''}Ahorrás {fmtP(pr.ahorro)}</span>}
             {restante && <span className="tp-reloj"><Clock size={11} /> {textoRestante(restante)}</span>}
             {ultimas && <span className="tp-ultimas">{stock === 1 ? 'Última unidad' : `Últimas ${stock} unidades`}</span>}
@@ -4018,6 +4057,16 @@ function CartPage() {
                 </div>
               </div>
             )}
+            {(s?.minimos_categoria || []).map(m => (
+              <div key={m.categoria} className="meta-bar min-cat-bar">
+                <div className="meta-track"><div className={`meta-fill${m.faltan > 0 ? '' : ' ok'}`} style={{ width: `${Math.min(100, (m.cantidad / m.minimo) * 100)}%` }} /></div>
+                <div className={`meta-msg${m.faltan > 0 ? ' warn' : ' ok'}`}>
+                  {m.faltan > 0
+                    ? <><Layers size={14} /> <span><b>{m.categoria}</b>: llevás {m.cantidad} de {m.minimo} {m.unidad}. Sumá <b>{m.faltan} más</b> (podés combinar modelos).</span></>
+                    : <><CheckCircle size={14} /> <span><b>{m.categoria}</b>: mínimo de {m.minimo} {m.unidad} alcanzado.</span></>}
+                </div>
+              </div>
+            ))}
             {s?.envio?.excluido_gratis && entregaTipo === 'envio' && (
               <div className="meta-msg" style={{ margin: '0 0 10px' }}>Este carrito tiene un producto que no entra en el envío gratis: el envío se cobra.</div>
             )}
@@ -4790,6 +4839,7 @@ function ProductDetailPage() {
             </div>
           )}
 
+          <AvisoMinimoCategoria p={p} />
           {waNum && <button className="pdp-wa" onClick={shareWA}><Ico n="message" s={16} /> Consultar por WhatsApp</button>}
           <AvisoSeccion sec={sec} compacto />
 

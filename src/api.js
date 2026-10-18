@@ -279,6 +279,10 @@ export async function deleteMetodoPago(id) { return f(`/api/metodos-pago/${id}`,
 let _catsInfo = null; // se pide una vez por carga (footer + páginas de categoría)
 export function getCategoriasInfo() { if (!_catsInfo) _catsInfo = f('/api/categorias-info').catch(e => { _catsInfo = null; throw e; }); return _catsInfo; }
 export async function saveCategoriaSeo(data) { _catsInfo = null; return f('/api/categorias/seo', { method: 'POST', body: JSON.stringify(data) }); }
+// Compra mínima por categoría (en unidades, combinando productos de la categoría)
+let _minCat = null;
+export function getMinimosCategoria() { if (!_minCat) _minCat = f('/api/categorias-minimos').catch(() => { _minCat = null; return []; }); return _minCat; }
+export async function guardarMinimoCategoria(data) { _minCat = null; return f('/api/categorias/minimo', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getPaginas(seccion_id) { return f(`/api/paginas${seccion_id ? `?seccion_id=${seccion_id}` : ''}`); }
 export async function getPagina(id) { return f(`/api/paginas/${id}`); }
 export async function createPagina(pagina) { return f('/api/paginas', { method: 'POST', body: JSON.stringify(pagina) }); }

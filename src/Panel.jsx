@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useContext, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download } from 'lucide-react';
+import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download, Layers } from 'lucide-react';
 import { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtPedido, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink } from './App.jsx';
 
 // Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
@@ -2762,6 +2762,12 @@ function AdminCategorias() {
   const guardarSeo = async () => {
     try { await api.saveCategoriaSeo(seoEdit); toast('Guardado'); setSeoEdit(null); load(); } catch (e) { toast(e.message, 'error'); }
   };
+  const [minEdit, setMinEdit] = useState(null); // {nombre, min, unidad} → compra mínima en unidades, combinando productos de la categoría
+  const guardarMin = async (sacar) => {
+    const min = sacar ? 0 : (parseInt(minEdit.min, 10) || 0);
+    if (!sacar && min < 2) { toast('Poné un mínimo de 2 o más', 'error'); return; }
+    try { await api.guardarMinimoCategoria({ nombre: minEdit.nombre, min_unidades: min, min_unidad: minEdit.unidad }); toast(sacar ? 'Mínimo quitado' : 'Mínimo guardado'); setMinEdit(null); load(); } catch (e) { toast(e.message, 'error'); }
+  };
 
   const crearCat = async () => {
     if (!nuevaCat.trim()) { toast('Poné un nombre', 'error'); return; }
@@ -2872,15 +2878,41 @@ function AdminCategorias() {
           <div style={{ flex: 1 }}>
             <strong style={{ fontSize: 14 }}>{c.nombre}</strong>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{c.cantidad} producto{c.cantidad !== 1 ? 's' : ''}</span>
+            {c.min_unidades > 1 && <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', borderRadius: 999, padding: '2px 8px', marginLeft: 8, whiteSpace: 'nowrap' }}>Mín. {c.min_unidades} {c.min_unidad || 'unidades'}</span>}
           </div>
           <button onClick={() => toggleVisible(c.nombre)} title={c.visible ? 'Ocultar' : 'Mostrar'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>{c.visible ? <Eye size={16} /> : <EyeOff size={16} />}</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSeoEdit({ nombre: c.nombre, titulo: c.titulo || '', descripcion: c.descripcion || '' })} title="Título y texto de la página de esta categoría (Google)"><Globe size={14} style={{ verticalAlign: '-2px' }} /> Google</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setMinEdit({ nombre: c.nombre, min: c.min_unidades > 1 ? String(c.min_unidades) : '', unidad: c.min_unidad || '', tenia: c.min_unidades > 1 })} title="Compra mínima de esta categoría, combinando productos"><Layers size={14} style={{ verticalAlign: '-2px' }} /> Mínimo</button>
           <button className="btn btn-outline btn-sm" onClick={() => setRenaming({ nombre: c.nombre, nuevo: c.nombre })}>Renombrar</button>
           <button className="btn btn-outline btn-sm" onClick={() => setMerging({ desde: c.nombre, hasta: '' })}>Fusionar</button>
           <button className="btn btn-danger btn-sm" onClick={() => doDelete(c.nombre)}><Trash2 size={15} style={{ verticalAlign: '-2px' }} /></button>
         </div>
       ))}
 
+      {minEdit && (() => {
+        const n = parseInt(minEdit.min, 10) || 0;
+        const u = minEdit.unidad.trim() || 'unidades';
+        return (
+          <div className="modal-overlay" onClick={() => setMinEdit(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+              <div className="modal-header"><span className="modal-title">Compra mínima de "{minEdit.nombre}"</span><button className="modal-close" onClick={() => setMinEdit(null)}><X size={16} /></button></div>
+              <div className="modal-body">
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>El cliente tiene que llevar este mínimo sumando cualquier producto de la categoría: puede ser del mismo modelo o surtido. Si no llega, el carrito no lo deja comprar. Vale para envío y para retiro.</p>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div className="form-group" style={{ width: 120 }}><label className="form-label">Mínimo</label><input type="number" min="2" value={minEdit.min} onChange={e => setMinEdit({ ...minEdit, min: e.target.value.replace(/\D/g, '').slice(0, 5) })} placeholder="10" autoFocus /></div>
+                  <div className="form-group" style={{ flex: 1 }}><label className="form-label">¿Qué cuenta? (opcional)</label><input value={minEdit.unidad} onChange={e => setMinEdit({ ...minEdit, unidad: e.target.value.slice(0, 30) })} placeholder="unidades (ej: packs)" /></div>
+                </div>
+                {n >= 2 && <div style={{ fontSize: 13, background: 'var(--primary-light)', color: 'var(--text)', borderRadius: 10, padding: '10px 12px' }}>En la tienda se ve: <b>"Compra mínima: {n} {u}. Podés combinar los modelos que quieras de esta categoría."</b></div>}
+              </div>
+              <div className="modal-footer">
+                {minEdit.tenia && <button className="btn btn-outline" style={{ marginRight: 'auto' }} onClick={() => guardarMin(true)}>Quitar mínimo</button>}
+                <button className="btn btn-outline" onClick={() => setMinEdit(null)}>Cancelar</button>
+                <button className="btn btn-primary" onClick={() => guardarMin(false)}>Guardar</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {/* Modal crear categoría */}
       {seoEdit && (
         <div className="modal-overlay" onClick={() => setSeoEdit(null)}>
