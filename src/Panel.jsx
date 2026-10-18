@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useContext, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download, Layers } from 'lucide-react';
+import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download, Layers, Info } from 'lucide-react';
 import { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtPedido, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink } from './App.jsx';
 
 // Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
@@ -468,14 +468,13 @@ function AdminPanel() {
 
   // Mapa tab → permiso requerido
   const tabPerm = {
-    dashboard: 'stats',
-    pedidos: 'pedidos', presupuestos: 'pedidos', reglas_compra: 'pedidos', arrepentimientos: 'pedidos',
-    venta_manual: 'pedidos', ordenes_compra: 'pedidos', caja: 'stats',
-    cupones: 'config', promociones: 'config', carritos: 'stats', reportes: 'stats',
+    pedidos: 'pedidos', presupuestos: 'pedidos', arrepentimientos: 'pedidos',
+    venta_manual: 'pedidos', caja: 'stats',
+    cupones: 'config', promociones: 'config', carritos: 'stats',
     leads: 'stats', analytics: 'config',
-    productos: 'productos', categorias: 'productos', listas: 'listas', notif_stock: 'productos', costo_proveedor: 'config',
+    productos: 'productos', categorias: 'productos', listas: 'listas', costo_proveedor: 'config',
     usuarios: 'usuarios',
-    envios: 'config', metodos_pago: 'config',
+    tiendas: 'config', envios: 'config',
     diseno: 'config',
     general: 'config',
     owner_tenants: '__owner__',
@@ -488,34 +487,53 @@ function AdminPanel() {
     { id: 'inicio', label: 'Inicio', icon: 'chart', single: 'dashboard' },
     { id: 'ventas', label: 'Ventas', icon: 'receipt', items: [
       { id: 'pedidos', label: 'Pedidos' },
-      { id: 'arrepentimientos', label: 'Arrepentimientos' },
       { id: 'presupuestos', label: 'Presupuestos' },
       { id: 'venta_manual', label: 'Punto de venta' },
       { id: 'caja', label: 'Caja / Arqueo' },
-      { id: 'ordenes_compra', label: 'Órdenes de compra' },
-      { id: 'reglas_compra', label: 'Reglas de compra' },
+      { id: 'arrepentimientos', label: 'Arrepentimientos' },
     ]},
     { id: 'catalogo', label: 'Catálogo', icon: 'box', items: [
       { id: 'productos', label: 'Productos' },
       { id: 'categorias', label: 'Categorías' },
       { id: 'listas', label: 'Listas de precio' },
-      { id: 'notif_stock', label: 'Avisos de stock' },
+      { id: 'stock', label: 'Stock' },
       { id: 'costo_proveedor', label: 'Costo proveedor' },
     ]},
-    { id: 'clientes', label: 'Clientes', icon: 'users', single: 'usuarios' },
-    { id: 'marketing_grp', label: 'Marketing', icon: 'megaphone', items: [
-      { id: 'cupones', label: 'Cupones' },
-      { id: 'promociones', label: 'Promociones' },
-      { id: 'carritos', label: 'Carritos abandonados' },
+    { id: 'clientes_grp', label: 'Clientes', icon: 'users', items: [
+      { id: 'usuarios', label: 'Clientes' },
       { id: 'leads', label: 'Leads WhatsApp' },
-      { id: 'reportes', label: 'Reportes' },
+    ]},
+    { id: 'marketing_grp', label: 'Marketing', icon: 'megaphone', items: [
+      { id: 'promociones', label: 'Promociones' },
+      { id: 'cupones', label: 'Cupones' },
+      { id: 'carritos', label: 'Carritos abandonados' },
       { id: 'analytics', label: 'Analytics / Pixels' },
     ]},
+    { id: 'tiendas_grp', label: 'Tiendas', icon: 'store', single: 'tiendas' },
     { id: 'envios_grp', label: 'Envíos', icon: 'truck', single: 'envios' },
     { id: 'pagos_grp', label: 'Pagos', icon: 'card', single: 'metodos_pago' },
     { id: 'diseno_grp', label: 'Personalizar tienda', icon: 'palette', single: 'diseno' },
-    { id: 'general_grp', label: 'General', icon: 'settings', single: 'general' },
+    { id: 'general_grp', label: 'Configuración', icon: 'settings', single: 'general' },
   ];
+
+  // Pantallas con pestañas internas: cada pestaña tiene su permiso (y la función del plan, si hace falta).
+  // La pantalla se muestra si al menos una de sus pestañas está permitida.
+  const HUBS = {
+    dashboard: [
+      { id: 'resumen', label: 'Resumen', perm: 'stats', render: () => <AdminDashboard /> },
+      { id: 'ganancias', label: 'Ganancias', perm: 'stats', feature: 'reportes', render: () => <AdminReportes /> },
+    ],
+    stock: [
+      { id: 'avisos', label: 'Avisos de stock', perm: 'productos', render: () => <AdminNotifStock /> },
+      { id: 'ordenes', label: 'Órdenes de compra', perm: 'pedidos', feature: 'ordenes_compra', render: () => <AdminOrdenesCompra /> },
+    ],
+    metodos_pago: [
+      { id: 'metodos', label: 'Métodos de pago', perm: 'config', render: () => <AdminMetodosPago /> },
+      { id: 'dolar', label: 'Dólar', perm: 'config', render: () => <AdminDolar /> },
+    ],
+  };
+  // Pantallas que se movieron: si quedó guardada una vieja, se abre la nueva
+  const MOVIDAS = { reportes: 'dashboard', reglas_compra: 'tiendas', ordenes_compra: 'stock', notif_stock: 'stock' };
 
   // Mapa tab → feature del plan (si la feature está off, se oculta la sección). El dueño (es_owner) ve todo.
   const tabFeature = {
@@ -529,19 +547,21 @@ function AdminPanel() {
     listas: 'listas_precio',
   };
   const feats = miPlan?.features || null;
-  const planPermite = (tabId) => {
+  const featPermite = (f) => {
     if (user?.es_owner) return true;         // el dueño siempre ve todo
     if (!feats) return true;                 // si no cargó el plan, no ocultar (fail-open)
-    const f = tabFeature[tabId];
-    if (!f) return true;                     // tab sin feature asociada = siempre visible
+    if (!f) return true;                     // sin feature asociada = siempre visible
     const v = feats[f];
     return !(v === false || v === 'no' || v === undefined || v === null);
   };
+  const planPermite = (tabId) => featPermite(tabFeature[tabId]);
+  const subOk = (sb) => puede(sb.perm) && featPermite(sb.feature);
+  const tabOk = (id) => HUBS[id] ? HUBS[id].some(subOk) : (puede(tabPerm[id]) && planPermite(id));
 
   // Filtrar por permisos Y por plan
   const treeFiltered = nav_tree.map(g => {
-    if (g.single) return (puede(tabPerm[g.single]) && planPermite(g.single)) ? g : null;
-    const items = g.items.filter(it => puede(tabPerm[it.id]) && planPermite(it.id));
+    if (g.single) return tabOk(g.single) ? g : null;
+    const items = g.items.filter(it => tabOk(it.id));
     return items.length ? { ...g, items } : null;
   }).filter(Boolean);
 
@@ -550,7 +570,8 @@ function AdminPanel() {
 
   // Si el tab activo no está permitido, saltar al primero
   useEffect(() => {
-    if (allTabs.length && !allTabs.includes(adminTab)) setAdminTab(allTabs[0]);
+    if (MOVIDAS[adminTab] && allTabs.includes(MOVIDAS[adminTab])) setAdminTab(MOVIDAS[adminTab]);
+    else if (allTabs.length && !allTabs.includes(adminTab)) setAdminTab(allTabs[0]);
   }, [adminTab, allTabs.length]);
 
   // Auto-abrir el grupo que contiene el tab activo
@@ -630,24 +651,20 @@ function AdminPanel() {
 
       {/* Content */}
       <div className="admin-content">
-        {adminTab === 'dashboard' && <AdminDashboard />}
+        {HUBS[adminTab] && allTabs.includes(adminTab) && <SubTabs key={adminTab} subs={HUBS[adminTab].filter(subOk)} />}
         {adminTab === 'productos' && <AdminProductos />}
         {adminTab === 'pedidos' && <AdminPedidos filtroTipo="pedidos" />}
         {adminTab === 'presupuestos' && <AdminPedidos filtroTipo="presupuestos" />}
         {adminTab === 'venta_manual' && <AdminVentaManual />}
-        {adminTab === 'ordenes_compra' && <AdminOrdenesCompra />}
-        {adminTab === 'reglas_compra' && <AdminReglasCompra />}
         {adminTab === 'usuarios' && <AdminUsuarios />}
         {adminTab === 'listas' && <AdminListas />}
         {adminTab === 'categorias' && <AdminCategorias />}
-        {adminTab === 'notif_stock' && <AdminNotifStock />}
         {adminTab === 'cupones' && <AdminCupones />}
         {adminTab === 'promociones' && <AdminPromociones />}
         {adminTab === 'carritos' && <AdminCarritosAbandonados />}
         {adminTab === 'arrepentimientos' && <AdminArrepentimientos />}
-        {adminTab === 'reportes' && <AdminReportes />}
         {adminTab === 'caja' && <AdminCaja />}
-        {adminTab === 'metodos_pago' && <AdminMetodosPago />}
+        {adminTab === 'tiendas' && <AdminTiendas />}
         {adminTab === 'envios' && <AdminEnviosCustom />}
         {adminTab === 'diseno' && <AdminDisenoHub />}
         {adminTab === 'general' && <AdminGeneralHub />}
@@ -660,36 +677,59 @@ function AdminPanel() {
   );
 }
 
-// ── Hub de Diseño: sub-pestañas internas (Colores/Logo, Slider, Banners, Badges, Pop-ups, Redes, Novedades) ──
-function AdminDisenoHub() {
-  const [sub, setSub] = useState('editor');
-  const subs = [
-    { id: 'editor', label: 'Tema y estilos' },
-    { id: 'slider', label: 'Slider / Banners' },
-    { id: 'barras', label: 'Barras de texto' },
-    { id: 'orden', label: 'Orden de secciones' },
-    { id: 'menu', label: 'Menú' },
-    { id: 'paginas', label: 'Páginas' },
-    { id: 'badges', label: 'Badges' },
-    { id: 'popups', label: 'Pop-ups' },
-    { id: 'redes', label: 'Redes sociales' },
-    { id: 'contactos', label: 'Contactos WhatsApp' },
-  ];
+// ── Pestañas internas de una pantalla (Inicio, Stock, Pagos, Personalizar tienda) ──
+function SubTabs({ subs }) {
+  const [sub, setSub] = useState(subs[0]?.id);
+  const actual = subs.find(x => x.id === sub) || subs[0];
+  if (!actual) return null;
   return (
     <div>
-      <div className="admin-subtabs" style={{ flexWrap: 'wrap' }}>
-        {subs.map(s => <button key={s.id} className={`admin-subtab ${sub === s.id ? 'active' : ''}`} onClick={() => setSub(s.id)}>{s.label}</button>)}
+      {subs.length > 1 && (
+        <div className="admin-subtabs" style={{ flexWrap: 'wrap' }}>
+          {subs.map(x => <button key={x.id} className={`admin-subtab ${actual.id === x.id ? 'active' : ''}`} onClick={() => setSub(x.id)}>{x.label}</button>)}
+        </div>
+      )}
+      {actual.render()}
+    </div>
+  );
+}
+// Varias pantallas chicas una debajo de la otra, separadas
+const Apiladas = ({ children }) => <div className="admin-apiladas">{children}</div>;
+
+// ── Personalizar tienda: 5 pestañas (antes eran 10) ──
+function AdminDisenoHub() {
+  return <SubTabs subs={[
+    { id: 'editor', label: 'Tema y estilos', render: () => <AdminDiseno /> },
+    { id: 'portada', label: 'Portada', render: () => <Apiladas><AdminSlider /><AdminOrdenSecciones /></Apiladas> },
+    { id: 'anuncios', label: 'Anuncios', render: () => <Apiladas><AdminBarras /><AdminBadges /><AdminPopups /></Apiladas> },
+    { id: 'menu', label: 'Menú y páginas', render: () => <Apiladas><AdminMenu /><AdminPaginas /></Apiladas> },
+    { id: 'whatsapp', label: 'WhatsApp y redes', render: () => <Apiladas><AdminWhatsAppPrincipal /><AdminContactos /><AdminRedes /></Apiladas> },
+  ]} />;
+}
+
+// Número principal de WhatsApp (antes estaba dentro de "Tema y estilos"): lo usan el botón flotante
+// (si no hay contactos cargados), "Consultar por WhatsApp" de cada producto, el pie y la página de contacto
+function AdminWhatsAppPrincipal() {
+  const { toast, design, setDesign } = useContext(Ctx);
+  const [f, setF] = useState({ whatsapp_numero: design.whatsapp_numero || '', whatsapp_mensaje: design.whatsapp_mensaje || '' });
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { api.getDesign().then(d => setF({ whatsapp_numero: d.whatsapp_numero || '', whatsapp_mensaje: d.whatsapp_mensaje || '' })).catch(() => {}); }, []);
+  const guardar = async () => {
+    const num = f.whatsapp_numero.replace(/\D/g, '');
+    setSaving(true);
+    try { const d = { whatsapp_numero: num, whatsapp_mensaje: f.whatsapp_mensaje.trim() }; await api.updateDesign(d); setDesign({ ...design, ...d }); setF(d); toast('WhatsApp guardado'); }
+    catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <h3 style={{ marginBottom: 4 }}>WhatsApp principal</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>Es el número de la tienda: el botón "Consultar por WhatsApp" de cada producto, el pie de la web y la página de contacto. El botón flotante usa los contactos de abajo; si no cargás ninguno, usa este.</p>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="form-group" style={{ flex: '1 1 200px' }}><label className="form-label">Número (con código de país, sin +)</label><input value={f.whatsapp_numero} onChange={e => setF({ ...f, whatsapp_numero: e.target.value })} placeholder="5491100000000" inputMode="numeric" /></div>
+        <div className="form-group" style={{ flex: '2 1 260px' }}><label className="form-label">Mensaje inicial</label><input value={f.whatsapp_mensaje} onChange={e => setF({ ...f, whatsapp_mensaje: e.target.value })} placeholder="Hola, quiero consultar..." /></div>
       </div>
-      {sub === 'editor' && <AdminDiseno />}
-      {sub === 'slider' && <AdminSlider />}
-      {sub === 'barras' && <AdminBarras />}
-      {sub === 'orden' && <AdminOrdenSecciones />}
-      {sub === 'menu' && <AdminMenu />}
-      {sub === 'paginas' && <AdminPaginas />}
-      {sub === 'badges' && <AdminBadges />}
-      {sub === 'popups' && <AdminPopups />}
-      {sub === 'redes' && <AdminRedes />}
-      {sub === 'contactos' && <AdminContactos />}
+      <button className="btn btn-primary btn-sm" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
     </div>
   );
 }
@@ -1439,21 +1479,11 @@ function TenantEditarModal({ tenant, planes, onClose, onSaved, onDeleted }) {
 }
 
 function AdminGeneralHub() {
-  const [sub, setSub] = useState('config');
-  return (
-    <div>
-      <div className="admin-subtabs">
-        <button className={`admin-subtab ${sub === 'config' ? 'active' : ''}`} onClick={() => setSub('config')}>Datos del negocio</button>
-        <button className={`admin-subtab ${sub === 'tiendas' ? 'active' : ''}`} onClick={() => setSub('tiendas')}>Tiendas / Puntos de venta</button>
-      </div>
-      {sub === 'config' && <AdminConfig />}
-      {sub === 'tiendas' && <AdminTiendas />}
-    </div>
-  );
+  return <AdminConfig />;
 }
 
 function AdminTiendas() {
-  const { secciones, setSecciones, toast } = useContext(Ctx);
+  const { secciones, setSecciones, toast, config } = useContext(Ctx);
   const [edit, setEdit] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [delSec, setDelSec] = useState(null);
@@ -1494,6 +1524,7 @@ function AdminTiendas() {
             {s.requiere_aprobacion && <span style={{ fontSize: 10, background: 'var(--accent)', color: '#fff', padding: '2px 8px', borderRadius: 4, marginLeft: 8 }}>Requiere aprobación</span>}
             {s.visible === false && <span style={{ fontSize: 10, background: '#999', color: '#fff', padding: '2px 8px', borderRadius: 4, marginLeft: 6 }}>Oculta</span>}
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.descripcion || 'Sin descripción'}</div>
+            <div className="tienda-chips">{resumenTienda(s, config).map(t => <span key={t}>{t}</span>)}</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-outline btn-sm" onClick={() => setEdit(s)}>Editar</button>
@@ -1543,42 +1574,117 @@ function AdminTiendas() {
   );
 }
 
+// Resumen de una tienda para la lista: mínimo, envío gratis, stock, dólares, aviso
+function resumenTienda(s, config) {
+  const t = [];
+  const min = Number(config[`compra_minima_${s.id}`]) || 0;
+  const usd = config[`compra_minima_moneda_${s.id}`] === 'USD';
+  if (min > 0) t.push(`Mínimo ${usd ? fmtUSD(min) : fmtARS(min)}${config[`min_aplica_retiro_${s.id}`] === 'true' ? '' : ' (solo envío)'}`);
+  const gratis = Number(config[`envio_gratis_desde_${s.id}`]) || 0;
+  if (gratis > 0) t.push(`Envío gratis desde ${fmtARS(gratis)}`);
+  if (s.ignorar_stock) t.push('Ignora el stock');
+  else if (s.permitir_sin_stock) t.push('Vende sin stock');
+  if (mostrarUsdSec(config, s)) t.push('Precios en dólares');
+  if (String(s.aviso || '').trim()) t.push('Con aviso');
+  if (s.cp_origen) t.push(`CP ${s.cp_origen}`);
+  return t;
+}
+
+// Ficha de la tienda: datos, stock, envíos, compra mínima, dólares y aviso (antes repartido en General, Envíos y Reglas de compra)
 function TiendaModal({ sec, onClose, onSaved, toast }) {
+  const { config, setConfig } = useContext(Ctx);
   const isNew = !sec;
+  const id = sec?.id;
   const [f, setF] = useState({
     nombre: sec?.nombre || '', slug: sec?.slug || '', descripcion: sec?.descripcion || '',
     requiere_aprobacion: sec?.requiere_aprobacion || false, visible: sec?.visible !== false,
     cp_origen: sec?.cp_origen || '1888', ignorar_stock: sec?.ignorar_stock || false, permitir_sin_stock: sec?.permitir_sin_stock || false,
     aviso_titulo: sec?.aviso_titulo || '', aviso: sec?.aviso || '',
+    gratis_desde: id ? (config[`envio_gratis_desde_${id}`] || '') : '',
+    minimo: id ? (config[`compra_minima_${id}`] || '') : '',
+    min_moneda: id && config[`compra_minima_moneda_${id}`] === 'USD' ? 'USD' : 'ARS',
+    min_retiro: id ? config[`min_aplica_retiro_${id}`] === 'true' : false,
+    ver_usd: sec ? mostrarUsdSec(config, sec) : false,
   });
+  const [saving, setSaving] = useState(false);
+  const cot = useCotizacionUsd(f.min_moneda === 'USD' || f.ver_usd);
+  const set = (patch) => setF(prev => ({ ...prev, ...patch }));
   const save = async () => {
     if (!f.nombre.trim()) { toast('Poné un nombre', 'error'); return; }
     const slug = f.slug || f.nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const datos = { nombre: f.nombre.trim(), slug, descripcion: f.descripcion, requiere_aprobacion: f.requiere_aprobacion, visible: f.visible, cp_origen: f.cp_origen.replace(/\D/g, '') || '1888', ignorar_stock: f.ignorar_stock, permitir_sin_stock: f.permitir_sin_stock, aviso_titulo: f.aviso_titulo, aviso: f.aviso };
+    setSaving(true);
     try {
-      if (isNew) await api.createSeccion({ ...f, slug });
-      else await api.updateSeccion(sec.id, { ...sec, ...f, slug });
+      let tienda = sec;
+      if (isNew) tienda = await api.createSeccion(datos);
+      // Al crear, el servidor no guarda todo (visible, vender sin stock): se completa con una actualización
+      await api.updateSeccion(tienda.id, { ...tienda, ...datos });
+      const upd = {
+        [`envio_gratis_desde_${tienda.id}`]: String(Number(f.gratis_desde) || 0),
+        [`compra_minima_${tienda.id}`]: String(Number(f.minimo) || 0),
+        [`compra_minima_moneda_${tienda.id}`]: f.min_moneda === 'USD' ? 'USD' : 'ARS',
+        [`min_aplica_retiro_${tienda.id}`]: f.min_retiro ? 'true' : 'false',
+        [`mostrar_usd_${tienda.id}`]: f.ver_usd ? 'true' : 'false',
+      };
+      await api.updateConfig(upd);
+      setConfig(prev => ({ ...prev, ...upd }));
       toast(isNew ? 'Tienda creada' : 'Tienda actualizada'); onSaved();
     } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
   };
+  const chk = (k, txt, sub) => (
+    <label className="tienda-chk"><input type="checkbox" checked={!!f[k]} onChange={e => set({ [k]: e.target.checked })} /><span>{txt}{sub && <small>{sub}</small>}</span></label>
+  );
+  const nMin = Number(f.minimo) || 0;
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
-        <div className="modal-header"><span className="modal-title">{isNew ? 'Nueva tienda' : 'Editar tienda'}</span><button className="modal-close" onClick={onClose}>✕</button></div>
-        <div className="modal-body">
-          <div className="form-group"><label className="form-label">Nombre *</label><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej: Sucursal Centro" autoFocus /></div>
-          <div className="form-group"><label className="form-label">Descripción</label><input value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} placeholder="Ej: Retiro en local zona sur" /></div>
-          <div className="form-group"><label className="form-label">CP de origen (para envíos)</label><input value={f.cp_origen} onChange={e => setF({ ...f, cp_origen: e.target.value })} placeholder="1888" /></div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.requiere_aprobacion} onChange={e => setF({ ...f, requiere_aprobacion: e.target.checked })} /> Requiere aprobación (mayorista)</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.visible} onChange={e => setF({ ...f, visible: e.target.checked })} /> Visible en la tienda</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={f.permitir_sin_stock} onChange={e => setF({ ...f, permitir_sin_stock: e.target.checked })} /> Permitir vender sin stock</label>
-          <div className="form-group">
-            <label className="form-label">Aviso destacado (opcional)</label>
-            <input value={f.aviso_titulo} maxLength={200} onChange={e => setF({ ...f, aviso_titulo: e.target.value })} placeholder="Título. Ej: Importante: cómo funcionan los pedidos" style={{ marginBottom: 6 }} />
-            <textarea value={f.aviso} rows={5} maxLength={3000} onChange={e => setF({ ...f, aviso: e.target.value })} placeholder={'Una condición por renglón. Ej:\nEl armado demora de 24 a 72 hs hábiles.'} style={{ width: '100%', resize: 'vertical' }} />
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 580 }}>
+        <div className="modal-header"><span className="modal-title">{isNew ? 'Nueva tienda' : `Tienda ${sec.nombre}`}</span><button className="modal-close" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body tienda-form">
+          <section>
+            <h4>Datos</h4>
+            <div className="form-group"><label className="form-label">Nombre *</label><input value={f.nombre} onChange={e => set({ nombre: e.target.value })} placeholder="Ej: Sucursal Centro" autoFocus={isNew} /></div>
+            <div className="form-group"><label className="form-label">Descripción</label><input value={f.descripcion} onChange={e => set({ descripcion: e.target.value })} placeholder="Ej: Retiro en local zona sur" /></div>
+            {chk('visible', 'Visible en la tienda')}
+            {chk('requiere_aprobacion', 'Requiere aprobación (mayorista)', 'Solo compran los clientes que autorizás.')}
+          </section>
+          <section>
+            <h4>Stock</h4>
+            {chk('permitir_sin_stock', 'Permitir vender sin stock', 'Deja comprar productos con stock en 0.')}
+            {chk('ignorar_stock', 'Ignorar el stock', 'No controla cantidades: vende siempre.')}
+          </section>
+          <section>
+            <h4>Envíos</h4>
+            <div className="tienda-fila">
+              <div className="form-group"><label className="form-label">CP de origen</label><input value={f.cp_origen} onChange={e => set({ cp_origen: e.target.value.replace(/\D/g, '').slice(0, 8) })} placeholder="1888" inputMode="numeric" /></div>
+              <div className="form-group"><label className="form-label">Envío gratis desde $</label><input type="number" min="0" value={f.gratis_desde} onChange={e => set({ gratis_desde: e.target.value })} placeholder="0 = no" /></div>
+            </div>
+          </section>
+          <section>
+            <h4>Compra mínima</h4>
+            <div className="tienda-fila">
+              <div className="form-group" style={{ flex: '0 0 130px' }}><label className="form-label">Moneda</label><select value={f.min_moneda} onChange={e => set({ min_moneda: e.target.value })}><option value="ARS">Pesos $</option><option value="USD">Dólares</option></select></div>
+              <div className="form-group"><label className="form-label">Monto mínimo</label><input type="number" min="0" value={f.minimo} onChange={e => set({ minimo: e.target.value })} placeholder="0 = sin mínimo" /></div>
+            </div>
+            {nMin > 0 && f.min_moneda === 'USD' && cot && <p className="tienda-nota">Hoy son {fmtARS(Math.round(nMin * cot.valor))} (dólar a ${fmt(cot.valor)}). La cotización se elige en Pagos → Dólar.</p>}
+            {nMin > 0 && chk('min_retiro', 'El mínimo también aplica al retiro en el local', 'Si no lo marcás, vale solo para envíos.')}
+            <p className="tienda-nota">El mínimo por categoría (ej: 10 packs) se pone en Catálogo → Categorías.</p>
+          </section>
+          <section>
+            <h4>Dólares</h4>
+            {chk('ver_usd', 'Mostrar los precios también en dólares', 'El cliente ve el precio en pesos y en dólares.')}
+          </section>
+          <section>
+            <h4>Aviso destacado (opcional)</h4>
+            <input value={f.aviso_titulo} maxLength={200} onChange={e => set({ aviso_titulo: e.target.value })} placeholder="Título. Ej: Importante: cómo funcionan los pedidos" style={{ marginBottom: 6 }} />
+            <textarea value={f.aviso} rows={4} maxLength={3000} onChange={e => set({ aviso: e.target.value })} placeholder={'Una condición por renglón. Ej:\nEl armado demora de 24 a 72 hs hábiles.'} style={{ width: '100%', resize: 'vertical' }} />
             <small style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>Se muestra como alerta arriba de la tienda, en cada producto y en el carrito. Al confirmar el pedido, el cliente tiene que marcar que lo leyó.</small>
-          </div>
-          {f.aviso.trim() && <AvisoSeccion sec={{ ...f, nombre: f.nombre }} compacto />}
-          <button className="btn btn-primary" onClick={save} style={{ width: '100%' }}>{isNew ? 'Crear tienda' : 'Guardar cambios'}</button>
+            {f.aviso.trim() && <AvisoSeccion sec={{ ...f, nombre: f.nombre }} compacto />}
+          </section>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : isNew ? 'Crear tienda' : 'Guardar cambios'}</button>
         </div>
       </div>
     </div>
@@ -2173,54 +2279,25 @@ function OrdenCompraModal({ secciones, onClose, onSaved, toast }) {
 // Cómo se cobra un método de envío propio. Un 'fijo' sin precio se trata como "a cotizar" (nunca "gratis" por error).
 const cobroEnvio = (m) => m?.tipo === 'gratis' ? 'gratis' : (m?.tipo === 'a_cotizar' || !(Number(m?.precio) > 0)) ? 'a_cotizar' : 'fijo';
 
-function AdminReglasCompra() {
-  const { secciones, toast, config, setConfig } = useContext(Ctx);
-  const [minimos, setMinimos] = useState({});
-  const [monedas, setMonedas] = useState({});
-  const [aplicaRetiro, setAplicaRetiro] = useState({});
-  const [verUsd, setVerUsd] = useState({});
+// ─── PAGOS → DÓLAR: de dónde sale la cotización (mínimos en USD y precios en dólares) ───
+function AdminDolar() {
+  const { toast, config, setConfig } = useContext(Ctx);
   const [fuente, setFuente] = useState(config.usd_fuente || 'blue');
-  const [manual, setManual] = useState(config.usd_manual || '');
-  const [saving, setSaving] = useState(null);
+  // Antes había dos valores manuales (uno en General y otro acá): queda uno solo
+  const [manual, setManual] = useState(config.usd_manual || config.dolar_blue || '');
+  const [saving, setSaving] = useState(false);
   const cot = useCotizacionUsd(true);
-  useEffect(() => {
-    const d = {}, mo = {}, ar = {}, vu = {};
-    secciones.forEach(s => {
-      d[s.id] = config[`compra_minima_${s.id}`] || '';
-      mo[s.id] = config[`compra_minima_moneda_${s.id}`] === 'USD' ? 'USD' : 'ARS';
-      ar[s.id] = config[`min_aplica_retiro_${s.id}`] === 'true';
-      vu[s.id] = mostrarUsdSec(config, s);
-    });
-    setMinimos(d); setMonedas(mo); setAplicaRetiro(ar); setVerUsd(vu);
-  }, [secciones, config]);
-
-  const save = async (sec) => {
-    setSaving(sec.id);
-    try {
-      const upd = {
-        [`compra_minima_${sec.id}`]: String(minimos[sec.id] || 0),
-        [`compra_minima_moneda_${sec.id}`]: monedas[sec.id] === 'USD' ? 'USD' : 'ARS',
-        [`min_aplica_retiro_${sec.id}`]: aplicaRetiro[sec.id] ? 'true' : 'false',
-        [`mostrar_usd_${sec.id}`]: verUsd[sec.id] ? 'true' : 'false',
-      };
-      await api.updateConfig(upd);
-      setConfig({ ...config, ...upd });
-      toast(`Reglas de ${sec.nombre} guardadas`);
-    } catch (e) { toast(e.message, 'error'); }
-    setSaving(null);
-  };
-  const guardarDolar = async () => {
-    setSaving('usd');
-    try { const upd = { usd_fuente: fuente, usd_manual: String(Number(manual) || '') }; await api.updateConfig(upd); setConfig({ ...config, ...upd }); toast('Cotización del dólar guardada'); }
+  const guardar = async () => {
+    if (fuente === 'manual' && !(Number(manual) > 0)) { toast('Poné el valor del dólar', 'error'); return; }
+    setSaving(true);
+    try { const upd = { usd_fuente: fuente, usd_manual: String(Number(manual) || ''), dolar_blue: '' }; await api.updateConfig(upd); setConfig({ ...config, ...upd }); toast('Cotización del dólar guardada'); }
     catch (e) { toast(e.message, 'error'); }
-    setSaving(null);
+    setSaving(false);
   };
-
   return (
-    <div>
-      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Reglas de compra</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Monto mínimo de compra por sección, en pesos o en dólares. Si es en dólares se pasa a pesos con la cotización del momento en que el cliente cierra el carrito. Por defecto el mínimo aplica solo al envío; marcá la casilla si también vale para el retiro. Dejá 0 para no exigir mínimo.</p>
-
+    <div style={{ maxWidth: 800 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Dólar</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Se usa para los mínimos de compra en dólares y para mostrar precios en dólares (se activan en cada tienda, en Tiendas).</p>
       <div className="card rc-dolar">
         <div>
           <strong>Cotización del dólar</strong>
@@ -2232,39 +2309,11 @@ function AdminReglasCompra() {
             <option value="oficial">Dólar oficial (automático)</option>
             <option value="manual">Valor fijo que pongo yo</option>
           </select>
-          {fuente === 'manual' && <input type="number" inputMode="decimal" value={manual} onChange={e => setManual(e.target.value)} placeholder="Ej: 1250" style={{ width: 110 }} aria-label="Valor del dólar" />}
-          <button className="btn btn-primary btn-sm" onClick={guardarDolar} disabled={saving === 'usd'}>{saving === 'usd' ? '...' : 'Guardar'}</button>
+          <input type="number" inputMode="decimal" value={manual} onChange={e => setManual(e.target.value)} placeholder={fuente === 'manual' ? 'Ej: 1250' : 'Respaldo'} style={{ width: 110 }} aria-label={fuente === 'manual' ? 'Valor del dólar' : 'Valor de respaldo'} title={fuente === 'manual' ? 'Valor del dólar' : 'Se usa solo si no se puede consultar la cotización automática'} />
+          <button className="btn btn-primary btn-sm" onClick={guardar} disabled={saving}>{saving ? '...' : 'Guardar'}</button>
         </div>
       </div>
-
-      {secciones.map(s => {
-        const n = Number(minimos[s.id]) || 0; const enUsd = monedas[s.id] === 'USD';
-        return (
-          <div key={s.id} className="card" style={{ padding: 16, marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <strong style={{ fontSize: 15 }}>{s.nombre}</strong>
-                {n > 0
-                  ? <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 2 }}>Mínimo activo: {enUsd ? `${fmtUSD(n)}${cot ? ` (hoy ${fmtARS(Math.round(n * cot.valor))})` : ''}` : fmtARS(n)}</div>
-                  : <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Sin mínimo (se puede comprar cualquier monto)</div>}
-              </div>
-              <div className="rc-min-ctrl">
-                <select value={monedas[s.id] || 'ARS'} onChange={e => setMonedas({ ...monedas, [s.id]: e.target.value })} aria-label="Moneda del mínimo" style={{ width: 118 }}>
-                  <option value="ARS">Pesos $</option><option value="USD">Dólares</option>
-                </select>
-                <input type="number" value={minimos[s.id] ?? ''} onChange={e => setMinimos({ ...minimos, [s.id]: e.target.value })} placeholder="0" />
-                <button className="btn btn-primary btn-sm" onClick={() => save(s)} disabled={saving === s.id}>{saving === s.id ? '...' : 'Guardar'}</button>
-              </div>
-            </div>
-            <div className="rc-opciones">
-              {n > 0 && (
-                <label><input type="checkbox" checked={!!aplicaRetiro[s.id]} onChange={e => setAplicaRetiro({ ...aplicaRetiro, [s.id]: e.target.checked })} /> <span>El mínimo también aplica al <strong>retiro en el local</strong></span></label>
-              )}
-              <label><input type="checkbox" checked={!!verUsd[s.id]} onChange={e => setVerUsd({ ...verUsd, [s.id]: e.target.checked })} /> <span>Mostrar los precios también en <strong>dólares</strong> (el cliente elige cómo pagar)</span></label>
-            </div>
-          </div>
-        );
-      })}
+      {fuente !== 'manual' && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>El valor del cuadro es de respaldo: se usa solo si no se puede consultar la cotización automática.</p>}
     </div>
   );
 }
@@ -2491,7 +2540,7 @@ function AdminDashboard() {
   return (
     <div className="dash">
       <div className="dash-head">
-        <h3>Dashboard</h3>
+        <h3>Resumen</h3>
         <div className="dash-rangos" role="group" aria-label="Período">
           {RANGOS_DASH.map(r => <button key={r.k} type="button" className={rango === r.k ? 'on' : ''} onClick={() => elegirRango(r.k)}>{r.t}</button>)}
         </div>
@@ -5785,7 +5834,7 @@ function AdminReportes() {
 
   return (
     <div style={{ maxWidth: 1100 }}>
-      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 12 }}>Reportes</h3>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 12 }}>Ganancias</h3>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <label style={{ fontSize: 13 }}>Desde <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={{ marginLeft: 4 }} /></label>
         <label style={{ fontSize: 13 }}>Hasta <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={{ marginLeft: 4 }} /></label>
@@ -5801,19 +5850,6 @@ function AdminReportes() {
             <div className="card" style={{ padding: 18, background: 'var(--success)', color: '#fff' }}><div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, opacity: 0.9 }}>Ganancia estimada</div><div style={{ fontSize: 26, fontWeight: 900 }}>{fmtARS(rep.ganancias.ganancia)}</div></div>
           </div>
           {rep.ganancias.costo === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, marginTop: -8 }}><Lightbulb size={15} style={{ verticalAlign: '-2px' }} /> Cargá el "precio de costo" en tus productos para ver la ganancia real.</p>}
-
-          {/* Más vendidos */}
-          <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Más vendidos</h4>
-          {rep.masVendidos.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Sin ventas en el período</p> : (
-            <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
-              {rep.masVendidos.map((p, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < rep.masVendidos.length - 1 ? '1px solid var(--border-light)' : 'none', fontSize: 13 }}>
-                  <span><b style={{ color: 'var(--text-muted)', marginRight: 8 }}>{i + 1}</b>{p.nombre_producto}</span>
-                  <span><b>{p.unidades}</b> u. · {fmtARS(p.facturado)}</span>
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* Por sección */}
           <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Ventas y ganancias por tienda</h4>
@@ -6951,11 +6987,7 @@ function AdminDiseno() {
                   <div className="form-group"><label className="form-label">Dirección</label><input value={des.direccion || ''} onChange={e => set({ direccion: e.target.value })} placeholder="Calle 123, Ciudad" /></div>
                   <div className="form-group"><label className="form-label">Horario</label><input value={des.horario || ''} onChange={e => set({ horario: e.target.value })} placeholder="Lun a Vie 9-18hs" /></div>
                 </div>
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-                  <h4 style={{ marginBottom: 8, fontSize: 14 }}>WhatsApp flotante</h4>
-                  <div className="form-group"><label className="form-label">Número (con código país, sin +)</label><input value={des.whatsapp_numero || ''} onChange={e => set({ whatsapp_numero: e.target.value })} placeholder="5491100000000" /></div>
-                  <div className="form-group"><label className="form-label">Mensaje inicial</label><input value={des.whatsapp_mensaje || ''} onChange={e => set({ whatsapp_mensaje: e.target.value })} placeholder="Hola, quiero consultar..." /></div>
-                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>El número de WhatsApp se carga en la pestaña <b>WhatsApp y redes</b>.</p>
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
                   <h4 style={{ marginBottom: 8, fontSize: 14 }}><Shield size={15} style={{ verticalAlign: '-2px' }} /> Tarjetas de confianza</h4>
                   {[1, 2, 3].map(n => (
@@ -7247,14 +7279,13 @@ function AdminEnviosCustom() {
 
   return (
     <div>
-      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 16 }}>Envíos</h3>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Envíos</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 14 }}>El envío gratis desde un monto, el CP de origen y la compra mínima se configuran en cada tienda, en <b>Tiendas</b>.</p>
       <div className="admin-subtabs">
         <button className={`admin-subtab ${sub === 'metodos' ? 'active' : ''}`} onClick={() => setSub('metodos')}>Métodos de envío</button>
-        <button className={`admin-subtab ${sub === 'gratis' ? 'active' : ''}`} onClick={() => setSub('gratis')}>Envío gratis y stock</button>
         <button className={`admin-subtab ${sub === 'aclaracion' ? 'active' : ''}`} onClick={() => setSub('aclaracion')}>Aclaraciones</button>
       </div>
 
-      {sub === 'gratis' && <SectionStockConfig />}
 
       {sub === 'aclaracion' && (
         <div className="card" style={{ padding: 16 }}>
@@ -7283,7 +7314,7 @@ function AdminEnviosCustom() {
         <div className="modal-overlay" onClick={() => setShow(false)}><div className="modal" onClick={e => e.stopPropagation()}>
           <button className="modal-close" onClick={() => setShow(false)}>✕</button>
           <h3>{edit ? 'Editar' : 'Nuevo'} envío custom</h3>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Este es un <b>método de envío</b> (ej: Andreani, Moto, Retiro). No es la compra mínima — eso se configura en "Diseño y Config → Config por sección".</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Este es un <b>método de envío</b> (ej: Andreani, Moto, Retiro). No es la compra mínima ni el envío gratis por monto: eso se configura en cada tienda, en <b>Tiendas</b>.</p>
           <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Uber Moto CABA" /></div>
           <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="A coordinar por WhatsApp" /></div>
           <div className="form-group"><label className="form-label">¿Cómo se cobra?</label>
@@ -7310,47 +7341,6 @@ function AdminEnviosCustom() {
 
 // ─── ADMIN: Configuración completa (restored from v2) ───
 // ─── Section-level stock + envio config ───
-function SectionStockConfig() {
-  const { secciones, setSecciones, toast, config, setConfig } = useContext(Ctx);
-  const [secData, setSecData] = useState({});
-  useEffect(() => { const d = {}; secciones.forEach(s => { d[s.id] = { ignorar_stock: s.ignorar_stock, permitir_sin_stock: s.permitir_sin_stock, cp_origen: s.cp_origen || '1888', gratis_desde: config[`envio_gratis_desde_${s.id}`] || '' }; }); setSecData(d); }, [secciones, config]);
-  const saveSec = async (sec) => {
-    try {
-      const d = secData[sec.id];
-      await api.updateSeccion(sec.id, { ...sec, ignorar_stock: d.ignorar_stock, permitir_sin_stock: d.permitir_sin_stock, cp_origen: d.cp_origen });
-      const upd = { [`envio_gratis_desde_${sec.id}`]: String(d.gratis_desde || 0) };
-      await api.updateConfig(upd);
-      setConfig({ ...config, ...upd });
-      toast(`${sec.nombre} actualizada`);
-      api.getSecciones().then(setSecciones).catch(() => {});
-    } catch (e) { toast(e.message, 'error'); }
-  };
-  return (
-    <div className="card" style={{ padding: 16, marginTop: 16 }}>
-      <h4 style={{ marginBottom: 4 }}>Envío gratis y stock por sección</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>El "envío gratis desde" muestra una barra en el carrito. La compra mínima ahora se configura en Ventas → Reglas de compra.</p>
-      {secciones.map(s => (
-        <div key={s.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-          <strong>{s.nombre}</strong>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><input type="checkbox" checked={secData[s.id]?.ignorar_stock || false} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], ignorar_stock: e.target.checked } })} /> Ignorar stock (vende siempre)</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><input type="checkbox" checked={secData[s.id]?.permitir_sin_stock || false} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], permitir_sin_stock: e.target.checked } })} /> Permitir sin stock</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <label style={{ fontSize: 12 }}>CP Origen:</label>
-              <input value={secData[s.id]?.cp_origen || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], cp_origen: e.target.value } })} style={{ width: 80, fontSize: 12 }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <label style={{ fontSize: 12 }}>Envío gratis desde $:</label>
-              <input type="number" value={secData[s.id]?.gratis_desde || ''} onChange={e => setSecData({ ...secData, [s.id]: { ...secData[s.id], gratis_desde: e.target.value } })} placeholder="0 = no" style={{ width: 110, fontSize: 12 }} />
-            </div>
-          </div>
-          <button className="btn btn-outline btn-sm" onClick={() => saveSec(s)} style={{ marginTop: 6 }}>Guardar {s.nombre}</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function AdminConfig() {
   const { toast, config, setConfig, listas } = useContext(Ctx);
   const [c, setC] = useState({ ...config });
@@ -7374,19 +7364,13 @@ function AdminConfig() {
 
   return (
     <div>
-      <h3 style={{ marginBottom: 12 }}>Configuración general</h3>
+      <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 12 }}>Configuración</h3>
       <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <div style={{ background: 'var(--border-light)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-secondary)' }}>
-          ℹ️ El nombre, logo, favicon y WhatsApp de la tienda ahora se editan desde <strong>Personalizar tienda</strong> (con vista previa). Acá quedan solo los ajustes internos del negocio.
+        <div style={{ background: 'var(--border-light)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} /><span>El nombre, logo y colores se editan en <strong>Personalizar tienda</strong>; el WhatsApp, en Personalizar tienda → WhatsApp y redes; cada tienda (mínimos, envío gratis, stock), en <strong>Tiendas</strong>.</span>
         </div>
         <div className="form-group"><label className="form-label">Nombre del negocio (interno, para remitos)</label><input value={c.nombre_negocio || ''} onChange={e => setC({ ...c, nombre_negocio: e.target.value })} /></div>
         <div className="form-group"><label className="form-label">Email para avisos de venta</label><input type="email" value={c.email_ventas || ''} onChange={e => setC({ ...c, email_ventas: e.target.value })} placeholder="tucorreo@gmail.com" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Te llega un mail cada vez que entra una venta online, con link directo a la orden. En el celular la app de mail te avisa.</small></div>
-        <div className="form-group"><label className="form-label">Lista para vitrina (mayorista sin login)</label>
-          <select value={c.vitrina_lista || ''} onChange={e => setC({ ...c, vitrina_lista: e.target.value })}>
-            <option value="">Sin vitrina</option>{listas.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
-          </select></div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><input type="checkbox" checked={c.mostrar_stock !== 'false'} onChange={e => setC({ ...c, mostrar_stock: e.target.checked ? 'true' : 'false' })} /> Mostrar botón stock en catálogo</label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><input type="checkbox" checked={c.alertas_stock === 'true'} onChange={e => setC({ ...c, alertas_stock: e.target.checked ? 'true' : 'false' })} /> Alertas de stock bajo</label>
 
         {/* Banner */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
@@ -7394,17 +7378,6 @@ function AdminConfig() {
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Se muestra al pie del catálogo. Dejá vacío para ocultar.</p>
           <div className="form-group"><label className="form-label">Texto del banner</label><input value={c.banner_texto || ''} onChange={e => setC({ ...c, banner_texto: e.target.value })} placeholder="¿Querés tu propio catálogo?" /></div>
           <div className="form-group"><label className="form-label">WhatsApp del banner</label><input value={c.banner_wa || ''} onChange={e => setC({ ...c, banner_wa: e.target.value })} placeholder="5491122525568" /></div>
-        </div>
-
-        {/* Info pagos/envíos */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-          <div className="form-group"><label className="form-label">Info de pagos (para clientes)</label><textarea value={c.info_pagos || ''} onChange={e => setC({ ...c, info_pagos: e.target.value })} rows={3} /></div>
-          <div className="form-group"><label className="form-label">Info de envíos (para clientes)</label><textarea value={c.info_envios || ''} onChange={e => setC({ ...c, info_envios: e.target.value })} rows={3} /></div>
-        </div>
-
-        {/* Dolar blue manual fallback */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
-          <div className="form-group"><label className="form-label">Dólar blue manual (fallback si la API falla)</label><input type="number" value={c.dolar_blue || ''} onChange={e => setC({ ...c, dolar_blue: e.target.value })} placeholder="Se busca automáticamente de dolarapi.com" /></div>
         </div>
 
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
@@ -7417,9 +7390,6 @@ function AdminConfig() {
 
         <button className="btn btn-primary" onClick={saveAll} style={{ marginTop: 16, width: '100%' }}>Guardar configuración</button>
       </div>
-
-      {/* Section-level config */}
-      <SectionStockConfig />
 
       {/* Mantenimiento */}
       <div className="card" style={{ padding: 16 }}>
