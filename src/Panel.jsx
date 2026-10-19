@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useContext, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from './api';
-import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download, Layers, Info } from 'lucide-react';
+import { ChevronDown, Check, Store, Search, Trash2, ClipboardList, FlaskConical, Shield, CreditCard, Clock, Lock, Package, CheckCircle, Mail, MapPin, Globe, Tag, RefreshCw, Eye, Users, Wrench, Monitor, Smartphone, Camera, Bookmark, MessageCircle, AlertTriangle, Archive, BarChart3, DollarSign, FileText, History, Lightbulb, Printer, Receipt, Ticket, User, Wallet, XCircle, EyeOff, Ban, X, ChevronLeft, ChevronRight, ImagePlus, LayoutList, SquareKanban, ArrowLeft, Plus, Link2, Download, Layers, Info, Share2, Copy, ExternalLink } from 'lucide-react';
 import { AvisoSeccion, CARD_STYLES, Ctx, FONT_OPTIONS, ICON_MAP, Ico, ItemProd, RADIUS_STYLES, RedIcon, RenderIcon, SHADOW_STYLES, TEMA_KEYS, THEME_PRESETS, TextBar, applyDesignVars, codificarCarrito, ensureFont, faltaTxt, fmt, fmtARS, fmtPedido, fmtUSD, imagenesPopup, imgOpt, mostrarUsdSec, numOrden, productPath, redIconTipo, slugify, urlSegura, useCotizacionUsd, waIntl, waLink } from './App.jsx';
 
 // Escapa texto para el HTML que se arma a mano (ventanas de impresión): un nombre o nota con código no se ejecuta
@@ -2811,6 +2811,7 @@ function AdminCategorias() {
   const guardarSeo = async () => {
     try { await api.saveCategoriaSeo(seoEdit); toast('Guardado'); setSeoEdit(null); load(); } catch (e) { toast(e.message, 'error'); }
   };
+  const [linkCat, setLinkCat] = useState(null); // categoría cuyo link se está compartiendo
   const [minEdit, setMinEdit] = useState(null); // {nombre, min, unidad} → compra mínima en unidades, combinando productos de la categoría
   const guardarMin = async (sacar) => {
     const min = sacar ? 0 : (parseInt(minEdit.min, 10) || 0);
@@ -2931,6 +2932,7 @@ function AdminCategorias() {
           </div>
           <button onClick={() => toggleVisible(c.nombre)} title={c.visible ? 'Ocultar' : 'Mostrar'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>{c.visible ? <Eye size={16} /> : <EyeOff size={16} />}</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSeoEdit({ nombre: c.nombre, titulo: c.titulo || '', descripcion: c.descripcion || '' })} title="Título y texto de la página de esta categoría (Google)"><Globe size={14} style={{ verticalAlign: '-2px' }} /> Google</button>
+          <button className="btn btn-outline btn-sm" onClick={() => setLinkCat(c)} title="Link de esta categoría para WhatsApp y redes"><Share2 size={14} style={{ verticalAlign: '-2px' }} /> Compartir</button>
           <button className="btn btn-outline btn-sm" onClick={() => setMinEdit({ nombre: c.nombre, min: c.min_unidades > 1 ? String(c.min_unidades) : '', unidad: c.min_unidad || '', tenia: c.min_unidades > 1 })} title="Compra mínima de esta categoría, combinando productos"><Layers size={14} style={{ verticalAlign: '-2px' }} /> Mínimo</button>
           <button className="btn btn-outline btn-sm" onClick={() => setRenaming({ nombre: c.nombre, nuevo: c.nombre })}>Renombrar</button>
           <button className="btn btn-outline btn-sm" onClick={() => setMerging({ desde: c.nombre, hasta: '' })}>Fusionar</button>
@@ -2938,6 +2940,32 @@ function AdminCategorias() {
         </div>
       ))}
 
+      {linkCat && (() => {
+        const t = new URLSearchParams(window.location.search).get('tienda');
+        const url = `${window.location.origin}/categoria/${slugify(linkCat.nombre)}${t ? '?tienda=' + encodeURIComponent(t) : ''}`;
+        const texto = linkCat.min_unidades > 1 ? `${linkCat.nombre} — compra mínima ${linkCat.min_unidades} ${linkCat.min_unidad || 'unidades'} (podés combinar modelos)` : linkCat.nombre;
+        const copiar = () => navigator.clipboard.writeText(url).then(() => toast('Link copiado')).catch(() => toast('No se pudo copiar', 'error'));
+        return (
+          <div className="modal-overlay" onClick={() => setLinkCat(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+              <div className="modal-header"><span className="modal-title">Compartir "{linkCat.nombre}"</span><button className="modal-close" onClick={() => setLinkCat(null)}><X size={16} /></button></div>
+              <div className="modal-body">
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Este link abre la página con solo los productos de esta categoría. En WhatsApp y redes se ve con el título y el texto que cargás en el botón Google, y la foto del primer producto.</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input readOnly value={url} onFocus={e => e.target.select()} style={{ flex: 1, minWidth: 0, fontSize: 13 }} />
+                  <button className="btn btn-primary btn-sm" onClick={copiar}><Copy size={14} style={{ verticalAlign: '-2px' }} /> Copiar</button>
+                </div>
+                {(linkCat.visible === false || !linkCat.cantidad) && <p style={{ fontSize: 12.5, color: 'var(--danger)', marginTop: 10 }}>{linkCat.visible === false ? 'La categoría está oculta: el link no va a mostrar productos hasta que la muestres.' : 'La categoría no tiene productos todavía.'}</p>}
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                  <a className="btn btn-outline btn-sm" href={`https://wa.me/?text=${encodeURIComponent(texto + '\n' + url)}`} target="_blank" rel="noopener"><RedIcon tipo="whatsapp" s={15} /> WhatsApp</a>
+                  <a className="btn btn-outline btn-sm" href={url} target="_blank" rel="noopener"><ExternalLink size={14} style={{ verticalAlign: '-2px' }} /> Ver la página</a>
+                  <button className="btn btn-outline btn-sm" onClick={() => { setSeoEdit({ nombre: linkCat.nombre, titulo: linkCat.titulo || '', descripcion: linkCat.descripcion || '' }); setLinkCat(null); }}><Globe size={14} style={{ verticalAlign: '-2px' }} /> Título y texto de la vista previa</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {minEdit && (() => {
         const n = parseInt(minEdit.min, 10) || 0;
         const u = minEdit.unidad.trim() || 'unidades';

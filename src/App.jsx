@@ -2099,7 +2099,7 @@ function ContactoPage() {
 
 // ─── PÁGINA DE CATEGORÍA (/categoria/<slug>): para que Google encuentre "microscopios", "estaciones de soldado"... ───
 function CategoriaPage() {
-  const { nav, catSlug, design } = useContext(Ctx);
+  const { nav, catSlug, design, toast } = useContext(Ctx);
   const minimos = useMinimosCat();
   const [cats, setCats] = useState(null);
   const [prods, setProds] = useState(null);
@@ -2141,16 +2141,33 @@ function CategoriaPage() {
     </div>
   );
   const otras = (cats || []).filter(c => c.slug !== catSlug).slice(0, 12);
+  const minPag = cat ? cat.nombres.map(n => minimoDe(minimos, n)).find(Boolean) : null;
+  // Compartir la categoría: el link limpio ya trae título, texto y foto para la vista previa (WhatsApp, redes)
+  const tiendaQ = new URLSearchParams(window.location.search).get('tienda');
+  const urlCat = cat ? `${window.location.origin}/categoria/${cat.slug}${tiendaQ ? '?tienda=' + encodeURIComponent(tiendaQ) : ''}` : '';
+  const textoCat = cat ? `${cat.titulo}${minPag ? ` — compra mínima ${minPag.minimo} ${minPag.unidad} (podés combinar modelos)` : ''}` : '';
+  const compartirCat = async () => {
+    if (navigator.share) { try { await navigator.share({ title: cat.titulo, text: textoCat, url: urlCat }); } catch (e) {} return; }
+    try { await navigator.clipboard.writeText(urlCat); toast('Link copiado'); } catch (e) { toast(urlCat); }
+  };
   return (
     <div className="cat-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px' }}>
       <nav className="cat-migas" aria-label="Ruta">
         <a href="/" onClick={e => { e.preventDefault(); nav('landing'); }}>Inicio</a><span>/</span><span>{cat ? cat.titulo : ''}</span>
       </nav>
-      <h1 className="cat-h1">{cat ? cat.titulo : ''}</h1>
+      <div className="cat-head">
+        <h1 className="cat-h1">{cat ? cat.titulo : ''}</h1>
+        {cat && (
+          <div className="cat-share">
+            <a className="cat-share-wa" href={`https://wa.me/?text=${encodeURIComponent(textoCat + '\n' + urlCat)}`} target="_blank" rel="noopener" title="Compartir por WhatsApp" aria-label="Compartir por WhatsApp"><RedIcon tipo="whatsapp" s={18} /></a>
+            <button type="button" className="cat-share-btn" onClick={compartirCat}><Share2 size={16} /> Compartir</button>
+          </div>
+        )}
+      </div>
       {cat?.descripcion && <p className="cat-intro">{cat.descripcion}</p>}
-      {(() => { const m = cat && cat.nombres.map(n => minimoDe(minimos, n)).find(Boolean); return m ? (
-        <div className="min-cat"><span className="min-cat-ico"><Layers size={18} /></span><div className="min-cat-txt"><b>Compra mínima: {m.minimo} {m.unidad}</b><span>Podés combinar los modelos que quieras: se suman todos los de esta categoría.</span></div></div>
-      ) : null; })()}
+      {minPag && (
+        <div className="min-cat"><span className="min-cat-ico"><Layers size={18} /></span><div className="min-cat-txt"><b>Compra mínima: {minPag.minimo} {minPag.unidad}</b><span>Podés combinar los modelos que quieras: se suman todos los de esta categoría.</span></div></div>
+      )}
       {!prods ? <div className="spinner" /> : prods.length === 0 ? (
         <div className="empty-state"><h3>Sin productos por ahora</h3></div>
       ) : (
