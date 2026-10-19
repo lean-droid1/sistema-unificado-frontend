@@ -1951,3 +1951,43 @@ html.dark .min-cat.ok { background: rgba(34,197,94,0.14); }
 .cat-share-btn:hover { border-color: var(--primary); color: var(--primary); }
 .cat-share-wa { width: 40px; height: 40px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: #25d366; color: #fff; }
 .cat-share-wa:hover { filter: brightness(1.05); }
+
+/* Programa de profes: aviso al alumno vinculado, saldo del profe y nota del checkout */
+.profe-aviso { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--primary-light); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; font-size: 13.5px; color: var(--text); }
+.profe-aviso > svg { color: var(--primary); flex: none; }
+.profe-aviso > span { flex: 1 1 220px; line-height: 1.45; }
+.profe-saldo { display: flex; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; font-size: 13.5px; cursor: pointer; }
+.profe-saldo input { width: 18px; height: 18px; }
+.checkout-nota { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: var(--text-secondary); background: var(--primary-light); border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; }
+.checkout-nota svg { flex: none; margin-top: 2px; color: var(--primary); }
+.mi-profe { display: flex; flex-direction: column; gap: 12px; }
+.mi-profe-cod { padding: 18px; display: flex; gap: 14px; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; border-radius: 18px; }
+.mi-profe-cod p { font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; line-height: 1.5; max-width: 380px; }
+.mi-profe-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+.mi-profe-codigo { font-size: 26px; font-weight: 900; letter-spacing: .02em; color: var(--primary); }
+.mi-profe-acc { display: flex; gap: 8px; flex-wrap: wrap; }
+.mi-profe-acc .btn { display: inline-flex; align-items: center; gap: 6px; }
+.mi-profe-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mi-profe-stats .card { padding: 12px; border-radius: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mi-profe-stats span { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.mi-profe-stats b { font-size: 18px; font-weight: 900; }
+.mi-profe-stats small { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+.mi-profe-h { font-size: 14px; font-weight: 800; margin: 8px 0 0; }
+.mi-profe-lista { padding: 0; border-radius: 14px; overflow: hidden; }
+.mi-profe-lista > div { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border-light); flex-wrap: wrap; }
+.mi-profe-lista > div:last-child { border-bottom: none; }
+.mi-profe-lista small { color: var(--text-muted); }
+.mi-profe-lista em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--accent); margin-left: 6px; }
+.mi-profe-lista em.ok, .mi-profe-lista b.mas { color: var(--success); }
+.mi-profe-lista b.menos { color: var(--danger); }
+@media (max-width: 520px) { .mi-profe-stats { grid-template-columns: 1fr 1fr; } }
+.profe-fila { padding: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.profe-cod { display: inline-block; font-size: 11.5px; font-weight: 800; letter-spacing: .03em; color: var(--primary); background: var(--primary-light); border-radius: 6px; padding: 2px 8px; margin-left: 6px; }
+.profe-cod.off { color: var(--text-muted); background: var(--border-light); }
+.profe-cat-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+.profe-cat-fila span { flex: 1; color: var(--text-secondary); }
+.profe-cuenta { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; }
+.profe-busq { position: absolute; left: 0; right: 0; top: 64px; z-index: 5; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.profe-busq button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 9px 12px; background: none; border: none; border-bottom: 1px solid var(--border-light); cursor: pointer; text-align: left; font-size: 13px; color: var(--text); }
+.profe-busq button:hover { background: var(--primary-light); }
+.profe-busq span { font-size: 11.5px; color: var(--text-muted); }

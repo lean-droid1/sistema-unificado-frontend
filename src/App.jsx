@@ -2384,6 +2384,9 @@ function Carrusel({ children, className = '' }) {
   );
 }
 
+// Porcentaje con coma y sin ceros de más (2,5 · 5 · 1,25)
+const fmtPct = (n) => String(Math.round((Number(n) || 0) * 100) / 100).replace('.', ',');
+
 // ─── Compra mínima por categoría (ej. "mínimo 10 packs, se pueden combinar modelos") ───
 const claveCat = (c) => String(c || '').trim().replace(/\s+/g, ' ').toLowerCase();
 function useMinimosCat() {
@@ -3498,6 +3501,7 @@ function CheckoutModal({ user, cot: cotCarrito, entregaTipo, cp, metodos, config
     return () => { vivo = false; };
   }, [metodoPago]);
   const cot = cotPago || cotCarrito;
+  const conAlumno = cot.cupon?.ok && cot.cupon.tipo === 'profe';
   const pctPago = (nombre) => { const v = parseFloat(String(config[`descuento_${String(nombre || '').toLowerCase().replace(/\s+/g, '_')}`] || '').trim()); return v > 0 ? Math.min(v, 100) : 0; };
   const esEnvio = entregaTipo === 'envio' && cot.secciones.some(s => s.requiere_envio);
   const totales = cot.totales || {};
@@ -3615,6 +3619,7 @@ function CheckoutModal({ user, cot: cotCarrito, entregaTipo, cp, metodos, config
           {pasoActual === 'Pago' && (
             <div>
               <h4 className="checkout-h"><CreditCard size={16} /> Método de pago</h4>
+              {conAlumno && <p className="checkout-nota"><GraduationCap size={14} /> Con el beneficio de alumno no se suman los descuentos por medio de pago.</p>}
               {metodos && metodos.length > 0 ? (
                 <div className="pago-opts">
                   {metodos.map((m, idx) => {
@@ -3624,7 +3629,7 @@ function CheckoutModal({ user, cot: cotCarrito, entregaTipo, cp, metodos, config
                         <input type="radio" checked={metodoPago === nombre} onChange={() => setMetodoPago(nombre)} />
                         <span className="pago-opt-ico"><RenderIcon value={m.icono} size={18} /></span>
                         <div>
-                          <div className="pago-opt-nombre">{nombre}{pctPago(nombre) > 0 && <span className="pago-opt-off">−{pctPago(nombre)}%</span>}</div>
+                          <div className="pago-opt-nombre">{nombre}{pctPago(nombre) > 0 && !conAlumno && <span className="pago-opt-off">−{pctPago(nombre)}%</span>}</div>
                           {(m.descripcion || m.instrucciones) && <div className="pago-opt-desc">{m.descripcion || m.instrucciones}</div>}
                         </div>
                       </label>
@@ -3655,7 +3660,8 @@ function CheckoutModal({ user, cot: cotCarrito, entregaTipo, cp, metodos, config
                       </div>
                     ))}
                     {esEnvio && s.requiere_envio && <div className="resumen-linea muted"><span>Envío{s.envio.elegido ? ` · ${s.envio.elegido.nombre}` : ' · a coordinar'}</span><span>{s.envio.costo > 0 ? fmtARS(s.envio.costo) : (s.envio.elegido ? (s.envio.a_cotizar ? 'A cotizar' : 'Gratis') : '—')}</span></div>}
-                    {s.descuento > 0 && <div className="resumen-linea ok"><span>Cupón {s.cupon}</span><span>-{fmtARS(s.descuento)}</span></div>}
+                    {s.descuento > 0 && <div className="resumen-linea ok"><span>{s.descuento_alumno > 0 ? (cot.cupon?.propio ? `Código de profe ${s.cupon}` : `Beneficio alumno (${s.cupon})`) : `Cupón ${s.cupon}`}</span><span>-{fmtARS(s.descuento)}</span></div>}
+                    {s.saldo_usado > 0 && <div className="resumen-linea ok"><span>Saldo a favor de profe</span><span>-{fmtARS(s.saldo_usado)}</span></div>}
                     {s.descuento_pago > 0 && <div className="resumen-linea ok"><span>Descuento pagando con {s.metodo_pago} ({s.descuento_pago_pct}%)</span><span>-{fmtARS(s.descuento_pago)}</span></div>}
                   </div>
                 ))}
@@ -3787,6 +3793,10 @@ function CartPage() {
   const cuponPend = useMemo(() => { try { return localStorage.getItem('gm_cupon_pend') || ''; } catch { return ''; } }, []);
   const [cuponInput, setCuponInput] = useState(cuponPend);
   const [cupon, setCupon] = useState(cuponPend);
+  // Programa de profes: beneficio del alumno vinculado y saldo a favor del profe
+  const [miProfe, setMiProfe] = useState(null);
+  const [usarSaldo, setUsarSaldo] = useState(false);
+  useEffect(() => { if (!user) { setMiProfe(null); setUsarSaldo(false); return; } api.getProfeMi().then(setMiProfe).catch(() => setMiProfe(null)); }, [user?.id]);
   const [, setTick] = useState(0); // refresca la cuenta regresiva del cupón
   const [metodos, setMetodos] = useState([]);
   const [entregaTipo, setEntregaTipo] = useState(() => localStorage.getItem('gm_entrega_tipo') || 'envio');
@@ -3821,7 +3831,7 @@ function CartPage() {
     const t = setTimeout(async () => {
       try {
         const r = await api.cotizarCarrito({
-          entrega: { tipo: entregaTipo, cp }, cupon,
+          entrega: { tipo: entregaTipo, cp }, cupon, usar_saldo: usarSaldo,
           secciones: seccionesConItems.map(sec => ({
             seccion_id: sec.id, envio_id: envioSel[sec.id] || null,
             items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty })),
@@ -3872,7 +3882,7 @@ function CartPage() {
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [itemsKey, entregaTipo, cp, cupon, envioKey, user?.id]);
+  }, [itemsKey, entregaTipo, cp, cupon, envioKey, user?.id, usarSaldo]);
 
   // Pop-up de carrito mixto: una vez por pedido (mientras el carrito tenga 2+ tiendas)
   useEffect(() => {
@@ -3963,12 +3973,13 @@ function CartPage() {
       items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty, nombre_producto: i.nombre || i.modelo })),
     })).filter(p => p.items.length);
     try {
-      const r = await api.createPedidosMulti(pedidos, testMode, { entrega: { tipo: entregaTipo, cp }, cupon });
+      const r = await api.createPedidosMulti(pedidos, testMode, { entrega: { tipo: entregaTipo, cp }, cupon, usar_saldo: usarSaldo });
       const tot = r?.totales || totales;
       trackEvent('purchase', 'Purchase', { value: tot.total, currency: 'ARS', num_items: allItems.length });
       seccionesConItems.forEach(sec => clearCart(sec.id));
       try { localStorage.removeItem('gm_cupon_pend'); } catch {}
-      setShowCheckout(false);
+      setShowCheckout(false); setUsarSaldo(false);
+      if (user) api.getProfeMi().then(setMiProfe).catch(() => {});
       setExito({ nums: (r?.pedidos || []).map(p => p.id).filter(Boolean), pedidos: (r?.pedidos || []).filter(p => p && p.id).map(p => ({ id: p.id, moneda: p.moneda, total: p.total })), total: tot.total, total_usdt: tot.total_usdt, contacto: dc.contacto || {},
         // Para la encuesta de Reseñas de Clientes en Google
         email: (dc.contacto && dc.contacto.email) || user?.email || '', entrega: entregaTipo, test: !!testMode,
@@ -3987,7 +3998,7 @@ function CartPage() {
         <CheckoutModal user={user} cot={cot} entregaTipo={entregaTipo} cp={cp} metodos={metodos} config={config} testMode={testMode}
           onConfirm={checkout} onClose={() => setShowCheckout(false)}
           recotizar={(metodo) => api.cotizarCarrito({
-            entrega: { tipo: entregaTipo, cp }, cupon, metodo_pago: metodo,
+            entrega: { tipo: entregaTipo, cp }, cupon, metodo_pago: metodo, usar_saldo: usarSaldo,
             secciones: seccionesConItems.map(sec => ({
               seccion_id: sec.id, envio_id: envioSel[sec.id] || null, metodo_pago: metodo,
               items: allItems.filter(i => i.seccion_id === sec.id).map(i => ({ producto_id: i.id, variante_id: i.variante_id || null, cantidad: i.qty })),
@@ -4141,9 +4152,28 @@ function CartPage() {
         );
       })}
 
+      {/* Beneficio de alumno (vinculado a un profe) y saldo a favor del profe */}
+      {miProfe?.beneficio && !cupon && (
+        <div className="profe-aviso">
+          <GraduationCap size={18} />
+          <span>Sos alumno de <b>{miProfe.beneficio.profe}</b>: tenés <b>{fmtPct(miProfe.beneficio.pct)}%</b> de descuento{miProfe.beneficio.tiendas?.length ? ` en ${miProfe.beneficio.tiendas.join(', ')}` : ''} hasta el {new Date(miProfe.beneficio.vence).toLocaleDateString('es-AR')}.</span>
+          <button className="btn btn-primary btn-sm" onClick={() => { setCupon(miProfe.beneficio.codigo); setCuponInput(miProfe.beneficio.codigo); }}>Aplicar</button>
+        </div>
+      )}
+      {miProfe?.profe && (miProfe.profe.saldo > 0 || usarSaldo) && (
+        <label className="profe-saldo">
+          <input type="checkbox" checked={usarSaldo} onChange={e => setUsarSaldo(e.target.checked)} />
+          <span>Usar mi saldo a favor de profe <b>({fmtARS(miProfe.profe.saldo)})</b></span>
+        </label>
+      )}
+
       {/* Cupón */}
       <div className="cupon-box">
-        {cupon && cot?.cupon?.ok ? (
+        {cupon && cot?.cupon?.ok && cot.cupon.tipo === 'profe' ? (
+          <div className="cupon-ok"><GraduationCap size={15} /> {cot.cupon.propio ? <>Tu código de profe <b>{cot.cupon.codigo}</b> aplicado</> : <>Beneficio de alumno de <b>{cot.cupon.profe}</b> aplicado</>} <button className="link-btn" onClick={() => { setCupon(''); setCuponInput(''); try { localStorage.removeItem('gm_cupon_pend'); } catch {} }}>Quitar</button>
+            {(cot.secciones || []).some(x => x.descuento_pago_bloqueado) && <span className="cupon-vence"><Info size={13} /><span>No se suma al descuento por medio de pago. Si ese descuento te conviene más, quitá el código.</span></span>}
+          </div>
+        ) : cupon && cot?.cupon?.ok ? (
           <div className="cupon-ok"><Tag size={15} /> Cupón <b>{cot.cupon.codigo}</b> aplicado <button className="link-btn" onClick={() => { setCupon(''); setCuponInput(''); try { localStorage.removeItem('gm_cupon_pend'); } catch {} }}>Quitar</button>
             {cot.cupon.vence_at && <span className="cupon-vence"><Clock size={13} /><span>{faltaTxt(cot.cupon.vence_at) ? <>Vence en <b>{faltaTxt(cot.cupon.vence_at)}</b>: cerrá la compra antes</> : 'El cupón venció'}</span></span>}
           </div>
@@ -4162,7 +4192,8 @@ function CartPage() {
         <div className="cart-tot-l"><span>Productos</span><span>{fmtARS(totales.subtotal)}</span></div>
         {ahorro > 0 && <div className="cart-tot-l ok small"><span>Ya incluye {fmtARS(ahorro)} de descuentos</span><span /></div>}
         {entregaTipo === 'envio' && <div className="cart-tot-l"><span>Envío</span><span>{totales.envio > 0 ? fmtARS(totales.envio) : (cp ? 'Gratis / a coordinar' : 'Ingresá tu CP')}</span></div>}
-        {totales.descuento > 0 && <div className="cart-tot-l ok"><span>Cupón</span><span>-{fmtARS(totales.descuento)}</span></div>}
+        {totales.descuento > 0 && <div className="cart-tot-l ok"><span>{cot?.cupon?.tipo === 'profe' ? (cot.cupon.propio ? 'Código de profe' : 'Descuento alumno') : 'Cupón'}</span><span>-{fmtARS(totales.descuento)}</span></div>}
+        {totales.saldo_usado > 0 && <div className="cart-tot-l ok"><span>Saldo a favor</span><span>-{fmtARS(totales.saldo_usado)}</span></div>}
         <div className="cart-tot-sep" />
         <div className="cart-tot-total"><span>Total</span><span>{cotizando && !cot ? '…' : fmtARS(totales.total)}</span></div>
         {totales.total_usdt > 0 && <div className="cart-tot-total usdt"><span>Total USDT</span><span>{fmtMon(totales.total_usdt, 'USDT')}</span></div>}
@@ -5058,6 +5089,57 @@ function ForgotPasswordPage() {
   );
 }
 
+// Mi cuenta → Profe: código para pasar a los alumnos, saldo a favor y compras de los alumnos
+function MiProgramaProfe({ p }) {
+  const { toast } = useContext(Ctx);
+  const link = `${window.location.origin}/?cupon=${encodeURIComponent(p.codigo)}`;
+  const texto = `Usá mi código ${p.codigo} y tenés ${fmtPct(p.pct_alumno)}% de descuento${p.tiendas?.length ? ` en ${p.tiendas.join(', ')}` : ''}`;
+  const compartir = async () => {
+    if (navigator.share) { try { await navigator.share({ title: 'Mi código de profe', text: texto, url: link }); } catch (e) {} return; }
+    try { await navigator.clipboard.writeText(`${texto}\n${link}`); toast('Copiado'); } catch (e) { toast(link); }
+  };
+  const fecha = (d) => new Date(d).toLocaleDateString('es-AR');
+  const TIPO = { comision: 'Compra de alumno', reverso: 'Descontado', uso: 'Usado en una compra', devolucion: 'Devuelto', ajuste: 'Ajuste' };
+  return (
+    <div className="mi-profe">
+      <div className="card mi-profe-cod">
+        <div>
+          <div className="mi-profe-lbl">Tu código</div>
+          <div className="mi-profe-codigo">{p.codigo}</div>
+          <p>Tus alumnos tienen <b>{fmtPct(p.pct_alumno)}%</b> de descuento{p.tiendas?.length ? ` en ${p.tiendas.join(', ')}` : ''} durante {p.meses} meses. Vos sumás <b>{fmtPct(p.pct_profe)}%</b> de lo que pagan, como saldo para tus compras.</p>
+        </div>
+        <div className="mi-profe-acc">
+          <a className="btn btn-outline btn-sm" href={`https://wa.me/?text=${encodeURIComponent(texto + '\n' + link)}`} target="_blank" rel="noopener"><RedIcon tipo="whatsapp" s={15} /> WhatsApp</a>
+          <button className="btn btn-primary btn-sm" onClick={compartir}><Share2 size={14} /> Compartir</button>
+        </div>
+      </div>
+      <div className="mi-profe-stats">
+        <div className="card"><span>Saldo a favor</span><b>{fmtARS(p.saldo)}</b><small>En el carrito tildá "Usar mi saldo"</small></div>
+        <div className="card"><span>Por acreditar</span><b>{fmtARS(p.pendiente)}</b><small>Se suma cuando se paga la compra</small></div>
+        <div className="card"><span>Alumnos activos</span><b>{p.alumnos_activos}</b><small>{p.ventas} {p.ventas === 1 ? 'compra' : 'compras'}</small></div>
+      </div>
+      {p.compras?.length > 0 && <>
+        <h4 className="mi-profe-h">Compras de tus alumnos</h4>
+        <div className="card mi-profe-lista">{p.compras.map(c => (
+          <div key={c.id}><span>{fecha(c.created_at)} · {c.alumno || 'Alumno'}</span><span>{fmtARS(c.total)} → <b>+{fmtARS(c.profe_comision)}</b> <em className={c.profe_acreditado ? 'ok' : ''}>{c.profe_acreditado ? 'Acreditado' : 'Pendiente'}</em></span></div>
+        ))}</div>
+      </>}
+      {p.alumnos?.length > 0 && <>
+        <h4 className="mi-profe-h">Alumnos con beneficio</h4>
+        <div className="card mi-profe-lista">{p.alumnos.map((a, i) => (
+          <div key={i}><span>{a.nombre}{a.curso ? ` · ${a.curso}` : ''}</span><span>hasta el {fecha(a.vence)}</span></div>
+        ))}</div>
+      </>}
+      {p.movimientos?.length > 0 && <>
+        <h4 className="mi-profe-h">Movimientos del saldo</h4>
+        <div className="card mi-profe-lista">{p.movimientos.map((m, i) => (
+          <div key={i}><span>{fecha(m.created_at)} · {TIPO[m.tipo] || m.tipo}{m.detalle ? <small> · {m.detalle}</small> : null}</span><b className={Number(m.monto) >= 0 ? 'mas' : 'menos'}>{Number(m.monto) >= 0 ? '+' : '−'}{fmtARS(Math.abs(Number(m.monto)))}</b></div>
+        ))}</div>
+      </>}
+    </div>
+  );
+}
+
 function AccountPanel() {
   const { user, setUser, toast, nav, handleLogout, userLista, config } = useContext(Ctx);
   const [f, setF] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '', direccion: user?.direccion || '', nombre_fantasia: user?.nombre_fantasia || '', password: '', password_actual: '' });
@@ -5066,6 +5148,8 @@ function AccountPanel() {
   const [misPedidos, setMisPedidos] = useState([]);
   const [misPresup, setMisPresup] = useState([]);
   const [viewDetail, setViewDetail] = useState(null);
+  const [pm, setPm] = useState(null); // programa de profes: { profe, beneficio }
+  useEffect(() => { api.getProfeMi().then(setPm).catch(() => {}); }, []);
 
   useEffect(() => {
     if (accTab === 'pedidos') api.getPedidos({ tipo: 'pedido' }).then(setMisPedidos).catch(() => {});
@@ -5099,9 +5183,16 @@ function AccountPanel() {
         {userLista && <div style={{ marginTop: 8 }}><span style={{ background: userLista.color || 'var(--primary)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{userLista.nombre}</span></div>}
       </div>
 
-      {/* Tabs: Datos / Pedidos / Presupuestos */}
+      {pm?.beneficio && (
+        <div className="profe-aviso" style={{ marginBottom: 20 }}>
+          <GraduationCap size={18} />
+          <span>Sos alumno de <b>{pm.beneficio.profe}</b>: tenés <b>{fmtPct(pm.beneficio.pct)}%</b> de descuento{pm.beneficio.tiendas?.length ? ` en ${pm.beneficio.tiendas.join(', ')}` : ''} hasta el {new Date(pm.beneficio.vence).toLocaleDateString('es-AR')}. Se aplica en el carrito con el código <b>{pm.beneficio.codigo}</b>.</span>
+        </div>
+      )}
+
+      {/* Tabs: Datos / Pedidos / Presupuestos (+ Profe) */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {[{ id: 'datos', label: 'Datos' }, { id: 'pedidos', label: 'Mis pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }].map(t => (
+        {[{ id: 'datos', label: 'Datos' }, { id: 'pedidos', label: 'Mis pedidos' }, { id: 'presupuestos', label: 'Presupuestos' }, ...(pm?.profe ? [{ id: 'profe', label: 'Profe' }] : [])].map(t => (
           <button key={t.id} onClick={() => setAccTab(t.id)} style={{ flex: 1, padding: '10px 8px', borderRadius: 10, border: accTab === t.id ? '2px solid var(--primary)' : '1.5px solid var(--border)', background: accTab === t.id ? 'var(--primary-light)' : 'var(--bg-card)', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}>{t.label}</button>
         ))}
       </div>
@@ -5119,6 +5210,8 @@ function AccountPanel() {
           <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
         </div>
       )}
+
+      {accTab === 'profe' && pm?.profe && <MiProgramaProfe p={pm.profe} />}
 
       {accTab === 'pedidos' && (
         <div>

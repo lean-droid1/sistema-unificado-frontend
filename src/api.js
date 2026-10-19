@@ -227,6 +227,18 @@ export async function createPedido(data) { return f('/api/pedidos', { method: 'P
 export async function createPedidosMulti(pedidos, is_test=false, extra={}) { return f('/api/pedidos/multi', { method: 'POST', body: JSON.stringify({ pedidos, is_test, ...extra }) }); }
 // Precios, envío por tienda, cupón y totales calculados por el servidor (lo mismo que se va a cobrar)
 export async function cotizarCarrito(body) { return f('/api/carrito/cotizar', { method: 'POST', body: JSON.stringify(body) }); }
+// Programa de profes: código por profe, alumnos vinculados y saldo a favor
+export async function getProfeMi() { return f('/api/profes/mi'); }
+export async function getProfes() { return f('/api/profes'); }
+export async function getProfesConfig() { return f('/api/profes/config'); }
+export async function saveProfesConfig(data) { return f('/api/profes/config', { method: 'PUT', body: JSON.stringify(data) }); }
+export async function saveProfeCategoria(data) { return f('/api/profes/categoria', { method: 'POST', body: JSON.stringify(data) }); }
+export async function crearProfe(data) { return f('/api/profes', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateProfe(id, data) { return f(`/api/profes/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function getProfeDetalle(id) { return f(`/api/profes/${id}/detalle`); }
+export async function addProfeAlumno(id, data) { return f(`/api/profes/${id}/alumnos`, { method: 'POST', body: JSON.stringify(data) }); }
+export async function delProfeAlumno(id, aid) { return f(`/api/profes/${id}/alumnos/${aid}`, { method: 'DELETE' }); }
+export async function ajusteProfe(id, data) { return f(`/api/profes/${id}/ajuste`, { method: 'POST', body: JSON.stringify(data) }); }
 export async function updatePedido(id, data) { return f(`/api/pedidos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function validarConversion(id) { return f(`/api/pedidos/${id}/validar-conversion`, { method: 'POST' }); }
 export async function getProducto(id) { return f(`/api/productos/id/${id}`); }
