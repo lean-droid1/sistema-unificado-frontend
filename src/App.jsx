@@ -2298,6 +2298,10 @@ function useCursosAcademia() {
 }
 const fechaCurso = (iso) => { try { return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }); } catch { return ''; } };
 const cuandoCurso = (c) => {
+  // Sin lugar (completa, ya se dictó o próximamente): se invita a anotarse para el aviso
+  if (c.estado === 'completa') return 'Cupo completo: anotate para el próximo';
+  if (c.estado === 'dictado') return 'Ya se dictó: anotate para la próxima fecha';
+  if (c.estado === 'proximamente') return 'Próximamente: anotate y te avisamos';
   const nx = (c.proximas || [])[0];
   if (nx && c.por_clases && c.clases > 1) return `${c.clases} clases, desde el ${fechaCurso(nx.fecha)}`;
   if (nx) return `Próxima fecha: ${fechaCurso(nx.fecha)}`;
@@ -2322,7 +2326,7 @@ function CursosAcademia() {
           const nx = (c.proximas || [])[0];
           return (
             <div className="carousel-item" key={`curso-${c.id}`}>
-              <a className="curso-card" href={c.url} target="_blank" rel="noopener">
+              <a className="curso-card" href={c.estado && c.estado !== 'abierta' && c.url_anotarse ? c.url_anotarse : c.url} target="_blank" rel="noopener">
                 <div className="curso-pic">
                   {c.imagen ? <><img className="curso-pic-bg" src={c.imagen} alt="" aria-hidden="true" loading="lazy" /><img className="curso-pic-main" src={c.imagen} alt="" loading="lazy" /></> : <GraduationCap size={34} />}
                   <span className="curso-tag">{c.modalidad === 'virtual' ? 'Virtual' : 'Presencial'}</span>
@@ -2331,7 +2335,8 @@ function CursosAcademia() {
                   <b className="curso-titulo">{c.titulo}</b>
                   <span className="curso-meta"><CalendarDays size={14} /> {cuandoCurso(c)}</span>
                   {nx && nx.ultimos_lugares && nx.cupos_libres > 0 && <span className="curso-pocos">Quedan {nx.cupos_libres} {nx.cupos_libres === 1 ? 'lugar' : 'lugares'}</span>}
-                  {nx && !nx.reservable && nx.cupos_libres === 0 && <span className="curso-pocos">Cupo completo</span>}
+                  {c.estado && c.estado !== 'abierta' ? <span className="curso-pocos">{c.estado_texto || 'Sin lugar'} · Anotate</span>
+                    : nx && !nx.reservable && nx.cupos_libres === 0 && <span className="curso-pocos">Cupo completo</span>}
                   <span className="curso-pie">{c.precio > 0 ? <span className="curso-precio">{c.precio_anterior > c.precio ? <s>{fmtARS(c.precio_anterior)}</s> : null}{fmtARS(c.precio)}{c.por_clases ? <small> por clase</small> : null}</span> : <span />}<span className="curso-ver">Ver curso</span></span>
                 </div>
               </a>
@@ -4924,7 +4929,7 @@ function ProductDetailPage() {
           )}
           {/* Curso de la academia relacionado con este producto */}
           {cursoRel && (
-            <a className="pdp-curso" href={cursoRel.url} target="_blank" rel="noopener">
+            <a className="pdp-curso" href={cursoRel.estado && cursoRel.estado !== 'abierta' && cursoRel.url_anotarse ? cursoRel.url_anotarse : cursoRel.url} target="_blank" rel="noopener">
               <GraduationCap size={20} />
               <span><b>Aprendé en nuestro curso: {cursoRel.titulo}</b><small>{cuandoCurso(cursoRel)}</small></span>
             </a>
