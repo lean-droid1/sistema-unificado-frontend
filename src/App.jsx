@@ -2327,9 +2327,11 @@ function CursosAcademia() {
           return (
             <div className="carousel-item" key={`curso-${c.id}`}>
               <a className="curso-card" href={c.estado && c.estado !== 'abierta' && c.url_anotarse ? c.url_anotarse : c.url} target="_blank" rel="noopener">
-                <div className="curso-pic">
+                <div className={`curso-pic${c.estado && c.estado !== 'abierta' ? ' con-sello' : ''}`}>
                   {c.imagen ? <><img className="curso-pic-bg" src={c.imagen} alt="" aria-hidden="true" loading="lazy" /><img className="curso-pic-main" src={c.imagen} alt="" loading="lazy" /></> : <GraduationCap size={34} />}
                   <span className="curso-tag">{c.modalidad === 'virtual' ? 'Virtual' : 'Presencial'}</span>
+                  {c.estado && c.estado !== 'abierta' && c.sello && <span className="curso-sello" aria-hidden="true">{c.sello}</span>}
+                  {c.estado && c.estado !== 'abierta' && c.banda && <span className="curso-banda"><Bell size={12} /> {c.banda}</span>}
                 </div>
                 <div className="curso-body">
                   <b className="curso-titulo">{c.titulo}</b>
