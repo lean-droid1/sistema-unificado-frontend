@@ -367,7 +367,9 @@ export async function renovarSesion() {
   try { const d = await f('/api/refresh-token', { method: 'POST' }); if (d && d.token && token === t0) { token = d.token; localStorage.setItem('gm_token', d.token); } } catch {} // si mientras tanto cambió (otro ingreso, cambio de clave) no se pisa
 }
 export async function refreshToken() { return f('/api/refresh-token', { method: 'POST' }); }
-export async function toggleOTP(activo) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo }) }); }
+export async function otpIniciar(password) { return f('/api/me/otp/iniciar', { method: 'POST', body: JSON.stringify({ password }) }); }
+export async function otpConfirmar(codigo) { return f('/api/me/otp/confirmar', { method: 'POST', body: JSON.stringify({ codigo }) }); }
+export async function otpDesactivar(password) { return f('/api/me/otp', { method: 'PUT', body: JSON.stringify({ activo: false, password }) }); }
 export async function notificarStock(productoId, { email, telefono, canal } = {}) { return f('/api/notificar-stock', { method: 'POST', body: JSON.stringify({ producto_id: productoId, email, telefono, canal }) }); }
 export async function getPreventa(seccion_id) { return f(`/api/productos/preventa${seccion_id && seccion_id !== 'all' ? `?seccion_id=${seccion_id}` : ''}`); }
 export async function recibirPreventa(id, cantidad) { return f(`/api/productos/${id}/recibir-preventa`, { method: 'POST', body: JSON.stringify(cantidad !== undefined ? { cantidad } : {}) }); }

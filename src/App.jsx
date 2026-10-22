@@ -5147,6 +5147,49 @@ function MiProgramaProfe({ p }) {
   );
 }
 
+// Mi cuenta → verificación en dos pasos: al ingresar se pide un código que llega por mail.
+// Se activa confirmando un código de prueba (así no queda nadie afuera por un mail que no llega).
+function DosPasos({ user, setUser, toast }) {
+  const [paso, setPaso] = useState(''); // '' | 'pass' | 'codigo' | 'off'
+  const [pass, setPass] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [dest, setDest] = useState('');
+  const [busy, setBusy] = useState(false);
+  const activo = !!user?.otp_activo;
+  const cerrar = () => { setPaso(''); setPass(''); setCodigo(''); };
+  const run = async (fn) => { setBusy(true); try { await fn(); } catch (e) { toast(e.message || 'No se pudo', 'error'); } finally { setBusy(false); } };
+  const iniciar = () => run(async () => { const r = await api.otpIniciar(pass); setDest(r.email || 'tu email'); setPass(''); setPaso('codigo'); });
+  const confirmar = () => run(async () => { await api.otpConfirmar(codigo); setUser(u => ({ ...u, otp_activo: true })); cerrar(); toast('Verificación en dos pasos activada'); });
+  const desactivar = () => run(async () => { await api.otpDesactivar(pass); setUser(u => ({ ...u, otp_activo: false })); cerrar(); toast('Verificación en dos pasos desactivada'); });
+  return (
+    <div className="dos-pasos">
+      <div className="dos-pasos-head">
+        <Shield size={18} />
+        <div><b>Verificación en dos pasos</b><span>{activo ? 'Activada: al ingresar te pedimos un código que llega a tu email.' : 'Al ingresar, además de la contraseña, te pedimos un código que llega a tu email.'}</span></div>
+        {!paso && <button type="button" className={`btn btn-sm ${activo ? 'btn-outline' : 'btn-primary'}`} onClick={() => setPaso(activo ? 'off' : 'pass')}>{activo ? 'Desactivar' : 'Activar'}</button>}
+      </div>
+      {!user?.email && !activo && paso === 'pass' && <p className="dos-pasos-nota">Primero cargá tu email arriba y guardá los cambios.</p>}
+      {(paso === 'pass' || paso === 'off') && (
+        <div className="dos-pasos-form">
+          <input type="password" placeholder="Tu contraseña actual" value={pass} onChange={e => setPass(e.target.value)} autoComplete="current-password" />
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy || !pass} onClick={paso === 'off' ? desactivar : iniciar}>{paso === 'off' ? 'Confirmar' : 'Enviar código'}</button>
+          <button type="button" className="btn btn-sm btn-outline" onClick={cerrar}>Cancelar</button>
+        </div>
+      )}
+      {paso === 'codigo' && (
+        <>
+          <p className="dos-pasos-nota">Te mandamos un código a <b>{dest}</b>. Escribilo para terminar de activarla (revisá también el spam).</p>
+          <div className="dos-pasos-form">
+            <input inputMode="numeric" maxLength={6} placeholder="Código de 6 números" value={codigo} onChange={e => setCodigo(e.target.value.replace(/\D/g, ''))} autoComplete="one-time-code" />
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy || codigo.length !== 6} onClick={confirmar}>Activar</button>
+            <button type="button" className="btn btn-sm btn-outline" onClick={cerrar}>Cancelar</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AccountPanel() {
   const { user, setUser, toast, nav, handleLogout, userLista, config } = useContext(Ctx);
   const [f, setF] = useState({ nombre: user?.nombre || '', telefono: user?.telefono || '', email: user?.email || '', direccion: user?.direccion || '', nombre_fantasia: user?.nombre_fantasia || '', password: '', password_actual: '' });
@@ -5214,6 +5257,7 @@ function AccountPanel() {
           <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>NUEVA CONTRASEÑA</label><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Vacío = no cambiar" /></div>
           {f.password && <div className="form-group"><label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>CONTRASEÑA ACTUAL</label><input type="password" value={f.password_actual} onChange={e => setF({ ...f, password_actual: e.target.value })} placeholder="Para confirmar el cambio" autoComplete="current-password" /><small style={{ color: 'var(--text-muted)', fontSize: 11 }}>La nueva necesita 8+ caracteres, una mayúscula y un número.</small></div>}
           <button onClick={save} disabled={saving} style={{ width: '100%', marginTop: 16, padding: 14, background: 'var(--primary)', color: 'var(--on-primary, #fff)', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, textTransform: 'uppercase', cursor: 'pointer' }}>{saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}</button>
+          <DosPasos user={user} setUser={setUser} toast={toast} />
           <button onClick={handleLogout} style={{ width: '100%', marginTop: 8, padding: 14, background: 'none', color: 'var(--danger)', border: '2px solid #E74040', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CERRAR SESIÓN</button>
         </div>
       )}
