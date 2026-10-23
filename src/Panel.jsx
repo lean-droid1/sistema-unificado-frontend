@@ -3346,18 +3346,19 @@ function AdminProductos() {
       const n = (v) => (Number(v) > 0 ? Number(v) : '');
       const filas = lista.map(p => ({
         'ID': p.id, 'Nombre': p.nombre || p.modelo || '', 'SKU': p.sku || '', 'Categoría': p.categoria || '',
-        'Precio': Number(p.precio_base) || 0, 'Precio oferta': n(p.precio_oferta), 'Stock': Number(p.stock) || 0,
+        'Precio': Number(p.precio_base) || 0, 'Precio oferta': n(p.precio_oferta), 'Costo': n(p.precio_original), 'Stock': Number(p.stock) || 0,
         'Visible': p.visible === false ? 'No' : 'Sí', 'Descripción': p.descripcion || '',
         'Peso (kg)': n(p.peso), 'Alto (cm)': n(p.alto), 'Ancho (cm)': n(p.ancho), 'Largo (cm)': n(p.largo),
         'Sección': nomSec(p.seccion_id), 'Variantes': p.usa_variantes ? 'Sí: se editan en el panel' : '',
       }));
       const ws = XLSX.utils.json_to_sheet(filas);
-      ws['!cols'] = [8, 46, 16, 22, 12, 12, 8, 8, 50, 9, 9, 9, 9, 16, 22].map(w => ({ wch: w }));
-      ws['!autofilter'] = { ref: `A1:O${filas.length + 1}` };
+      ws['!cols'] = [8, 46, 16, 22, 12, 12, 12, 8, 8, 50, 9, 9, 9, 9, 16, 22].map(w => ({ wch: w }));
+      ws['!autofilter'] = { ref: `A1:P${filas.length + 1}` };
       const ayuda = XLSX.utils.aoa_to_sheet([
         ['Cómo usar este archivo'], [''],
         ['1. Editá lo que quieras en la hoja "Productos": nombre, SKU, categoría, precio, oferta, stock, visible (Sí/No), descripción y medidas.'],
         ['2. Para agregar productos nuevos, sumá filas con la columna ID vacía.'],
+        ['   Costo: lo que te sale el producto tal como lo vendés (si es un pack de 10, el costo del pack). Se usa para calcular la ganancia, también de las ventas ya hechas. Si la dejás vacía, no se toca.'],
         ['3. No cambies ni borres la columna ID: es la que dice qué producto es cada fila.'],
         ['4. En el panel: Productos → Importar → elegí este archivo. Las filas con ID se actualizan y las que no tienen ID se crean en la sección que elijas.'],
         ['Las columnas Sección y Variantes son solo informativas. Las variantes se siguen editando en el panel.'],
@@ -4239,10 +4240,11 @@ function ImportModal({ onClose }) {
             if (!nombre) return;
             const precio = numCelda(pick(r, /^precio$|price/i));
             const oferta = numCelda(pick(r, /oferta|precio oferta/i));
+            const costoReal = numCelda(pick(r, /^costo|precio de costo/i));
             const desc = pick(r, /descrip/i);
             prods.push({
               categoria: parseCat(pick(r, /categor|subcategor/i)), modelo: nombre, nombre,
-              costo: precio, oferta: oferta < precio ? oferta : 0,
+              costo: precio, oferta: oferta < precio ? oferta : 0, costoReal: costoReal > 0 ? costoReal : 0,
               stock: kStock ? Math.trunc(numCelda(pick(r, /^stock$/i))) : null,
               sku: txtCelda(pick(r, /^sku$|codigo|código/i)),
               // En el Excel de la tienda la descripción vuelve con sus saltos de línea
@@ -4255,7 +4257,7 @@ function ImportModal({ onClose }) {
           }
         });
         const cats = [...new Set(prods.map(p => p.categoria))];
-        setData({ productos: prods, total: prods.length, conSku: prods.filter(p => p.sku).length, esProveedor, esExport, conId: prods.filter(p => p.id).length, categorias: cats.length, nombreArchivo: f.name });
+        setData({ productos: prods, total: prods.length, conSku: prods.filter(p => p.sku).length, esProveedor, esExport, conId: prods.filter(p => p.id).length, conCosto: prods.filter(p => p.costoReal > 0).length, categorias: cats.length, nombreArchivo: f.name });
         if (esExport) { setModo('crear_actualizar'); setFaltantes('no_tocar'); }
       } catch (err) { toast('No pude leer el archivo: ' + err.message, 'error'); }
     };
@@ -4267,14 +4269,15 @@ function ImportModal({ onClose }) {
   const preparar = (p) => {
     // Excel de la tienda: el precio va tal cual (sin % ni redondeo)
     if (data && data.esExport) {
-      const out = { ...p, seccion_id: importSecId, precio_base: p.costo, precio_oferta: p.oferta || 0, precio_original: 0 };
-      delete out.costo; delete out.oferta;
+      // Costo vacío = 0: el servidor no pisa el costo que ya tenía
+      const out = { ...p, seccion_id: importSecId, precio_base: p.costo, precio_oferta: p.oferta || 0, precio_original: p.costoReal || 0 };
+      delete out.costo; delete out.oferta; delete out.costoReal;
       return out;
     }
     const venta = redondearA(p.costo * (1 + pctN / 100), paso);
     const conCosto = data && (data.esProveedor || pctN > 0);
-    const out = { ...p, seccion_id: importSecId, precio_base: venta, precio_oferta: p.oferta ? redondearA(p.oferta * (1 + pctN / 100), paso) : 0, precio_original: conCosto ? p.costo : 0 };
-    delete out.costo; delete out.oferta;
+    const out = { ...p, seccion_id: importSecId, precio_base: venta, precio_oferta: p.oferta ? redondearA(p.oferta * (1 + pctN / 100), paso) : 0, precio_original: p.costoReal || (conCosto ? p.costo : 0) };
+    delete out.costo; delete out.oferta; delete out.costoReal;
     return out;
   };
 
@@ -4348,7 +4351,7 @@ function ImportModal({ onClose }) {
                 <span><b>{data.categorias}</b> categorías</span>
                 <span>{data.esExport ? 'Excel descargado de esta tienda' : data.esProveedor ? 'Lista de proveedor' : 'Exportación de tienda'}</span>
               </div>
-              {data.esExport && <p className="form-hint" style={{ margin: '4px 0 10px' }}>{data.conId} se actualizan por su ID (nombre, precio, oferta, stock, categoría, visible, descripción y medidas){data.total - data.conId ? ` y ${data.total - data.conId} sin ID se cargan como productos nuevos en la sección elegida` : ''}. Los productos que no están en el archivo no se tocan.</p>}
+              {data.esExport && <p className="form-hint" style={{ margin: '4px 0 10px' }}>{data.conId} se actualizan por su ID (nombre, precio, oferta, costo, stock, categoría, visible, descripción y medidas){data.conCosto ? `; ${data.conCosto} traen costo` : ''}{data.total - data.conId ? ` y ${data.total - data.conId} sin ID se cargan como productos nuevos en la sección elegida` : ''}. Los productos que no están en el archivo no se tocan.</p>}
               {modo !== 'solo_categorias' && !data.esExport && (
                 <div className="imp-precio">
                   <div className="form-group"><label className="form-label">{data.esProveedor ? 'Ganancia sobre el precio del Excel (%)' : 'Sumar % al precio del Excel (opcional)'}</label>
