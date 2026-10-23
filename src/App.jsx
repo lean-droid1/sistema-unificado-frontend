@@ -5460,7 +5460,7 @@ function ItemProd({ id, nombre, imagen, sub, tam = 40 }) {
     <span className="itp">
       {link ? <button type="button" className="itp-thumb" onClick={abrir} aria-label={`Ver ${nombre || 'producto'}`} title="Ver producto">{thumb}</button> : thumb}
       <span className="itp-txt">
-        {link ? <button type="button" className="itp-nombre link" onClick={abrir} title="Ver producto">{nombre}</button> : <span className="itp-nombre">{nombre}</span>}
+        {link ? <button type="button" className="itp-nombre link" onClick={abrir} title={nombre ? `${nombre} (ver producto)` : 'Ver producto'}>{nombre}</button> : <span className="itp-nombre" title={nombre || undefined}>{nombre}</span>}
         {sub ? <small>{sub}</small> : null}
       </span>
     </span>

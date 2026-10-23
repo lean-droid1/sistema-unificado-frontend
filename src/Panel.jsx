@@ -5220,9 +5220,9 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           </div>
         </div>
       )}
-      <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+      <div className="modal modal-lg modal-pedido" onClick={e => e.stopPropagation()}>
         <div className="modal-header"><span className="modal-title">{numOrden(o)}{o.es_reserva && <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10 }}><Bookmark size={15} style={{ verticalAlign: '-2px' }} /> RESERVA / PREVENTA</span>}{enUsdt && <span className="ped-usdt" style={{ fontSize: 11, padding: '2px 10px', marginLeft: 10 }}>USDT</span>}{o.seccion_nombre && <span style={{ background: o.seccion_color || 'var(--primary)', color: '#fff', padding: '2px 10px', borderRadius: 5, fontSize: 11, fontWeight: 800, marginLeft: 10, textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle' }}>{o.seccion_nombre}</span>}</span><button className="modal-close" onClick={onClose}>✕</button></div>
-        <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        <div className="modal-body pedido-body">
           {/* Client info */}
           <div className="card" style={{ padding: 12, marginBottom: 12 }}>
             <strong>{o.usuario_nombre}</strong> {o.nombre_fantasia && `(${o.nombre_fantasia})`}
@@ -5283,7 +5283,7 @@ function OrderDetailModal({ order: initOrder, onClose }) {
           <h4>Items {!editing && <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} style={{ marginLeft: 8 }}>Editar</button>}</h4>
           {loadingItems ? <p>Cargando...</p> : (
             <table className="admin-table pedido-items" style={{ marginBottom: 12 }}>
-              <thead><tr><th>Producto</th><th style={{width:60}}>Cant</th><th style={{width:80}}>Precio</th><th style={{width:80}}>Subtotal</th>{editing && <th style={{width:40}}></th>}</tr></thead>
+              <thead><tr><th>Producto</th><th style={{width:70}}>Cant</th><th style={{width:110}}>Precio</th><th style={{width:110}}>Subtotal</th>{editing && <th style={{width:44}}></th>}</tr></thead>
               <tbody>
                 {items.map((i, idx) => (
                   <tr key={idx}>
