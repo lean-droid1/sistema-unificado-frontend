@@ -1952,7 +1952,7 @@ function CamScanner({ onScan, onClose, items, setQty, setPrecio, quitar, total, 
           items.map(i => (
             <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.nombre || i.modelo}</div>
+                <div className="nombre-2l" style={{ fontSize: 13, fontWeight: 600 }} title={i.nombre || i.modelo}>{i.nombre || i.modelo}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtARS(i.precio_unitario * i.qty)}</div>
               </div>
               <input type="number" value={i.qty} onChange={e => setQty(i.id, Number(e.target.value))} style={{ width: 52, textAlign: 'center' }} />
@@ -2160,7 +2160,7 @@ function AdminVentaManual() {
   };
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div style={{ maxWidth: 1100 }}>
       <h3 style={{ fontWeight: 900, fontSize: 22, marginBottom: 4 }}>Punto de venta</h3>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Venta de mostrador: buscá productos, ajustá cantidad y precio, y registrá. Descuenta stock y queda como pedido entregado y pagado. (Próximamente: escanear con la cámara.)</p>
 
@@ -2234,7 +2234,7 @@ function AdminVentaManual() {
               <div key={p.id} onClick={() => agregar(p)} style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
                 {p.imagen ? <img src={imgOpt(p.imagen, 80)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}><Package size={15} style={{ verticalAlign: '-2px' }} /></div>}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></div>
+                  <div className="nombre-2l" title={p.nombre || p.modelo}>{p.nombre || p.modelo} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({p.categoria})</span></div>
                   {p.seccion_nombre && <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: p.seccion_color || '#888', display: 'inline-block' }}></span>{p.seccion_nombre}</div>}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -2275,7 +2275,7 @@ function AdminVentaManual() {
       />}
 
       {items.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Buscá y agregá productos a la venta</p> : (
-        <table className="admin-table" style={{ marginBottom: 12 }}>
+        <table className="admin-table pos-items" style={{ marginBottom: 12 }}>
           <thead><tr><th>Producto</th><th style={{width:80}}>Cant</th><th style={{width:110}}>Precio</th><th style={{width:100}}>Subtotal</th><th style={{width:40}}></th></tr></thead>
           <tbody>
             {items.map(i => (

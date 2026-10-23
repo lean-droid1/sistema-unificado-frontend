@@ -1511,7 +1511,7 @@ function HeaderSearch() {
                 <button key={`${p.secId}-${p.id}`} className="search-dd-item" onClick={() => goProduct(p)}>
                   {p.imagen ? <img src={imgOpt(p.imagen, 96)} alt="" /> : <div className="search-dd-noimg"><Ico n="cart" s={18} /></div>}
                   <div className="search-dd-info">
-                    <div className="search-dd-name">{p.nombre || p.modelo}</div>
+                    <div className="search-dd-name" title={p.nombre || p.modelo}>{p.nombre || p.modelo}</div>
                     <div className="search-dd-sec">{p.secNombre}</div>
                   </div>
                   {(() => { const _pr = precioFinalCliente(p, promos, p.secId); return _pr > 0 ? <div className="search-dd-price">{fmtARS(_pr)}</div> : null; })()}
