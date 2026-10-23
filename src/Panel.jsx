@@ -3937,6 +3937,8 @@ function ProductModal({ product, onClose }) {
     es_preventa: false, preventa_precio: 0, preventa_fecha: '', preventa_mostrar_fecha: false, preventa_descuento_pct: 0, preventa_cupo: 0,
     peso: 0, alto: 0, ancho: 0, largo: 0
   });
+  const costoInicial = Number(product?.precio_original) || 0;
+  const [costoVentas, setCostoVentas] = useState(true); // al corregir el costo, también en las ventas ya hechas
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   // Atributos + variantes combinadas (controlado). combinacion viene como objeto (JSONB)
@@ -3973,9 +3975,12 @@ function ProductModal({ product, onClose }) {
     try {
       const payload = { ...f, usa_variantes: !!varData.usa_variantes };
       if (!yaCreado && fotosNuevas.length) payload.imagen = fotosNuevas[0];
+      const cambioCosto = yaCreado && Number(f.precio_original) > 0 && Number(f.precio_original) !== costoInicial;
+      if (cambioCosto && costoVentas) payload.aplicar_costo_ventas = true;
       let prodId = idActual;
       if (yaCreado) {
-        await api.updateProducto(idActual, payload);
+        const rUpd = await api.updateProducto(idActual, payload);
+        if (rUpd && rUpd.ventas_corregidas) toast(`Costo corregido también en ${rUpd.ventas_corregidas} venta${rUpd.ventas_corregidas === 1 ? '' : 's'} ya hecha${rUpd.ventas_corregidas === 1 ? '' : 's'}`);
         for (const [listaId, precio] of Object.entries(fp)) {
           await api.setPrecioFijo(idActual, listaId, Number(precio) || 0);
         }
@@ -4055,7 +4060,8 @@ function ProductModal({ product, onClose }) {
                 <div className="form-row">
                   <div className="form-group"><label className="form-label">Precio base *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_base === 0 && f._priceCleared ? '' : f.precio_base} onFocus={e => { if (Number(e.target.value) === 0) { setF({ ...f, precio_base: '', _priceCleared: true }); } }} onChange={e => setF({ ...f, precio_base: e.target.value === '' ? '' : Number(e.target.value), _priceCleared: e.target.value === '' })} onBlur={e => setF({ ...f, precio_base: Number(e.target.value) || 0, _priceCleared: false })} /></div>
                   <div className="form-group"><label className="form-label">Precio oferta</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.precio_oferta || ''} onChange={e => setF({ ...f, precio_oferta: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_oferta: Number(e.target.value) || 0 })} placeholder="0 = sin oferta" /></div>
-                  <div className="form-group"><label className="form-label">Precio de costo (lo que te sale)</label><input type="number" value={f.precio_original || ''} onChange={e => setF({ ...f, precio_original: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_original: Number(e.target.value) || 0 })} placeholder="Para calcular ganancia" /></div>
+                  <div className="form-group"><label className="form-label">Precio de costo (lo que te sale)</label><input type="number" value={f.precio_original || ''} onChange={e => setF({ ...f, precio_original: e.target.value === '' ? '' : Number(e.target.value) })} onBlur={e => setF({ ...f, precio_original: Number(e.target.value) || 0 })} placeholder="Para calcular ganancia" />
+                    {yaCreado && Number(f.precio_original) > 0 && Number(f.precio_original) !== costoInicial && <label className="costo-ventas"><input type="checkbox" checked={costoVentas} onChange={e => setCostoVentas(e.target.checked)} /> Usarlo también en las ventas ya hechas</label>}</div>
                 </div>
                 <div className="form-row">
                   <div className="form-group"><label className="form-label">Stock *{varData.usa_variantes && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — lo maneja cada variante</span>}</label><input type="number" disabled={varData.usa_variantes} style={varData.usa_variantes ? { opacity: .5 } : undefined} value={f.stock} onChange={e => setF({ ...f, stock: Number(e.target.value) })} /></div>
@@ -4193,6 +4199,7 @@ function ImportModal({ onClose }) {
   const [result, setResult] = useState(null);
   const [modo, setModo] = useState('crear_actualizar');
   const [faltantes, setFaltantes] = useState('no_tocar');
+  const [costoVentas, setCostoVentas] = useState(true); // el costo nuevo también corrige las ventas ya hechas
   const [importSecId, setImportSecId] = useState(adminSeccion !== 'all' ? Number(adminSeccion) : secciones[0]?.id);
   const clavePct = `gm_import_pct_${importSecId}`;
   const [pct, setPct] = useState('');
@@ -4290,12 +4297,14 @@ function ImportModal({ onClose }) {
     try { localStorage.setItem(clavePct, String(pct)); localStorage.setItem('gm_import_redondeo', String(paso)); } catch {}
     setUploading(true); setResult(null);
     const LOTE = 250; const lista = data.productos.map(preparar);
-    const tot = { insertados: 0, actualizados: 0, saltados: 0, errores: 0, primer_error: '', marcados: 0 };
+    const tot = { insertados: 0, actualizados: 0, saltados: 0, errores: 0, primer_error: '', marcados: 0, ventas_corregidas: 0 };
+    const aplicarVentas = costoVentas && !!data.conCosto;
     try {
       for (let k = 0; k < lista.length; k += LOTE) {
         setProgreso({ hecho: k, total: lista.length });
         const modoLote = modo === 'reemplazar' ? (k === 0 ? 'reemplazar' : 'insertar') : modo;
-        const r = await api.bulkProductos(lista.slice(k, k + LOTE), { modo: modoLote, seccion_id: importSecId });
+        const r = await api.bulkProductos(lista.slice(k, k + LOTE), { modo: modoLote, seccion_id: importSecId, aplicar_costo_ventas: aplicarVentas });
+        tot.ventas_corregidas += r.ventas_corregidas || 0;
         tot.insertados += r.insertados || 0; tot.actualizados += r.actualizados || 0; tot.saltados += r.saltados || 0; tot.errores += r.errores || 0;
         if (!tot.primer_error && r.primer_error) tot.primer_error = r.primer_error;
       }
@@ -4352,6 +4361,9 @@ function ImportModal({ onClose }) {
                 <span>{data.esExport ? 'Excel descargado de esta tienda' : data.esProveedor ? 'Lista de proveedor' : 'Exportación de tienda'}</span>
               </div>
               {data.esExport && <p className="form-hint" style={{ margin: '4px 0 10px' }}>{data.conId} se actualizan por su ID (nombre, precio, oferta, costo, stock, categoría, visible, descripción y medidas){data.conCosto ? `; ${data.conCosto} traen costo` : ''}{data.total - data.conId ? ` y ${data.total - data.conId} sin ID se cargan como productos nuevos en la sección elegida` : ''}. Los productos que no están en el archivo no se tocan.</p>}
+              {!!data.conCosto && (
+                <label className="imp-check"><input type="checkbox" checked={costoVentas} onChange={e => setCostoVentas(e.target.checked)} /> Usar el costo nuevo también en las ventas ya hechas de esos productos (corrige la ganancia de lo ya vendido)</label>
+              )}
               {modo !== 'solo_categorias' && !data.esExport && (
                 <div className="imp-precio">
                   <div className="form-group"><label className="form-label">{data.esProveedor ? 'Ganancia sobre el precio del Excel (%)' : 'Sumar % al precio del Excel (opcional)'}</label>
@@ -4384,7 +4396,7 @@ function ImportModal({ onClose }) {
           {result && (
             <div className={`imp-res ${result.ok ? 'ok' : 'mal'}`}>
               {result.ok ? <b>Importación terminada</b> : <b>Se cortó la importación: {result.error}</b>}
-              <span>{result.insertados} nuevos · {result.actualizados} actualizados{result.saltados ? ` · ${result.saltados} sin cambios` : ''}{result.marcados ? ` · ${result.marcados} ${faltantes === 'ocultar' ? 'ocultados' : faltantes === 'borrar' ? 'borrados' : 'puestos sin stock'}` : ''}{result.errores ? ` · ${result.errores} con error` : ''}</span>
+              <span>{result.insertados} nuevos · {result.actualizados} actualizados{result.saltados ? ` · ${result.saltados} sin cambios` : ''}{result.marcados ? ` · ${result.marcados} ${faltantes === 'ocultar' ? 'ocultados' : faltantes === 'borrar' ? 'borrados' : 'puestos sin stock'}` : ''}{result.ventas_corregidas ? ` · costo corregido en ${result.ventas_corregidas} ítem${result.ventas_corregidas === 1 ? '' : 's'} de ventas ya hechas` : ''}{result.errores ? ` · ${result.errores} con error` : ''}</span>
               {result.primer_error && <small>Primer error: {result.primer_error}</small>}
             </div>
           )}
@@ -6042,6 +6054,43 @@ function AdminCaja() {
   );
 }
 
+// Ganancias → productos con el costo igual o mayor que el precio de venta (casi siempre un costo mal cargado)
+function CostosARevisar() {
+  const [lista, setLista] = useState(null);
+  const [abierto, setAbierto] = useState(false);
+  const cargar = () => api.getCostoSospechoso().then(r => setLista(Array.isArray(r) ? r : [])).catch(() => setLista([]));
+  useEffect(() => { cargar(); }, []);
+  if (!lista || !lista.length) return null;
+  const precioVenta = (p) => (Number(p.precio_oferta) > 0 && Number(p.precio_oferta) < Number(p.precio_base) ? Number(p.precio_oferta) : Number(p.precio_base));
+  const ventas = lista.reduce((a, p) => a + (p.ventas_afectadas || 0), 0);
+  const visibles = abierto ? lista : lista.slice(0, 8);
+  return (
+    <div className="card costos-revisar">
+      <div className="costos-revisar-head">
+        <AlertTriangle size={18} />
+        <div>
+          <b>{lista.length} producto{lista.length === 1 ? '' : 's'} con el costo igual o mayor que el precio de venta</b>
+          <span>Seguramente el costo quedó mal cargado{ventas ? ` y afecta la ganancia de ${ventas} venta${ventas === 1 ? '' : 's'}` : ''}. Tocá el nombre para corregirlo; al guardar, dejá marcada "Usarlo también en las ventas ya hechas".</span>
+        </div>
+        <button type="button" className="btn btn-outline btn-sm" onClick={cargar}><RefreshCw size={14} /> Revisar de nuevo</button>
+      </div>
+      <div className="costos-revisar-lista">
+        {visibles.map(p => (
+          <div key={p.id} className="costos-revisar-fila">
+            <ItemProd id={p.id} nombre={p.nombre || p.modelo} imagen={p.imagen} sub={[p.seccion_nombre, p.categoria].filter(Boolean).join(' · ')} tam={36} />
+            <div className="costos-revisar-nums">
+              <span>Costo <b className="mal">{fmtARS(p.precio_original)}</b></span>
+              <span>Se vende a <b>{fmtARS(precioVenta(p))}</b></span>
+              {p.ventas_afectadas > 0 && <small>{p.ventas_afectadas} venta{p.ventas_afectadas === 1 ? '' : 's'}</small>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {lista.length > 8 && <button type="button" className="btn btn-outline btn-sm" onClick={() => setAbierto(!abierto)} style={{ marginTop: 10 }}>{abierto ? 'Ver menos' : `Ver los ${lista.length}`}</button>}
+    </div>
+  );
+}
+
 function AdminReportes() {
   const { adminSeccion, toast } = useContext(Ctx);
   const [rep, setRep] = useState(null);
@@ -6069,6 +6118,7 @@ function AdminReportes() {
             <div className="card" style={{ padding: 18, background: 'var(--success)', color: '#fff' }}><div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, opacity: 0.9 }}>Ganancia estimada</div><div style={{ fontSize: 26, fontWeight: 900 }}>{fmtARS(rep.ganancias.ganancia)}</div></div>
           </div>
           {rep.ganancias.costo === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, marginTop: -8 }}><Lightbulb size={15} style={{ verticalAlign: '-2px' }} /> Cargá el "precio de costo" en tus productos para ver la ganancia real.</p>}
+          <CostosARevisar />
 
           {/* Por sección */}
           <h4 style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Ventas y ganancias por tienda</h4>

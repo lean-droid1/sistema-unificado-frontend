@@ -2039,3 +2039,18 @@ html.dark .min-cat.ok { background: rgba(34,197,94,0.14); }
   .pos-items td:first-child { grid-column: 1 / -1; }
   .pos-items td:nth-child(4) { text-align: right; }
 }
+
+/* Costos */
+.imp-check, .costo-ventas { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text-secondary); margin: 6px 0 10px; line-height: 1.4; cursor: pointer; }
+.imp-check input, .costo-ventas input { margin-top: 2px; flex: none; }
+.costos-revisar { padding: 16px; margin-bottom: 20px; border: 1.5px solid color-mix(in srgb, var(--warning) 55%, var(--border)); }
+.costos-revisar-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.costos-revisar-head > svg { flex: none; color: var(--warning); margin-top: 2px; }
+.costos-revisar-head > div { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.costos-revisar-head span { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+.costos-revisar-lista { margin-top: 12px; display: flex; flex-direction: column; }
+.costos-revisar-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border-light); }
+.costos-revisar-fila .itp { flex: 1; min-width: 0; font-size: 13px; }
+.costos-revisar-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.costos-revisar-nums b { color: var(--text); }
+.costos-revisar-nums b.mal { color: var(--danger); }
