@@ -5,6 +5,7 @@
 // Si algo falla, la tienda funciona igual: se sirve el index.html sin cambios o se redirige al inicio
 // con ?__r=<ruta> (main.jsx restaura la ruta).
 import { precioPublico, permiteTienda } from './_precio.js';
+import { destinoViejo } from './_viejas.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const stripHtml = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -44,6 +45,25 @@ const productPath = (p) => `/producto/${slugify(p.nombre || p.modelo || 'product
 const parseProdId = (seg) => { const m = String(seg || '').match(/-(\d+)$/); return m ? Number(m[1]) : (Number(seg) || null); };
 const RESERVADAS = new Set(['producto', 'info', 'categoria', 'buscar', 'carrito', 'favoritos', 'contacto', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview', 'api', 'og', 'crear-tienda', 'arrepentimiento']);
 const PRIVADAS = new Set(['buscar', 'carrito', 'favoritos', 'mi-cuenta', 'panel', 'ingresar', 'registro', 'recuperar', 'preview']);
+
+// Índice de productos y categorías para las direcciones viejas (por tienda, se renueva cada 10 minutos)
+const _indices = new Map();
+async function datosViejas(apiUrl, headers, tenant) {
+  const k = tenant || '_'; const hit = _indices.get(k);
+  if (hit && Date.now() - hit.ts < 600000) return hit.d;
+  const [ind, cats] = await Promise.all([
+    pedir(`${apiUrl}/api/productos/indice`, { headers }, 6000),
+    pedir(`${apiUrl}/api/categorias-info`, { headers }, 4000),
+  ]);
+  let indice = Array.isArray(ind.data) ? ind.data : null;
+  if (!indice) { // API sin el índice todavía: la lista completa (más pesada)
+    const full = await pedir(`${apiUrl}/api/productos?limit=5000`, { headers }, 8000);
+    indice = (full.data && full.data.productos) || null;
+  }
+  const d = { indice: indice || [], cats: Array.isArray(cats.data) ? cats.data : [] };
+  if (indice) _indices.set(k, { ts: Date.now(), d });
+  return d;
+}
 
 let plantilla = null, plantillaHora = 0; // index.html de este deploy (se revalida cada 2 minutos)
 
@@ -207,6 +227,23 @@ export default async function handler(req, res) {
     ]);
     const design = dRes.data || {};
     const config = cRes.data || {};
+
+    // Direcciones viejas de Empretienda (/categoria/producto, /search?q=, categorías sueltas) → página nueva con 301
+    const secsLista = sRes && Array.isArray(sRes.data) ? sRes.data : null;
+    const esVieja = a === 'search' || (parts.length >= 2 && !RESERVADAS.has(a))
+      || (esSeccion && secsLista && !secsLista.some(s => s.slug === a || ('s-' + s.id) === a));
+    if (esVieja) {
+      const dv = await datosViejas(apiUrl, headers, tenant);
+      const destino = destinoViejo(parts, q, { ...dv, secs: secsLista || [], config });
+      if (destino) {
+        const externo = /^https?:\/\//.test(destino);
+        res.statusCode = 301;
+        res.setHeader('Location', externo ? destino : destino + (keep ? (destino.includes('?') ? '&' : '?') + keep.slice(1) : ''));
+        res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+        res.end();
+        return;
+      }
+    }
     const tienda = design.nombre_tienda || 'Tienda';
     const m = {
       origin,
